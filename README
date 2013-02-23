@@ -1,0 +1,20 @@
+fruitbak
+--------
+
+Efficient disk based backups.
+
+Initial goals:
+
+ - command line based backup and restore
+ - compression and dedup
+ - rsync3 transfer method
+ - test suite
+ - manpages
+
+After that:
+
+ - web based backup browsing
+
+Later:
+
+ - tar and smb transfer methods
