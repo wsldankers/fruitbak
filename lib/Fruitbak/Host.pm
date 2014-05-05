@@ -1,0 +1,88 @@
+=encoding utf8
+
+=head1 NAME
+
+Fruitbak::Host - class for backup related bookkeeping of each host
+
+=head1 AUTHOR
+
+Wessel Dankers <wsl@fruit.je>
+
+=head1 COPYRIGHT
+
+Copyright (c) 2012,2014  Wessel Dankers <wsl@fruit.je>
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
+
+package Fruitbak::Host;
+
+use IO::Dir;
+use Scalar::Util qw(weaken);
+use Fruitbak::Backup::Read;
+
+use Class::Clarity -self;
+
+field fbak; # (Fruitbak::Lib) required for new
+field dir => sub { $self->fbak->hostdir . '/' . $self->name };
+field name; # (string) required for new
+field create_ok => undef; # (bool) whether the host can be created if it doesn't exist
+field backups_cache => {};
+
+sub new() {
+	my $self = super;
+
+	my $dir = $self->dir;
+	unless(-d $dir) {
+		if($self->create_ok) {
+			mkdir($dir) or die "mkdir($dir): $!\n";
+		} else {
+			die "'$dir' does not exist or is not a directory\n";
+		}
+	}
+
+	return $self;
+}
+
+sub is_valid_name() {
+	return shift =~ /^[a-z0-9]+(?:-[[a-z0-9]+)*$/ia;
+}
+
+# return a sorted list of backups for this host
+field backups => sub {
+	my $dir = $self->dir;
+	my $fh = new IO::Dir($dir)
+		or die "open($dir): $!\n";
+	my @backups =
+		sort { $a <=> $b }
+		map { int($_) }
+		grep { /^[0-9]+$/ }
+		$fh->read;
+	return \@backups;
+};
+
+# given a number, return a Fruitbak::Backup::Read object
+sub get_backup {
+	my $number = int(shift);
+	my $cache = $self->backups_cache;
+	my $backup = $cache->{$number};
+	unless(defined $backup) {
+		$backup = new Fruitbak::Backup::Read(host => $self, number => $number);
+		$cache->{$number} = $backup;
+		weaken($cache->{$number});
+	}
+	return $backup;
+}
