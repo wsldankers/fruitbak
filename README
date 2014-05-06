@@ -7,14 +7,20 @@ Initial goals:
 
  - command line based backup and restore
  - compression and dedup
- - rsync3 transfer method
  - test suite
  - manpages
+ - rsync transfer method
+ - pluggable expiry methods
 
 After that:
 
+ - rsync30 transfer method
+ - pluggable pool storage
+ - tar and smb transfer methods
  - web based backup browsing
+ - tutorials
 
 Later:
 
- - tar and smb transfer methods
+ - pluggable metadata storage
+ - archiving
