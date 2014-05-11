@@ -54,6 +54,7 @@ sub recv {
 			--hard-links
 			--times
 			--specials
+			--block-size=131072
 		)],
 		fio => new Fruitbak::Transfer::Rsync::IO(xfer => $self),
 	});

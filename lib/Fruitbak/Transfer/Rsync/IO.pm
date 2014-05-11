@@ -85,7 +85,7 @@ sub setup_reffile {
 				$self->reffile(new Class::Clarity(
 					attrs => $attrs,
 					dentry => $dentry,
-					poolreader => $self->pool->reader($dentry->extra),
+					poolreader => $self->pool->reader(digests => $dentry->extra),
 				));
 			}
 		}
