@@ -41,7 +41,7 @@ field share => sub { $self->xfer->share };
 field refShare => sub { $self->share->refShare };
 field xfer;
 field curfile;
-field reffile;
+field reffile => undef;
 
 field blockSize;
 field checksumSeed;
@@ -54,9 +54,10 @@ sub dirs {
 }
 
 sub attribGet {
+	my $attrs = shift;
 	my $ref = $self->refShare;
 	return unless $ref;
-	die "NOT IMPLEMENTED";
+	return $ref->get_entry($attrs->{name}, 1);
 }
 
 sub create_dentry {
@@ -87,12 +88,24 @@ sub fileDeltaRxStart {
 		lastblocksize => $lastblocksize,
 		poolwriter => $self->pool->writer,
 	));
+	if(my $refShare = $self->refShare) {
+		$self->reffile($refShare->get_entry($attrs->{name}, 1));
+	}
 }
 
 sub fileDeltaRxNext {
 	my ($blocknum, $data) = @_;
-	return 0 unless defined $data;
-	$self->curfile->poolwriter->write($data);
+	my $curfile = $self->curfile;
+	unless(defined $data) {
+		return unless defined $blocknum;
+		my $reffile = $self->reffile;
+		die "No reffile but \$data undef? blocknum=$blocknum\n"
+			unless defined $reffile;
+		my $blocksize = $curfile->blocksize;
+		$data = $reffile->pread($blocknum * $blocksize, $blocksize);
+		warn "Copied block $blocknum.\n";
+	}
+	$curfile->poolwriter->write($data);
 	return 0;
 }
 
@@ -115,7 +128,9 @@ sub logHandlerSet {}
 
 sub statsGet {{}}
 
-sub finish {}
+sub finish {
+	$self->share->finish;
+}
 
 sub DESTROY {}
 

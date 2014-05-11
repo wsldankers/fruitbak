@@ -57,7 +57,7 @@ field hhm => sub {
 	mkdir($dir) or $!{EEXIST}
 		or die "mkdir($dir): $!\n";
 
-	my $hhm = new Hardhat::Maker("$dir/metadata.hh");
+	return new Hardhat::Maker("$dir/metadata.hh");
 };
 
 # add a Fruitbak::Dentry to the database
@@ -75,15 +75,17 @@ sub add_entry {
 sub run {
 	my $xfer = new Fruitbak::Transfer::Rsync(share => $self);
 	$xfer->recv;
-	$self->finish;
 }
 
 # finish the share and convert this object to a Fruitbak::Share::Read
 # FIXME: register this object with the backup object it belongs to
 sub finish {
-	my $hhm = $self->hhm;
-	$self->hhm_reset;
-	$hhm->parents;
-	$hhm->finish;
+	# hack around File::RsyncP forking
+	if($self->hhm_isset) {
+		my $hhm = $self->hhm;
+		$self->hhm_reset;
+		$hhm->parents;
+		$hhm->finish;
+	}
 	bless $self, 'Fruitbak::Share::Read';
 }

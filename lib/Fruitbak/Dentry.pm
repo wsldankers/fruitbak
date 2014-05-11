@@ -58,7 +58,7 @@ sub hardlink {
 sub symlink {
 	confess("trying to treat a non-symlink as one")
 		unless $self->is_symlink;
-	confess("trying treat an unreferenced hardlink as a symlink")
+	confess("trying to treat an unreferenced hardlink as a symlink")
 		if $self->is_hardlink;
 	return $self->extra unless @_;
 	$self->extra(shift);
@@ -67,7 +67,7 @@ sub symlink {
 sub rdev {
 	confess("trying to treat a non-device as one")
 		unless $self->is_device;
-	confess("trying treat an unreferenced hardlink as a device")
+	confess("trying to treat an unreferenced hardlink as a device")
 		if $self->is_hardlink;
 	return unpack('Q', $self->extra) unless @_;
 	$self->extra(pack('Q', shift));
