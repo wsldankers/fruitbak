@@ -75,6 +75,11 @@ sub pread {
 sub read {
 	my $len = shift;
 	my $off = $self->off;
+	unless(defined $len) {
+		# just read to the end of the current chunk
+		my $chunksize = $self->chunksize;
+		$len = $chunksize - ($off % $chunksize);
+	}
 	my $res = $self->pread($off, $len);
 	$self->off($off + length($res));
 	return $res;

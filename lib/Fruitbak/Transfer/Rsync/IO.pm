@@ -30,8 +30,10 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Transfer::Rsync::IO;
 
-use Class::Clarity -self;
+use File::RsyncP::Digest;
 use Data::Dumper;
+
+use Class::Clarity -self;
 
 field fbak => sub { $self->host->fbak };
 field pool => sub { $self->fbak->pool };
@@ -42,6 +44,8 @@ field refShare => sub { $self->share->refShare };
 field xfer;
 field curfile;
 field reffile => undef;
+field digest => sub { new File::RsyncP::Digest($self->protocol_version) };
+field csumDigest => sub { new File::RsyncP::Digest($self->protocol_version) };
 
 field blockSize;
 field checksumSeed;
@@ -73,18 +77,32 @@ sub create_dentry {
 	);
 }
 
+sub setup_reffile {
+	my $attrs = shift;
+	if(my $refShare = $self->refShare) {
+		if(my $dentry = $refShare->get_entry($attrs->{name}, 1)) {
+			if($dentry->is_file) {
+				$self->reffile(new Class::Clarity(
+					attrs => $attrs,
+					dentry => $dentry,
+					poolreader => $self->pool->reader($dentry->extra),
+				));
+			}
+		}
+	}
+}
+
 sub fileDeltaRxStart {
 	my ($attrs, $numblocks, $blocksize, $lastblocksize) = @_;
+	my $pool = $self->pool;
 	$self->curfile(new Class::Clarity(
 		attrs => $attrs,
 		numblocks => $numblocks,
 		blocksize => $blocksize,
 		lastblocksize => $lastblocksize,
-		poolwriter => $self->pool->writer,
+		poolwriter => $pool->writer,
 	));
-	if(my $refShare = $self->refShare) {
-		$self->reffile($refShare->get_entry($attrs->{name}, 1));
-	}
+	$self->setup_reffile($attrs);
 }
 
 sub fileDeltaRxNext {
@@ -96,7 +114,7 @@ sub fileDeltaRxNext {
 		die "No reffile but \$data undef? blocknum=$blocknum\n"
 			unless defined $reffile;
 		my $blocksize = $curfile->blocksize;
-		$data = $reffile->pread($blocknum * $blocksize, $blocksize);
+		$data = $reffile->poolreader->pread($blocknum * $blocksize, $blocksize);
 		warn "Copied block $blocknum.\n";
 	}
 	$curfile->poolwriter->write($data);
@@ -112,15 +130,76 @@ sub fileDeltaRxDone {
 	return undef;
 }
 
+sub csumStart {
+    my ($attrs, $needMD4) = @_;
+
+	$self->csumEnd if $self->reffile;
+
+	my $refShare = $self->refShare or return;
+	my $dentry = $refShare->get_entry($attrs->{name}, 1) or return;
+	return unless $dentry->is_file;
+
+	$self->setup_reffile($attrs);
+
+	$self->csumDigest_reset;
+	$self->csumDigest->add(pack('V', $self->checksumSeed))
+		if $needMD4;
+}
+
+sub csumGet {
+	return unless $self->reffile_isset;
+
+	my ($num, $csumLen, $blockSize) = @_;
+
+	$num ||= 100;
+	$csumLen ||= 16;
+
+	my $data = $self->reffile->poolreader->read($blockSize * $num);
+
+	if($self->csumDigest_isset) {
+		$self->csumDigest->add($data);
+	}
+
+	return $self->digest->blockDigest($data, $blockSize, $csumLen, $self->checksumSeed);
+}
+
+sub csumEnd {
+	return unless $self->reffile_isset;
+	my $reffile = $self->reffile;
+	$self->reffile_reset;
+	#
+	# make sure we read the entire file for the file MD4 digest
+	#
+	if($self->csumDigest_isset) {
+		my $csumDigest = $self->csumDigest;
+		for(;;) {
+			my $data = $self->reffile->poolreader->read;
+			last if $data eq '';
+			$csumDigest->add($data);
+		}
+		return $csumDigest->digest;
+	}
+	return undef;
+}
+
 sub attribSet {
 	my ($attrs, $placeHolder) = @_;
+	warn "attribSet($attrs->{name})";
 	if(my $refShare = $self->refShare) {
-		if(my $dentry = $refShare->get_entry($attrs->{name})) {
+		if(my $dentry = $refShare->get_entry($attrs->{name}, 1)) {
 			$self->share->add_entry($dentry);
 			return undef;
 		}
 	}
 	my $dentry = $self->create_dentry($attrs);
+	$self->share->add_entry($dentry);
+	return undef;
+}
+
+sub makeHardLink {
+	my ($attrs, $isEnd) = @_;
+	return unless $isEnd;
+	my $dentry = $self->create_dentry($attrs, hardlink => $attrs->{hlink});
 	$self->share->add_entry($dentry);
 	return undef;
 }
