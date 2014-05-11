@@ -73,12 +73,6 @@ sub create_dentry {
 	);
 }
 
-sub makePath {
-	my $attrs = shift;
-	my $dentry = $self->create_dentry($attrs);
-	$self->share->add_entry($dentry);
-}
-
 sub fileDeltaRxStart {
 	my ($attrs, $numblocks, $blocksize, $lastblocksize) = @_;
 	$self->curfile(new Class::Clarity(
@@ -120,9 +114,22 @@ sub fileDeltaRxDone {
 
 sub attribSet {
 	my ($attrs, $placeHolder) = @_;
-	return if $placeHolder;
-	die Dumper($attrs);
+	if(my $refShare = $self->refShare) {
+		if(my $dentry = $refShare->get_entry($attrs->{name})) {
+			$self->share->add_entry($dentry);
+			return undef;
+		}
+	}
+	my $dentry = $self->create_dentry($attrs);
+	$self->share->add_entry($dentry);
+	return undef;
 }
+
+use constant makePath => undef;
+use constant makeSpecial => undef;
+use constant unlink => undef;
+
+use constant ignoreAttrOnFile => undef;
 
 sub logHandlerSet {}
 
