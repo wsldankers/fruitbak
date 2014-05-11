@@ -50,7 +50,8 @@ sub run {
 
 	my $host = $fbak->get_host($hostname);
 
-	$host->backup;
+	my $bu = $host->new_backup;
+	$bu->run;
 
 	return 0;
 }

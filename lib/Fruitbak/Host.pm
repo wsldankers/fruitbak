@@ -33,6 +33,7 @@ package Fruitbak::Host;
 use IO::Dir;
 use Scalar::Util qw(weaken);
 use Fruitbak::Backup::Read;
+use Fruitbak::Backup::Write;
 
 use Class::Clarity -self;
 
@@ -41,6 +42,7 @@ field dir => sub { $self->fbak->hostdir . '/' . $self->name };
 field name; # (string) required for new
 field create_ok => undef; # (bool) whether the host can be created if it doesn't exist
 field backups_cache => {};
+field cfg => sub { $self->cfg->get_host($self->name) };
 
 sub new() {
 	my $self = super;
@@ -85,4 +87,8 @@ sub get_backup {
 		weaken($cache->{$number});
 	}
 	return $backup;
+}
+
+sub new_backup {
+	return new Fruitbak::Backup::Write(host => $self, @_);
 }

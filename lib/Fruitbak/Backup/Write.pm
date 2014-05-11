@@ -39,9 +39,13 @@ use Class::Clarity -self;
 field dir => sub { $self->host->dir . '/new' };
 field sharedir => sub { $self->dir . '/share' };
 field host; # (Fruitbak::Host) required for new
-field number; # (int) required for new
+field number => sub {
+	my $backups = $self->host->backups;
+	return @$backups ? $backups[-1] + 1 : 0;
+};
 field fbak => sub { $self->host->fbak };
 field compress => sub { $self->fbak->compress };
+field shares => sub { $self->host->cfg->shares // ['/'] };
 field status => 'failed';
 field type => sub { $self->level ? 'incr' : 'full' };
 field level => sub {
