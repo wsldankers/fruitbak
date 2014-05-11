@@ -31,9 +31,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 package Fruitbak::Command::Help;
 
 use autodie;
-use Fruitbak::Command;
 
-use Class::Clarity -self;
+use Fruitbak::Command -self;
 
 BEGIN {
 	$Fruitbak::Command::commands{help} = [__PACKAGE__, "Shows a list of commands"];

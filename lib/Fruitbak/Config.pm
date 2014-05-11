@@ -38,13 +38,13 @@ use Fruitbak::Host;
 
 field fbak;
 field dir => sub { $self->fbak->confdir };
-field hostdir => sub { $self->dir . '/host' };
+field hostconfdir => sub { $self->dir . '/host' };
 field global => sub { new Fruitbak::Config::Global(fbak => $self->fbak, cfg => $self) };
 
 sub hosts {
-	my $hostdir = $self->hostdir;
-	my $fh = new IO::Dir($hostdir)
-		or die "open($hostdir): $!\n";
+	my $hostconfdir = $self->hostconfdir;
+	my $fh = new IO::Dir($hostconfdir)
+		or die "open($hostconfdir): $!\n";
 	my @hosts =
 		sort
 		grep { Fruitbak::Host::is_valid_name($_) }

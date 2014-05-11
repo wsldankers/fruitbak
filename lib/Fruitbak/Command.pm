@@ -32,23 +32,29 @@ package Fruitbak::Command;
 
 use Class::Clarity -self;
 
-use Fruitbak::Command::Help;
+use Fruitbak;
 use Fruitbak::Command::Backup;
+use Fruitbak::Command::Init;
+use Fruitbak::Command::Help;
 
 # classes may register commands here as they are loaded:
 our %commands;
 
+field fbak;
+
 sub run {
 	my $exitcode = 0;
 	local $SIG{__WARN__} = sub { $exitcode = 1; warn @_ };
-	my $class = $commands{$_[0] // 'help'};
+	my $info = $commands{$_[0] // 'help'};
 
-	unless($class) {
+	unless($info) {
 		warn "Unknown command '$_[0]'\n";
-		$class = $commands{help};
+		$info = $commands{help};
 	}
 
-	my $cmd = $class->new;
+	my ($class) = @$info;
+
+	my $cmd = $class->new(fbak => $self->fbak);
 
 	return $cmd->run(@_) || $exitcode;
 }

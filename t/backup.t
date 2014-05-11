@@ -24,7 +24,7 @@ BEGIN { use_ok('Fruitbak::Backup::Write') or BAIL_OUT('need Fruitbak::Backup::Wr
 BEGIN { use_ok('Fruitbak::Share::Write') or BAIL_OUT('need Fruitbak::Share::Write to run') }
 BEGIN { use_ok('Fruitbak::Dentry') or BAIL_OUT('need Fruitbak::Dentry to run') }
 
-my $testdir = '/tmp/fruitbak-test-config';
+my $testdir = '/tmp/fruitbak-test-backup';
 sub cleantestdir {
 	local $ENV{testdir} = $testdir;
 	system('rm -rf -- "$testdir"');

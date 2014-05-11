@@ -30,7 +30,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Command::Backup;
 
-use Class::Clarity -self;
+use Fruitbak::Command -self;
 
 BEGIN {
 	$Fruitbak::Command::commands{backup} = [__PACKAGE__, "Run a single backup"];
@@ -38,6 +38,19 @@ BEGIN {
 }
 
 sub run {
-	warn "Not implemented yet\n";
+	my (undef, $hostname) = @_;
+
+	die "usage: fruitbak backup <hostname>\n"
+		unless defined $hostname;
+
+	die "'$hostname' is not a valid host name\n"
+		unless Fruitbak::Host::is_valid_name($hostname);
+
+	my $fbak = $self->fbak;
+
+	my $host = $fbak->get_host($hostname);
+
+	$host->backup;
+
 	return 0;
 }
