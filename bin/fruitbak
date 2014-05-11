@@ -1,0 +1,8 @@
+#! /usr/bin/perl
+
+use strict;
+use warnings FATAL => 'all';
+
+use Fruitbak::Command;
+
+exit Fruitbak::Command->run(@ARGV);
