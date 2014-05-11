@@ -5,4 +5,5 @@ use warnings FATAL => 'all';
 
 use Fruitbak::Command;
 
-exit Fruitbak::Command->run(@ARGV);
+my $cmd = new Fruitbak::Command;
+exit $cmd->run(@ARGV);
