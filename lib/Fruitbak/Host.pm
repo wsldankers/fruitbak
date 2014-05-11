@@ -42,7 +42,7 @@ field dir => sub { $self->fbak->hostdir . '/' . $self->name };
 field name; # (string) required for new
 field create_ok => undef; # (bool) whether the host can be created if it doesn't exist
 field backups_cache => {};
-field cfg => sub { $self->cfg->get_host($self->name) };
+field cfg => sub { $self->fbak->cfg->get_host($self->name) };
 
 sub new() {
 	my $self = super;

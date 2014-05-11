@@ -43,7 +43,7 @@ field name;
 field data => sub {
 	my $dir = $self->dir;
 	my $name = $self->name;
-	my $file = "$dir/$name.pl";
+	my $file = "$dir/host/$name.pl";
 	my $commonfile = "$dir/common.pl";
 	my $pkgname = $name;
 	$pkgname =~ tr/-/_/;

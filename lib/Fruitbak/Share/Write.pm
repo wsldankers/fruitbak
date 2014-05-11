@@ -35,13 +35,21 @@ use Class::Clarity -self;
 use Fcntl qw(:mode);
 use Carp qw(confess);
 use Hardhat::Maker;
+
 use Fruitbak::Share::Format;
 use Fruitbak::Pool::Write;
+use Fruitbak::Transfer::Rsync;
 
 field name;
 field dir => sub { $self->backup->sharedir . '/' . mangle($self->name) };
 field fbak => sub { $self->backup->fbak };
 field backup;
+field refBackup => sub { $self->backup->refBackup };
+field refShare => sub {
+    my $refbak = $self->refBackup;
+    return undef unless $refbak;
+    return $refbak->get_share($self->name); 
+};
 field compress => sub { $self->backup->compress };
 field hhm => sub {
 	my $dir = $self->dir;
@@ -62,6 +70,12 @@ field hhm => sub {
 sub add_entry {
 	my $dentry = shift;
 	$self->hhm->add($dentry->name, attrformat($dentry));
+}
+
+sub run {
+	my $xfer = new Fruitbak::Transfer::Rsync(share => $self);
+	$xfer->recv;
+	$self->finish;
 }
 
 # finish the share and convert this object to a Fruitbak::Share::Read

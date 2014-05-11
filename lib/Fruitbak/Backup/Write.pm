@@ -34,6 +34,8 @@ use Fcntl qw(:flock);
 use JSON;
 use IO::File;
 
+use Fruitbak::Share::Write;
+
 use Class::Clarity -self;
 
 field dir => sub { $self->host->dir . '/new' };
@@ -41,7 +43,7 @@ field sharedir => sub { $self->dir . '/share' };
 field host; # (Fruitbak::Host) required for new
 field number => sub {
 	my $backups = $self->host->backups;
-	return @$backups ? $backups[-1] + 1 : 0;
+	return @$backups ? $backups->[-1] + 1 : 0;
 };
 field fbak => sub { $self->host->fbak };
 field compress => sub { $self->fbak->compress };
@@ -62,7 +64,13 @@ field info => sub {
 		endTime => $self->endTime
 	};
 };
-field refBackup => undef;
+field refBackup => sub {
+	my $host = $self->host;
+	my $backups = $host->backups;
+	my $number = $backups->[-1];
+	return undef unless defined $number;
+	return $host->get_backup($number);
+};
 
 sub json_boolean() {
 	return shift() ? JSON::true : JSON::false;
@@ -101,6 +109,15 @@ sub unlock {
 	unlink("$dir/lock") #or $!{ENOENT}
 		or die "unlink($dir/lock): $!\n";
 	$self->lock_reset;
+}
+
+sub run {
+	my $shares = $self->shares;
+	foreach my $sharename (@$shares) {
+		my $share = new Fruitbak::Share::Write(name => $sharename, backup => $self);
+		$share->run;
+	}
+	$self->finish;
 }
 
 # finish the backup and convert this object to a Fruitbak::Backup::Read
