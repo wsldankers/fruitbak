@@ -65,12 +65,30 @@ sub symlink {
 }
 
 sub rdev {
+	return ($self->rdev_major << 32) | $self->rdev_minor unless @_;
+	my $rdev = shift;
+	$self->rdev_major($rdev >> 32);
+	$self->rdev_minor($rdev & 0xFFFFFFFF);
+}
+
+sub rdev_minor {
 	confess("trying to treat a non-device as one")
 		unless $self->is_device;
 	confess("trying to treat an unreferenced hardlink as a device")
 		if $self->is_hardlink;
-	return unpack('Q', $self->extra) unless @_;
-	$self->extra(pack('Q', shift));
+	my ($major, $minor) = unpack('LL', $self->extra);
+	return $minor unless @_;
+	$self->extra(pack('LL', $major // 0, shift));
+}
+
+sub rdev_major {
+	confess("trying to treat a non-device as one")
+		unless $self->is_device;
+	confess("trying to treat an unreferenced hardlink as a device")
+		if $self->is_hardlink;
+	my ($major, $minor) = unpack('LL', $self->extra);
+	return $major unless @_;
+	$self->extra(pack('LL', shift, $minor // 0));
 }
 
 sub plain_mode { $self->mode & ~R_HARDLINK }
@@ -80,7 +98,7 @@ sub is_hardlink { $self->mode & R_HARDLINK }
 sub is_file { $self->mode & S_IFREG }
 sub is_directory { $self->mode & S_IFDIR }
 sub is_symlink { $self->mode & S_IFLNK }
-sub is_device { $self->mode & (S_IFCHR|S_IFBLK) }
+sub is_device { my $mode = $self->mode; return S_ISCHR($mode) || S_ISBLK($mode) }
 sub is_chardev { $self->mode & S_IFCHR }
 sub is_blockdev { $self->mode & S_IFBLK }
 sub is_fifo { $self->mode & S_IFIFO }

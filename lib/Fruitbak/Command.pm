@@ -44,7 +44,18 @@ field fbak;
 
 sub run {
 	my $exitcode = 0;
-	local $SIG{__WARN__} = sub { $exitcode = 1; warn @_ };
+#	local $SIG{__WARN__} = sub { $exitcode = 1; warn @_ };
+	local $SIG{__DIE__} = sub {
+		local $_ = shift;
+		die $_ if ref $_;
+		if(s/^.*\K at \S+ line \d+\.?\n\z//) {
+			local $Carp::CarpLevel = 1;
+			confess($_);
+		} else {
+			die $_;
+		}
+	};
+
 	my $info = $commands{$_[0] // 'help'};
 
 	unless($info) {

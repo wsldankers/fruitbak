@@ -50,7 +50,6 @@ package Fruitbak::Pool::Write;
 
 use IO::Compress::Gzip qw(gzip $GzipError);
 use Digest::SHA qw(sha512);
-use Carp qw(confess carp croak cluck);
 use File::Path qw(make_path);
 
 use Class::Clarity -self;
@@ -116,7 +115,7 @@ sub savechunk {
 	my $compress = $self->compress;
 
 	my $pooldir = $compress ? $pool->cpooldir : $pool->pooldir;
-	my $dest = $pooldir.'/'.$pool->digest2path($digest, $compress);
+	my $dest = $pooldir.'/'.$pool->digest2path($digest);
 
 	return $digest if -e $dest;
 

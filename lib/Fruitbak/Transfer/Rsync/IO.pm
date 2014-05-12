@@ -66,7 +66,7 @@ sub attribGet {
 
 sub create_dentry {
 	my $attrs = shift;
-	return new Fruitbak::Dentry(
+	my $dentry = new Fruitbak::Dentry(
 		name => $attrs->{name},
 		mode => $attrs->{mode},
 		size => $attrs->{size},
@@ -75,12 +75,25 @@ sub create_dentry {
 		gid => $attrs->{gid},
 		@_
 	);
+	warn Dumper($attrs) if $attrs->{name} =~ m{/extra/};
+	if(exists $attrs->{hlink} && !$attrs->{hlink_self}) {
+		$dentry->hardlink($attrs->{hlink})
+	} else {
+		if($dentry->is_symlink) {
+			$dentry->symlink($attrs->{link})
+		} elsif($dentry->is_device) {
+			$dentry->rdev_major($attrs->{rdev_major});
+			$dentry->rdev_minor($attrs->{rdev_minor});
+		}
+	}
+	return $dentry;
 }
 
 sub setup_reffile {
 	my $attrs = shift;
 	if(my $refShare = $self->refShare) {
 		if(my $dentry = $refShare->get_entry($attrs->{name}, 1)) {
+warn "$attrs->{name} links to $dentry->{extra}\n" if $dentry->is_hardlink;
 			if($dentry->is_file) {
 				$self->reffile(new Class::Clarity(
 					attrs => $attrs,
@@ -115,7 +128,7 @@ sub fileDeltaRxNext {
 			unless defined $reffile;
 		my $blocksize = $curfile->blocksize;
 		$data = $reffile->poolreader->pread($blocknum * $blocksize, $blocksize);
-		warn "Copied block $blocknum.\n";
+#		warn "Copied block $blocknum.\n";
 	}
 	$curfile->poolwriter->write($data);
 	return 0;
@@ -201,6 +214,7 @@ sub makeHardLink {
 	return unless $isEnd;
 	my $dentry = $self->create_dentry($attrs, hardlink => $attrs->{hlink});
 	$self->share->add_entry($dentry);
+	warn "makeHardLink($attrs->{name}, $attrs->{hlink})\n";
 	return undef;
 }
 

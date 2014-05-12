@@ -47,11 +47,20 @@ field chunksize => sub { $self->pool->chunksize };
 field hashalgo => sub { $self->pool->hashalgo };
 field hashsize => sub { $self->pool->hashsize };
 
+sub new() {
+	my $self = super;
+	my $digests = $self->digests;
+	my $hashsize = $self->hashsize;
+	confess "invalid digests length"
+		if length($digests) % $hashsize;
+	return $self;
+}
+
 sub pread {
 	my ($off, $len) = @_;
 	my $chunksize = $self->chunksize;
-	my $startchunk = $off / $chunksize;
-	my $endchunk = ($off + $len - 1) / $chunksize;
+	my $startchunk = do { use integer; $off / $chunksize };
+	my $endchunk = do { use integer; ($off + $len - 1) / $chunksize };
 
 	my $chunk = $self->getchunk($startchunk);
 	my $coff = $off % $chunksize;

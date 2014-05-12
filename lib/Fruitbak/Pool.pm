@@ -72,3 +72,9 @@ sub path2digest {
 	$path =~ tr{_/}{/}d;
 	return decode_base64(shift =~ tr{_/}{/}dr);
 }
+
+sub digestlist {
+	my $hashsize = $self->hashsize;
+	my @hashes = map { encode_base64($_, '')."\n" } unpack("(a$hashsize)*", shift);
+	return join('', @hashes);
+}
