@@ -53,9 +53,7 @@ field protocol_version;
 field preserve_hard_links;
 use constant version => 2;
 
-sub dirs {
-	my ($localDir, $remoteDir) = @_;
-}
+sub dirs {}
 
 sub attribGet {
 	my $attrs = shift;
@@ -75,7 +73,6 @@ sub create_dentry {
 		gid => $attrs->{gid},
 		@_
 	);
-	warn Dumper($attrs) if $attrs->{name} =~ m{/extra/};
 	if(exists $attrs->{hlink} && !$attrs->{hlink_self}) {
 		$dentry->hardlink($attrs->{hlink})
 	} else {
@@ -93,7 +90,6 @@ sub setup_reffile {
 	my $attrs = shift;
 	if(my $refShare = $self->refShare) {
 		if(my $dentry = $refShare->get_entry($attrs->{name}, 1)) {
-warn "$attrs->{name} links to $dentry->{extra}\n" if $dentry->is_hardlink;
 			if($dentry->is_file) {
 				$self->reffile(new Class::Clarity(
 					attrs => $attrs,
@@ -128,7 +124,6 @@ sub fileDeltaRxNext {
 			unless defined $reffile;
 		my $blocksize = $curfile->blocksize;
 		$data = $reffile->poolreader->pread($blocknum * $blocksize, $blocksize);
-#		warn "Copied block $blocknum.\n";
 	}
 	$curfile->poolwriter->write($data);
 	return 0;
@@ -197,7 +192,6 @@ sub csumEnd {
 
 sub attribSet {
 	my ($attrs, $placeHolder) = @_;
-	warn "attribSet($attrs->{name})";
 	if(my $refShare = $self->refShare) {
 		if(my $dentry = $refShare->get_entry($attrs->{name}, 1)) {
 			$self->share->add_entry($dentry);
@@ -209,19 +203,10 @@ sub attribSet {
 	return undef;
 }
 
-sub makeHardLink {
-	my ($attrs, $isEnd) = @_;
-	return unless $isEnd;
-	my $dentry = $self->create_dentry($attrs, hardlink => $attrs->{hlink});
-	$self->share->add_entry($dentry);
-	warn "makeHardLink($attrs->{name}, $attrs->{hlink})\n";
-	return undef;
-}
-
+use constant makeHardLink => undef;
 use constant makePath => undef;
 use constant makeSpecial => undef;
 use constant unlink => undef;
-
 use constant ignoreAttrOnFile => undef;
 
 sub logHandlerSet {}

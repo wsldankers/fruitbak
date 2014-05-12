@@ -95,14 +95,14 @@ sub plain_mode { $self->mode & ~R_HARDLINK }
 
 sub is_hardlink { $self->mode & R_HARDLINK }
 
-sub is_file { $self->mode & S_IFREG }
-sub is_directory { $self->mode & S_IFDIR }
-sub is_symlink { $self->mode & S_IFLNK }
+sub is_file { S_ISREG($self->mode) }
+sub is_directory { S_ISDIR($self->mode) }
+sub is_symlink { S_ISLNK($self->mode) }
 sub is_device { my $mode = $self->mode; return S_ISCHR($mode) || S_ISBLK($mode) }
-sub is_chardev { $self->mode & S_IFCHR }
-sub is_blockdev { $self->mode & S_IFBLK }
-sub is_fifo { $self->mode & S_IFIFO }
-sub is_socket { $self->mode & S_IFSOCK }
+sub is_chardev { S_ISCHR($self->mode) }
+sub is_blockdev { S_ISBLK($self->mode) }
+sub is_fifo { S_ISFIFO($self->mode) }
+sub is_socket { S_ISSOCK($self->mode) }
 
 sub clone {
 	return blessed($self)->new(map { ($_, $self->$_) } keys %$self);
