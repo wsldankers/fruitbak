@@ -74,7 +74,7 @@ sub add_entry {
 
 sub run {
 	my $xfer = new Fruitbak::Transfer::Rsync(share => $self);
-	$xfer->recv;
+	$xfer->recv_files;
 }
 
 # finish the share and convert this object to a Fruitbak::Share::Read

@@ -30,20 +30,189 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Transfer::Rsync;
 
-use File::RsyncP;
-use Fruitbak::Transfer::Rsync::IO;
+use autodie;
+
+use File::RsyncP::Digest;
+use Fruitbak::Transfer::Rsync::RPC;
+use IPC::Open2;
+use IO::Handle;
+use Data::Dumper;
 
 use Class::Clarity -self;
 
 field fbak => sub { $self->host->fbak };
-field host => sub { $self->share->host };
+field pool => sub { $self->fbak->pool };
+field host => sub { $self->backup->host };
+field backup => sub { $self->share->backup };
 field share;
+field refShare => sub { $self->share->refShare };
+field curfile;
+field reffile => undef;
+field digest => sub { new File::RsyncP::Digest($self->protocol_version) };
+field csumDigest => sub { new File::RsyncP::Digest($self->protocol_version) };
+field rpc;
 
-sub recv {
-	my $rs = new File::RsyncP({
-		logLevel => 2,
-		rsyncCmd => ['rsync'],
-		rsyncArgs => [qw(
+sub attribGet {
+	my $attrs = shift;
+	my $ref = $self->refShare;
+	return unless $ref;
+	return $ref->get_entry($attrs->{name}, 1);
+}
+
+sub create_dentry {
+	my $attrs = shift;
+	my $dentry = new Fruitbak::Dentry(
+		name => $attrs->{name},
+		mode => $attrs->{mode},
+		size => $attrs->{size},
+		mtime => $attrs->{mtime},
+		uid => $attrs->{uid},
+		gid => $attrs->{gid},
+		@_
+	);
+	if(exists $attrs->{hlink} && !$attrs->{hlink_self}) {
+		$dentry->hardlink($attrs->{hlink})
+	} else {
+		if($dentry->is_symlink) {
+			$dentry->symlink($attrs->{link})
+		} elsif($dentry->is_device) {
+			$dentry->rdev_major($attrs->{rdev_major});
+			$dentry->rdev_minor($attrs->{rdev_minor});
+		}
+	}
+	return $dentry;
+}
+
+sub setup_reffile {
+	my $attrs = shift;
+	if(my $refShare = $self->refShare) {
+		if(my $dentry = $refShare->get_entry($attrs->{name}, 1)) {
+			if($dentry->is_file) {
+				$self->reffile(new Class::Clarity(
+					attrs => $attrs,
+					dentry => $dentry,
+					poolreader => $self->pool->reader(digests => $dentry->extra),
+				));
+			}
+		}
+	}
+}
+
+sub fileDeltaRxStart {
+	my ($attrs, $numblocks, $blocksize, $lastblocksize) = @_;
+	my $pool = $self->pool;
+	$self->curfile(new Class::Clarity(
+		attrs => $attrs,
+		numblocks => $numblocks,
+		blocksize => $blocksize,
+		lastblocksize => $lastblocksize,
+		poolwriter => $pool->writer,
+	));
+	$self->setup_reffile($attrs);
+}
+
+sub fileDeltaRxNext {
+	my ($blocknum, $data) = @_;
+	my $curfile = $self->curfile;
+	unless(defined $data) {
+		return unless defined $blocknum;
+		my $reffile = $self->reffile;
+		die "No reffile but \$data undef? blocknum=$blocknum\n"
+			unless defined $reffile;
+		my $blocksize = $curfile->blocksize;
+		$data = $reffile->poolreader->pread($blocknum * $blocksize, $blocksize);
+	}
+	$curfile->poolwriter->write($data);
+	return 0;
+}
+
+sub fileDeltaRxDone {
+	my $curfile = $self->curfile;
+	my ($hashes, $size) = $curfile->poolwriter->close;
+	my $dentry = $self->create_dentry($curfile->attrs, extra => $hashes, size => $size);
+	$self->share->add_entry($dentry);
+	$self->curfile_reset;
+	return undef;
+}
+
+sub csumStart {
+    my ($attrs, $needMD4) = @_;
+
+	$self->csumEnd if $self->reffile;
+
+	my $refShare = $self->refShare or return;
+	my $dentry = $refShare->get_entry($attrs->{name}, 1) or return;
+	return unless $dentry->is_file;
+
+	$self->setup_reffile($attrs);
+
+	$self->csumDigest_reset;
+	$self->csumDigest->add(pack('V', $self->checksumSeed))
+		if $needMD4;
+}
+
+sub csumGet {
+	return unless $self->reffile_isset;
+
+	my ($num, $csumLen, $blockSize) = @_;
+
+	$num ||= 100;
+	$csumLen ||= 16;
+
+	my $data = $self->reffile->poolreader->read($blockSize * $num);
+
+	$self->csumDigest->add($data)
+		if $self->csumDigest_isset;
+
+	return $self->digest->blockDigest($data, $blockSize, $csumLen, $self->checksumSeed);
+}
+
+sub csumEnd {
+	return unless $self->reffile_isset;
+	my $reffile = $self->reffile;
+	$self->reffile_reset;
+	#
+	# make sure we read the entire file for the file MD4 digest
+	#
+	if($self->csumDigest_isset) {
+		my $csumDigest = $self->csumDigest;
+		for(;;) {
+			my $data = $self->reffile->poolreader->read;
+			last if $data eq '';
+			$csumDigest->add($data);
+		}
+		return $csumDigest->digest;
+	}
+	return undef;
+}
+
+sub attribSet {
+	my ($attrs, $placeHolder) = @_;
+	if(my $refShare = $self->refShare) {
+		if(my $dentry = $refShare->get_entry($attrs->{name}, 1)) {
+			$self->share->add_entry($dentry);
+			return undef;
+		}
+	}
+	my $dentry = $self->create_dentry($attrs);
+	$self->share->add_entry($dentry);
+	return undef;
+}
+
+sub finish {
+	$self->share->finish;
+}
+
+sub reply {
+	my $in = $self->rpc;
+	print $in pack('L', length($_[0])), $_[0];
+	$in->flush or die "Unable to write to filehandle: $!\n";
+}
+
+sub receive {
+	local $SIG{PIPE} = 'IGNORE';
+	my $pid = open2(my $out, my $in, qw(fruitbak-rsyncp-recv
+		rsync
 			--numeric-ids
 			--perms
 			--owner
@@ -55,21 +224,51 @@ sub recv {
 			--times
 			--specials
 			--block-size=131072
-		)],
-		fio => new Fruitbak::Transfer::Rsync::IO(xfer => $self),
-	});
-
-	die "REMOVE BEFORE FLIGHT"
-		if $self->share->name eq '/';
-
+	));
+	local $@;
 	eval {
-		$rs->remoteStart(1, $self->share->name);
-		$rs->go('/DUMMY');
-		$rs->serverClose;
+		$self->rpc($in);
+		for(;;) {
+			my ($len, $cmd) = unpack('LC', saferead(5));
+			my $data = saferead($len) if $len;
+			if($cmd == RSYNC_RPC_finish) {
+				$self->finish;
+				last;
+			} elsif($cmd == RSYNC_RPC_attribGet) {
+				my $attrs = $self->attribGet(parse_attrs($data));
+				$self->reply(serialize_attrs($attrs));
+			} elsif($cmd == RSYNC_RPC_fileDeltaRxStart) {
+				my ($numblocks, $blocksize, $lastblocksize) = unpack('QLL', $data);
+				my $attrs = parse_attrs(substr($data, 16));
+				$self->fileDeltaRxStart($attrs, $numblocks, $blocksize, $lastblocksize);
+			} elsif($cmd == RSYNC_RPC_fileDeltaRxNext_blocknum) {
+				$self->fileDeltaRxNext(unpack('Q', $data), undef);
+			} elsif($cmd == RSYNC_RPC_fileDeltaRxNext_data) {
+				$self->fileDeltaRxNext(undef, $data);
+			} elsif($cmd == RSYNC_RPC_fileDeltaRxDone) {
+				$self->fileDeltaRxDone;
+			} elsif($cmd == RSYNC_RPC_csumStart) {
+				my ($needMD4) = unpack('C', $data);
+				my $attrs = parse_attrs(substr($data, 1));
+				$self->csumStart($attrs, $needMD4);
+			} elsif($cmd == RSYNC_RPC_csumGet) {
+				my ($num, $csumLen, $blockSize) = unpack('QLL', $data);
+				$self->reply($self->csumGet($num, $csumLen, $blockSize));
+			} elsif($cmd == RSYNC_RPC_csumEnd_digest) {
+				$self->reply($self->csumEnd);
+			} elsif($cmd == RSYNC_RPC_csumEnd) {
+				$self->csumEnd;
+			} elsif($cmd == RSYNC_RPC_attribSet) {
+				$self->attribSet(parse_attrs($data));
+			}
+		}
 	};
-	if(my $err = $@) {
-		eval { $rs->abort };
-		warn $@ if $@;
-		die $err;
+	my $err = $@;
+	if(eval { kill TERM => $pid }) {
+		sleep(2);
+		eval { kill KILL => $pid };
 	}
+	waitpid($pid, 0);
+	die $err if $err;
+	return;
 }

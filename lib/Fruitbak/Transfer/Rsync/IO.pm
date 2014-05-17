@@ -30,23 +30,16 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Transfer::Rsync::IO;
 
+use autodie;
+
 use File::RsyncP::Digest;
 use Data::Dumper;
+use Fruitbak::Transfer::Rsync::RPC;
+use IO::Handle;
 
 use Class::Clarity -self;
 
-field fbak => sub { $self->host->fbak };
-field pool => sub { $self->fbak->pool };
-field host => sub { $self->backup->host };
-field backup => sub { $self->share->backup };
-field share => sub { $self->xfer->share };
-field refShare => sub { $self->share->refShare };
-field xfer;
-field curfile;
-field reffile => undef;
-field digest => sub { new File::RsyncP::Digest($self->protocol_version) };
-field csumDigest => sub { new File::RsyncP::Digest($self->protocol_version) };
-
+field needMD4;
 field blockSize;
 field checksumSeed;
 field protocol_version;
@@ -55,171 +48,95 @@ use constant version => 2;
 
 sub dirs {}
 
+sub send {
+	# TODO: custom buffering
+	print pack('LC', length($_[1]), $_[0]), $_[1];
+}
+
+sub recv {
+	STDOUT->flush;
+	return saferead(unpack('L', saferead(4)));
+}
+
+# 1: (attrs) => (attrs)
 sub attribGet {
 	my $attrs = shift;
-	my $ref = $self->refShare;
-	return unless $ref;
-	return $ref->get_entry($attrs->{name}, 1);
+	$self->send(RSYNC_RPC_attribGet, serialize_attrs($attrs));
+	my $res = $self->recv;
+	return $res eq '' ? undef : parse_attrs($res);
 }
 
-sub create_dentry {
-	my $attrs = shift;
-	my $dentry = new Fruitbak::Dentry(
-		name => $attrs->{name},
-		mode => $attrs->{mode},
-		size => $attrs->{size},
-		mtime => $attrs->{mtime},
-		uid => $attrs->{uid},
-		gid => $attrs->{gid},
-		@_
-	);
-	if(exists $attrs->{hlink} && !$attrs->{hlink_self}) {
-		$dentry->hardlink($attrs->{hlink})
-	} else {
-		if($dentry->is_symlink) {
-			$dentry->symlink($attrs->{link})
-		} elsif($dentry->is_device) {
-			$dentry->rdev_major($attrs->{rdev_major});
-			$dentry->rdev_minor($attrs->{rdev_minor});
-		}
-	}
-	return $dentry;
-}
-
-sub setup_reffile {
-	my $attrs = shift;
-	if(my $refShare = $self->refShare) {
-		if(my $dentry = $refShare->get_entry($attrs->{name}, 1)) {
-			if($dentry->is_file) {
-				$self->reffile(new Class::Clarity(
-					attrs => $attrs,
-					dentry => $dentry,
-					poolreader => $self->pool->reader(digests => $dentry->extra),
-				));
-			}
-		}
-	}
-}
-
+# 2: (numblocks, blocksize, lastblocksize, attrs) => ()
 sub fileDeltaRxStart {
 	my ($attrs, $numblocks, $blocksize, $lastblocksize) = @_;
-	my $pool = $self->pool;
-	$self->curfile(new Class::Clarity(
-		attrs => $attrs,
-		numblocks => $numblocks,
-		blocksize => $blocksize,
-		lastblocksize => $lastblocksize,
-		poolwriter => $pool->writer,
-	));
-	$self->setup_reffile($attrs);
+	$self->send(RSYNC_RPC_fileDeltaRxStart,
+		pack('QLL', $numblocks, $blocksize, $lastblocksize).serialize_attrs($attrs));
 }
 
+# 3: (blocknum) => ()
+# 4: (data) => ()
 sub fileDeltaRxNext {
 	my ($blocknum, $data) = @_;
-	my $curfile = $self->curfile;
-	unless(defined $data) {
-		return unless defined $blocknum;
-		my $reffile = $self->reffile;
-		die "No reffile but \$data undef? blocknum=$blocknum\n"
-			unless defined $reffile;
-		my $blocksize = $curfile->blocksize;
-		$data = $reffile->poolreader->pread($blocknum * $blocksize, $blocksize);
+	if(defined $blocknum) {
+		$self->send(RSYNC_RPC_fileDeltaRxNext_blocknum, pack('Q', $blocknum));
+	} elsif(defined $data) {
+		$self->send(RSYNC_RPC_fileDeltaRxNext_data, $data);
 	}
-	$curfile->poolwriter->write($data);
 	return 0;
 }
 
+# 5: () => ()
 sub fileDeltaRxDone {
-	my $curfile = $self->curfile;
-	my ($hashes, $size) = $curfile->poolwriter->close;
-	my $dentry = $self->create_dentry($curfile->attrs, extra => $hashes, size => $size);
-	$self->share->add_entry($dentry);
-	$self->curfile_reset;
+	$self->send(5, '');
 	return undef;
 }
 
+# 6: (needMD4, attrs) => ()
 sub csumStart {
     my ($attrs, $needMD4) = @_;
-
-	$self->csumEnd if $self->reffile;
-
-	my $refShare = $self->refShare or return;
-	my $dentry = $refShare->get_entry($attrs->{name}, 1) or return;
-	return unless $dentry->is_file;
-
-	$self->setup_reffile($attrs);
-
-	$self->csumDigest_reset;
-	$self->csumDigest->add(pack('V', $self->checksumSeed))
-		if $needMD4;
+	$self->needMD4($needMD4);
+	$self->send(6, pack('C', $needMD4 ? 1 : 0).serialize_attrs($attrs));
 }
 
+# 7: (num, csumLen, blockSize) => (csumData)
 sub csumGet {
-	return unless $self->reffile_isset;
-
 	my ($num, $csumLen, $blockSize) = @_;
-
-	$num ||= 100;
-	$csumLen ||= 16;
-
-	my $data = $self->reffile->poolreader->read($blockSize * $num);
-
-	if($self->csumDigest_isset) {
-		$self->csumDigest->add($data);
-	}
-
-	return $self->digest->blockDigest($data, $blockSize, $csumLen, $self->checksumSeed);
+	return unless $self->needMD4_isset;
+	$self->send(7, pack('QLL', $num, $csumLen, $blockSize));
+	return $self->recv;
 }
 
+# 8: () => (digestData)
+# 9: () => ()
 sub csumEnd {
-	return unless $self->reffile_isset;
-	my $reffile = $self->reffile;
-	$self->reffile_reset;
-	#
-	# make sure we read the entire file for the file MD4 digest
-	#
-	if($self->csumDigest_isset) {
-		my $csumDigest = $self->csumDigest;
-		for(;;) {
-			my $data = $self->reffile->poolreader->read;
-			last if $data eq '';
-			$csumDigest->add($data);
-		}
-		return $csumDigest->digest;
+	return unless $self->needMD4_isset;
+	if($self->needMD4) {
+		$self->send(8, '');
+		return $self->recv;
 	}
+	$self->send(9, '');
 	return undef;
 }
 
+# 10: (attrs) => ()
 sub attribSet {
 	my ($attrs, $placeHolder) = @_;
-	if(my $refShare = $self->refShare) {
-		if(my $dentry = $refShare->get_entry($attrs->{name}, 1)) {
-			$self->share->add_entry($dentry);
-			return undef;
-		}
-	}
-	my $dentry = $self->create_dentry($attrs);
-	$self->share->add_entry($dentry);
+	$self->send(10, serialize_attrs($attrs));
 	return undef;
 }
 
 use constant makeHardLink => undef;
 use constant makePath => undef;
 use constant makeSpecial => undef;
-use constant unlink => undef;
 use constant ignoreAttrOnFile => undef;
+
+sub unlink($) {}
 
 sub logHandlerSet {}
 
 sub statsGet {{}}
 
+# 0: () => ()
 sub finish {
-	$self->share->finish;
-}
-
-sub DESTROY {}
-
-sub AUTOLOAD {
-	our $AUTOLOAD;
-	die "'$AUTOLOAD' not yet implemented\n";
+	$self->send(0, '');
 }
