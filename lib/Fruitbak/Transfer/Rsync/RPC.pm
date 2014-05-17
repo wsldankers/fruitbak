@@ -30,7 +30,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Transfer::Rsync::RPC;
 
+use strict;
+use warnings FATAL => 'all';
+use autodie;
+
 use Exporter qw(import);
+use Data::Dumper;
 
 our @EXPORT = qw(saferead serialize_attrs parse_attrs
 	RSYNC_RPC_finish
@@ -44,20 +49,19 @@ our @EXPORT = qw(saferead serialize_attrs parse_attrs
 	RSYNC_RPC_csumEnd_digest
 	RSYNC_RPC_csumEnd
 	RSYNC_RPC_attribSet
+	RSYNC_RPC_protocol_version
+	RSYNC_RPC_checksumSeed
 );
 our @EXPORT_OK = (@EXPORT);
 
-use strict;
-use warnings FATAL => 'all';
-use autodie;
-
 sub saferead {
+	my $fh = shift;
 	my $num = shift;
 	my $len = 0;
 	my $res = '';
 	
 	while($len < $num) {
-		read STDIN, $res, $num - $len, $len
+		read $fh, $res, $num - $len, $len
 			or die "Short read\n";
 		$len = length($res);
 	}
@@ -66,6 +70,7 @@ sub saferead {
 
 sub serialize_attrs {
 	my $attrs = shift;
+	return '' unless defined $attrs;
 	return join("\0", %$attrs);
 }
 
@@ -85,3 +90,5 @@ use constant RSYNC_RPC_csumGet => 7;
 use constant RSYNC_RPC_csumEnd_digest => 8;
 use constant RSYNC_RPC_csumEnd => 9;
 use constant RSYNC_RPC_attribSet => 10;
+use constant RSYNC_RPC_protocol_version => 11;
+use constant RSYNC_RPC_checksumSeed => 12;

@@ -33,9 +33,13 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 use strict;
 use warnings FATAL => 'all';
 
+use File::RsyncP;
 use Fruitbak::Transfer::Rsync::IO;
 
-my $fio = Fruitbak::Transfer::Rsync::IO;
+binmode STDIN;
+binmode STDOUT;
+
+my $fio = new Fruitbak::Transfer::Rsync::IO;
 
 my $share = shift @ARGV;
 my $rsync = shift @ARGV;

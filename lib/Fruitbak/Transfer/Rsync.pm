@@ -48,18 +48,13 @@ field share;
 field refShare => sub { $self->share->refShare };
 field curfile;
 field reffile => undef;
+field protocol_version;
+field checksumSeed;
 field digest => sub { new File::RsyncP::Digest($self->protocol_version) };
 field csumDigest => sub { new File::RsyncP::Digest($self->protocol_version) };
 field rpc;
 
-sub attribGet {
-	my $attrs = shift;
-	my $ref = $self->refShare;
-	return unless $ref;
-	return $ref->get_entry($attrs->{name}, 1);
-}
-
-sub create_dentry {
+sub attrs2dentry() {
 	my $attrs = shift;
 	my $dentry = new Fruitbak::Dentry(
 		name => $attrs->{name},
@@ -83,6 +78,28 @@ sub create_dentry {
 	return $dentry;
 }
 
+sub dentry2attrs() {
+	my $dentry = shift;
+	return undef unless defined $dentry;
+	confess("internal error: hardlink passed to dentry2attrs()")
+		if $dentry->is_hardlink;
+	my %attrs = (
+		name => $dentry->name,
+		mode => $dentry->mode,
+		size => $dentry->size,
+		mtime => $dentry->mtime,
+		uid => $dentry->uid,
+		gid => $dentry->gid,
+	);
+	if($dentry->is_device) {
+		$attrs{rdev_major} = $dentry->rdev_major;
+		$attrs{rdev_minor} = $dentry->rdev_minor;
+	} elsif($dentry->is_symlink) {
+		$attrs{link} = $dentry->symlink;
+	}
+	return \%attrs;
+}
+
 sub setup_reffile {
 	my $attrs = shift;
 	if(my $refShare = $self->refShare) {
@@ -96,6 +113,13 @@ sub setup_reffile {
 			}
 		}
 	}
+}
+
+sub attribGet {
+	my $attrs = shift;
+	my $ref = $self->refShare;
+	return unless $ref;
+	return dentry2attrs($ref->get_entry($attrs->{name}, 1));
 }
 
 sub fileDeltaRxStart {
@@ -129,7 +153,7 @@ sub fileDeltaRxNext {
 sub fileDeltaRxDone {
 	my $curfile = $self->curfile;
 	my ($hashes, $size) = $curfile->poolwriter->close;
-	my $dentry = $self->create_dentry($curfile->attrs, extra => $hashes, size => $size);
+	my $dentry = attrs2dentry($curfile->attrs, extra => $hashes, size => $size);
 	$self->share->add_entry($dentry);
 	$self->curfile_reset;
 	return undef;
@@ -171,10 +195,8 @@ sub csumEnd {
 	return unless $self->reffile_isset;
 	my $reffile = $self->reffile;
 	$self->reffile_reset;
-	#
-	# make sure we read the entire file for the file MD4 digest
-	#
 	if($self->csumDigest_isset) {
+		# read the rest of the file for the MD4 digest
 		my $csumDigest = $self->csumDigest;
 		for(;;) {
 			my $data = $self->reffile->poolreader->read;
@@ -194,7 +216,7 @@ sub attribSet {
 			return undef;
 		}
 	}
-	my $dentry = $self->create_dentry($attrs);
+	my $dentry = attrs2dentry($attrs);
 	$self->share->add_entry($dentry);
 	return undef;
 }
@@ -203,16 +225,18 @@ sub finish {
 	$self->share->finish;
 }
 
-sub reply {
+sub reply_rpc {
 	my $in = $self->rpc;
 	print $in pack('L', length($_[0])), $_[0];
 	$in->flush or die "Unable to write to filehandle: $!\n";
 }
 
-sub receive {
+sub recv_files {
 	local $SIG{PIPE} = 'IGNORE';
-	my $pid = open2(my $out, my $in, qw(fruitbak-rsyncp-recv
-		rsync
+	my $pid = open2(my $out, my $in,
+		'fruitbak-rsyncp-recv',
+		$self->share->name,
+		qw(rsync
 			--numeric-ids
 			--perms
 			--owner
@@ -224,19 +248,25 @@ sub receive {
 			--times
 			--specials
 			--block-size=131072
-	));
+		));
 	local $@;
 	eval {
+		$in->binmode;
+		$out->binmode;
 		$self->rpc($in);
 		for(;;) {
-			my ($len, $cmd) = unpack('LC', saferead(5));
-			my $data = saferead($len) if $len;
+			my ($len, $cmd) = unpack('LC', saferead($out, 5));
+			my $data = saferead($out, $len) if $len;
 			if($cmd == RSYNC_RPC_finish) {
 				$self->finish;
 				last;
+			} elsif($cmd == RSYNC_RPC_protocol_version) {
+				$self->protocol_version(unpack('L', $data));
+			} elsif($cmd == RSYNC_RPC_checksumSeed) {
+				$self->checksumSeed(unpack('L', $data));
 			} elsif($cmd == RSYNC_RPC_attribGet) {
 				my $attrs = $self->attribGet(parse_attrs($data));
-				$self->reply(serialize_attrs($attrs));
+				$self->reply_rpc(serialize_attrs($attrs) // '');
 			} elsif($cmd == RSYNC_RPC_fileDeltaRxStart) {
 				my ($numblocks, $blocksize, $lastblocksize) = unpack('QLL', $data);
 				my $attrs = parse_attrs(substr($data, 16));
@@ -253,13 +283,15 @@ sub receive {
 				$self->csumStart($attrs, $needMD4);
 			} elsif($cmd == RSYNC_RPC_csumGet) {
 				my ($num, $csumLen, $blockSize) = unpack('QLL', $data);
-				$self->reply($self->csumGet($num, $csumLen, $blockSize));
+				$self->reply_rpc($self->csumGet($num, $csumLen, $blockSize));
 			} elsif($cmd == RSYNC_RPC_csumEnd_digest) {
-				$self->reply($self->csumEnd);
+				$self->reply_rpc($self->csumEnd);
 			} elsif($cmd == RSYNC_RPC_csumEnd) {
 				$self->csumEnd;
 			} elsif($cmd == RSYNC_RPC_attribSet) {
 				$self->attribSet(parse_attrs($data));
+			} else {
+				die "Internal protocol error: unknown RPC opcode $cmd\n";
 			}
 		}
 	};

@@ -47,6 +47,7 @@ field extra => '';
 field inode;
 field hlink => undef;
 field hlink_self => undef;
+field original => undef;
 
 sub hardlink {
 	return $self->is_hardlink ? $self->extra : undef

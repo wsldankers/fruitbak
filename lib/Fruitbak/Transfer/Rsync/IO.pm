@@ -41,87 +41,101 @@ use Class::Clarity -self;
 
 field needMD4;
 field blockSize;
-field checksumSeed;
-field protocol_version;
 field preserve_hard_links;
 use constant version => 2;
 
 sub dirs {}
 
-sub send {
-	# TODO: custom buffering
+sub send_rpc {
+	# TODO: smarter buffering using non-blocking I/O
+	confess("internal error: utf8 data passed to send_rpc()")
+		if utf8::is_utf8($_[1]);
 	print pack('LC', length($_[1]), $_[0]), $_[1];
 }
 
-sub recv {
+sub recv_rpc {
 	STDOUT->flush;
-	return saferead(unpack('L', saferead(4)));
+	return saferead(\*STDIN, unpack('L', saferead(\*STDIN, 4)));
 }
 
-# 1: (attrs) => (attrs)
+sub protocol_version {
+	if(@_) {
+		my $protocol_version = shift;
+		$self->{protocol_version} = $protocol_version;
+		$self->send_rpc(RSYNC_RPC_protocol_version, pack('L', $protocol_version));
+		return;
+	}
+	confess("field protocol_version used uninitialized")
+		unless exists $self->{protocol_version};
+	return $self->{protocol_version};
+}
+
+sub checksumSeed {
+	if(@_) {
+		my $checksumSeed = shift;
+		$self->{checksumSeed} = $checksumSeed;
+		$self->send_rpc(RSYNC_RPC_checksumSeed, pack('L', $checksumSeed));
+		return;
+	}
+	confess("field checksumSeed used uninitialized")
+		unless exists $self->{checksumSeed};
+	return $self->{checksumSeed};
+}
+
 sub attribGet {
 	my $attrs = shift;
-	$self->send(RSYNC_RPC_attribGet, serialize_attrs($attrs));
-	my $res = $self->recv;
+	$self->send_rpc(RSYNC_RPC_attribGet, serialize_attrs($attrs));
+	my $res = $self->recv_rpc;
 	return $res eq '' ? undef : parse_attrs($res);
 }
 
-# 2: (numblocks, blocksize, lastblocksize, attrs) => ()
 sub fileDeltaRxStart {
 	my ($attrs, $numblocks, $blocksize, $lastblocksize) = @_;
-	$self->send(RSYNC_RPC_fileDeltaRxStart,
+	$self->send_rpc(RSYNC_RPC_fileDeltaRxStart,
 		pack('QLL', $numblocks, $blocksize, $lastblocksize).serialize_attrs($attrs));
 }
 
-# 3: (blocknum) => ()
-# 4: (data) => ()
 sub fileDeltaRxNext {
 	my ($blocknum, $data) = @_;
 	if(defined $blocknum) {
-		$self->send(RSYNC_RPC_fileDeltaRxNext_blocknum, pack('Q', $blocknum));
+		$self->send_rpc(RSYNC_RPC_fileDeltaRxNext_blocknum, pack('Q', $blocknum));
 	} elsif(defined $data) {
-		$self->send(RSYNC_RPC_fileDeltaRxNext_data, $data);
+		$self->send_rpc(RSYNC_RPC_fileDeltaRxNext_data, $data);
 	}
 	return 0;
 }
 
-# 5: () => ()
 sub fileDeltaRxDone {
-	$self->send(5, '');
+	$self->send_rpc(RSYNC_RPC_fileDeltaRxDone, '');
 	return undef;
 }
 
-# 6: (needMD4, attrs) => ()
 sub csumStart {
     my ($attrs, $needMD4) = @_;
 	$self->needMD4($needMD4);
-	$self->send(6, pack('C', $needMD4 ? 1 : 0).serialize_attrs($attrs));
+	$self->send_rpc(RSYNC_RPC_csumStart, pack('C', $needMD4 ? 1 : 0).serialize_attrs($attrs));
 }
 
-# 7: (num, csumLen, blockSize) => (csumData)
 sub csumGet {
 	my ($num, $csumLen, $blockSize) = @_;
 	return unless $self->needMD4_isset;
-	$self->send(7, pack('QLL', $num, $csumLen, $blockSize));
-	return $self->recv;
+	$self->send_rpc(RSYNC_RPC_csumGet, pack('QLL', $num, $csumLen, $blockSize));
+	return $self->recv_rpc;
 }
 
-# 8: () => (digestData)
-# 9: () => ()
 sub csumEnd {
 	return unless $self->needMD4_isset;
 	if($self->needMD4) {
-		$self->send(8, '');
-		return $self->recv;
+		$self->send_rpc(RSYNC_RPC_csumEnd_digest, '');
+		return $self->recv_rpc;
 	}
-	$self->send(9, '');
+	$self->send_rpc(RSYNC_RPC_csumEnd, '');
 	return undef;
 }
 
-# 10: (attrs) => ()
 sub attribSet {
 	my ($attrs, $placeHolder) = @_;
-	$self->send(10, serialize_attrs($attrs));
+	$self->send_rpc(RSYNC_RPC_attribSet, serialize_attrs($attrs));
 	return undef;
 }
 
@@ -130,13 +144,15 @@ use constant makePath => undef;
 use constant makeSpecial => undef;
 use constant ignoreAttrOnFile => undef;
 
-sub unlink($) {}
+{
+	no warnings;
+	sub unlink {}
+}
 
 sub logHandlerSet {}
 
 sub statsGet {{}}
 
-# 0: () => ()
 sub finish {
-	$self->send(0, '');
+	$self->send_rpc(RSYNC_RPC_finish, '');
 }

@@ -82,7 +82,9 @@ sub get_entry {
 
 	if($follow && $dentry->is_hardlink) {
 		(undef, $data, $inode) = $hh->get($dentry->extra);
+		my $original = $dentry;
 		$dentry = attrparse($data);
+		$dentry->original($original);
 	}
 
 	$dentry->name($name);
