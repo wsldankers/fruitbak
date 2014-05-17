@@ -92,3 +92,5 @@ use constant RSYNC_RPC_csumEnd => 9;
 use constant RSYNC_RPC_attribSet => 10;
 use constant RSYNC_RPC_protocol_version => 11;
 use constant RSYNC_RPC_checksumSeed => 12;
+
+1;

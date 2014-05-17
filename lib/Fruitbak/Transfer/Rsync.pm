@@ -160,7 +160,7 @@ sub fileDeltaRxDone {
 }
 
 sub csumStart {
-    my ($attrs, $needMD4) = @_;
+    my ($attrs, $needMD4, $blockSize, $phase) = @_;
 
 	$self->csumEnd if $self->reffile;
 
@@ -173,6 +173,8 @@ sub csumStart {
 	$self->csumDigest_reset;
 	$self->csumDigest->add(pack('V', $self->checksumSeed))
 		if $needMD4;
+
+	return $blockSize;
 }
 
 sub csumGet {
@@ -278,9 +280,9 @@ sub recv_files {
 			} elsif($cmd == RSYNC_RPC_fileDeltaRxDone) {
 				$self->fileDeltaRxDone;
 			} elsif($cmd == RSYNC_RPC_csumStart) {
-				my ($needMD4) = unpack('C', $data);
-				my $attrs = parse_attrs(substr($data, 1));
-				$self->csumStart($attrs, $needMD4);
+				my ($needMD4, $blockSize, $phase) = unpack('CLC', $data);
+				my $attrs = parse_attrs(substr($data, 6));
+				$self->csumStart($attrs, $needMD4, $blockSize, $phase);
 			} elsif($cmd == RSYNC_RPC_csumGet) {
 				my ($num, $csumLen, $blockSize) = unpack('QLL', $data);
 				$self->reply_rpc($self->csumGet($num, $csumLen, $blockSize));

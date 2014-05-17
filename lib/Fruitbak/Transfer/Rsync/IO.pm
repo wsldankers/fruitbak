@@ -111,9 +111,9 @@ sub fileDeltaRxDone {
 }
 
 sub csumStart {
-    my ($attrs, $needMD4) = @_;
+    my ($attrs, $needMD4, $blockSize, $phase) = @_;
 	$self->needMD4($needMD4);
-	$self->send_rpc(RSYNC_RPC_csumStart, pack('C', $needMD4 ? 1 : 0).serialize_attrs($attrs));
+	$self->send_rpc(RSYNC_RPC_csumStart, pack('CLC', $needMD4 ? 1 : 0, $blockSize, $phase).serialize_attrs($attrs));
 }
 
 sub csumGet {
