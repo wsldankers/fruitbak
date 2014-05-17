@@ -35,14 +35,31 @@ use autodie;
 use File::RsyncP::Digest;
 use Data::Dumper;
 use Fruitbak::Transfer::Rsync::RPC;
-use IO::Handle;
+use Fruitbak::Transfer::Rsync::Lock;
+use IO::File;
 
 use Class::Clarity -self;
 
 field needMD4;
 field blockSize;
 field preserve_hard_links;
+field lockfile;
+field lockfh;
+field lockpid => 0;
+
 use constant version => 2;
+
+sub raiilock {
+	my $pid = $$;
+	return new Fruitbak::Transfer::Rsync::Lock(lockfh => $self->lockfh)
+		if $self->lockfh_isset && $self->lockpid == $pid;
+	my $lockfile = $self->lockfile;
+	my $lockfh = new IO::File($lockfile, '+<')
+		or die "can't open $lockfile: $!\n";
+	$self->lockfh($lockfh);
+	$self->lockpid($pid);
+	return new Fruitbak::Transfer::Rsync::Lock(lockfh => $lockfh)
+}
 
 sub dirs {}
 
@@ -51,6 +68,7 @@ sub send_rpc {
 	confess("internal error: utf8 data passed to send_rpc()")
 		if utf8::is_utf8($_[1]);
 	print pack('LC', length($_[1]), $_[0]), $_[1];
+	STDOUT->flush;
 }
 
 sub recv_rpc {
@@ -62,6 +80,7 @@ sub protocol_version {
 	if(@_) {
 		my $protocol_version = shift;
 		$self->{protocol_version} = $protocol_version;
+		my $lock = $self->raiilock;
 		$self->send_rpc(RSYNC_RPC_protocol_version, pack('L', $protocol_version));
 		return;
 	}
@@ -74,6 +93,7 @@ sub checksumSeed {
 	if(@_) {
 		my $checksumSeed = shift;
 		$self->{checksumSeed} = $checksumSeed;
+		my $lock = $self->raiilock;
 		$self->send_rpc(RSYNC_RPC_checksumSeed, pack('L', $checksumSeed));
 		return;
 	}
@@ -84,6 +104,7 @@ sub checksumSeed {
 
 sub attribGet {
 	my $attrs = shift;
+	my $lock = $self->raiilock;
 	$self->send_rpc(RSYNC_RPC_attribGet, serialize_attrs($attrs));
 	my $res = $self->recv_rpc;
 	return $res eq '' ? undef : parse_attrs($res);
@@ -91,12 +112,14 @@ sub attribGet {
 
 sub fileDeltaRxStart {
 	my ($attrs, $numblocks, $blocksize, $lastblocksize) = @_;
+	my $lock = $self->raiilock;
 	$self->send_rpc(RSYNC_RPC_fileDeltaRxStart,
 		pack('QLL', $numblocks, $blocksize, $lastblocksize).serialize_attrs($attrs));
 }
 
 sub fileDeltaRxNext {
 	my ($blocknum, $data) = @_;
+	my $lock = $self->raiilock;
 	if(defined $blocknum) {
 		$self->send_rpc(RSYNC_RPC_fileDeltaRxNext_blocknum, pack('Q', $blocknum));
 	} elsif(defined $data) {
@@ -106,6 +129,7 @@ sub fileDeltaRxNext {
 }
 
 sub fileDeltaRxDone {
+	my $lock = $self->raiilock;
 	$self->send_rpc(RSYNC_RPC_fileDeltaRxDone, '');
 	return undef;
 }
@@ -113,18 +137,22 @@ sub fileDeltaRxDone {
 sub csumStart {
     my ($attrs, $needMD4, $blockSize, $phase) = @_;
 	$self->needMD4($needMD4);
+	my $lock = $self->raiilock;
 	$self->send_rpc(RSYNC_RPC_csumStart, pack('CLC', $needMD4 ? 1 : 0, $blockSize, $phase).serialize_attrs($attrs));
+	return $blockSize;
 }
 
 sub csumGet {
 	my ($num, $csumLen, $blockSize) = @_;
 	return unless $self->needMD4_isset;
+	my $lock = $self->raiilock;
 	$self->send_rpc(RSYNC_RPC_csumGet, pack('QLL', $num, $csumLen, $blockSize));
 	return $self->recv_rpc;
 }
 
 sub csumEnd {
 	return unless $self->needMD4_isset;
+	my $lock = $self->raiilock;
 	if($self->needMD4) {
 		$self->send_rpc(RSYNC_RPC_csumEnd_digest, '');
 		return $self->recv_rpc;
@@ -135,6 +163,7 @@ sub csumEnd {
 
 sub attribSet {
 	my ($attrs, $placeHolder) = @_;
+	my $lock = $self->raiilock;
 	$self->send_rpc(RSYNC_RPC_attribSet, serialize_attrs($attrs));
 	return undef;
 }
@@ -154,5 +183,6 @@ sub logHandlerSet {}
 sub statsGet {{}}
 
 sub finish {
+	my $lock = $self->raiilock;
 	$self->send_rpc(RSYNC_RPC_finish, '');
 }

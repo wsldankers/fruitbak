@@ -35,11 +35,14 @@ use warnings FATAL => 'all';
 
 use File::RsyncP;
 use Fruitbak::Transfer::Rsync::IO;
+use File::Temp;
 
 binmode STDIN;
 binmode STDOUT;
 
-my $fio = new Fruitbak::Transfer::Rsync::IO;
+my $lock = new File::Temp;
+
+my $fio = new Fruitbak::Transfer::Rsync::IO(lockfile => $lock->filename);
 
 my $share = shift @ARGV;
 my $rsync = shift @ARGV;

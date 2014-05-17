@@ -62,7 +62,7 @@ sub saferead {
 	
 	while($len < $num) {
 		read $fh, $res, $num - $len, $len
-			or die "Short read\n";
+			or Carp::confess("short read");
 		$len = length($res);
 	}
 	return $res;

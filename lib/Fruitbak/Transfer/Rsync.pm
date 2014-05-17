@@ -36,6 +36,7 @@ use File::RsyncP::Digest;
 use Fruitbak::Transfer::Rsync::RPC;
 use IPC::Open2;
 use IO::Handle;
+use POSIX qw(:sys_wait_h);
 use Data::Dumper;
 
 use Class::Clarity -self;
@@ -124,6 +125,7 @@ sub attribGet {
 
 sub fileDeltaRxStart {
 	my ($attrs, $numblocks, $blocksize, $lastblocksize) = @_;
+warn "blocksize=$blocksize";
 	my $pool = $self->pool;
 	$self->curfile(new Class::Clarity(
 		attrs => $attrs,
@@ -304,5 +306,16 @@ sub recv_files {
 	}
 	waitpid($pid, 0);
 	die $err if $err;
+	if(WIFEXITED($?)) {
+		my $status = WEXITSTATUS($?);
+		die sprintf("%s exited with status %d\n", $status)
+			if $status;
+	} elsif(WIFSIGNALED($?)) {
+		my $sig = WTERMSIG($?);
+		die sprintf("%s killed with signal %d%s\n", $sig & 127, ($sig & 128) ? ' (core dumped)' : '')
+	} elsif(WIFSTOPPED($?)) {
+		my $sig = WSTOPSIG($?);
+		warn sprintf("%s stopped with signal %d\n", $sig)
+	}
 	return;
 }
