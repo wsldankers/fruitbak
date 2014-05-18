@@ -55,6 +55,7 @@ field info => sub {
 	$info->close;
 	return decode_json($json);
 };
+field status => sub { $self->info->{status} };
 field level => sub { $self->info->{level} };
 field type => sub { $self->level ? 'incr' : 'full' };
 field startTime => sub { $self->info->{startTime} };

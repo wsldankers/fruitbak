@@ -34,8 +34,9 @@ use Class::Clarity -self;
 
 use Fruitbak;
 use Fruitbak::Command::Backup;
-use Fruitbak::Command::Init;
 use Fruitbak::Command::Help;
+use Fruitbak::Command::Init;
+use Fruitbak::Command::List;
 
 # classes may register commands here as they are loaded:
 our %commands;

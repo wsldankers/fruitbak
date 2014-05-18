@@ -44,8 +44,16 @@ field create_ok => undef; # (bool) whether the host can be created if it doesn't
 field backups_cache => {};
 field cfg => sub { $self->fbak->cfg->get_host($self->name) };
 
+sub is_valid_name() {
+	return shift =~ /^[a-z0-9]+(?:-[[a-z0-9]+)*$/ia;
+}
+
 sub new() {
 	my $self = super;
+
+	my $name = $self->name // 'UNDEF';
+	die "'$name' is not a valid host name\n"
+		unless is_valid_name($name);
 
 	my $dir = $self->dir;
 	unless(-d $dir) {
@@ -57,10 +65,6 @@ sub new() {
 	}
 
 	return $self;
-}
-
-sub is_valid_name() {
-	return shift =~ /^[a-z0-9]+(?:-[[a-z0-9]+)*$/ia;
 }
 
 # return a sorted list of backups for this host

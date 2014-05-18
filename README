@@ -9,11 +9,11 @@ Implemented:
  - dedup
  - rsync backup method
  - configuration
+ - command line based browsing
 
 Initial goals:
 
  - command line based tar restore
- - command line based browsing
  - pluggable pool storage
  - compression
  - test suite
