@@ -34,7 +34,6 @@ use autodie;
 use v5.14;
 
 use POSIX qw(strftime);
-use Data::Dumper;
 
 use Fruitbak::Command -self;
 
@@ -104,9 +103,10 @@ sub format_dentry {
 
 	my $name = $dentry->name;
 	$name = '.' if $name eq '';
+	$name =~ s{^.*/}{}a;
 	if($original) {
 		$typechar = uc($typechar);
-		$name .= " => ".$self->relative_path($name, $original->hardlink);
+		$name .= " => ".$self->relative_path($dentry->name, $original->hardlink);
 	} elsif($dentry->is_symlink) {
 		$original = $dentry;
 		$name .= " -> ".$dentry->symlink;
@@ -126,8 +126,8 @@ sub format_dentry {
 	);
 
 	return [
-		"$typechar$modechars",
 		$dentry->inode,
+		"$typechar$modechars",
 		$dentry->uid,
 		$dentry->gid,
 		$self->human_readable($dentry->size), 
@@ -157,10 +157,11 @@ sub run {
 		if(defined $backupnum) {
 			my $backup = $host->get_backup($backupnum);
 			if(defined $sharename) {
-				$align[1] = $align[4] = '';
+				@align[0, 2..4] = ('') x 10;
 				$path //= '';
 				my $share = $backup->get_share($sharename);
 				my $files = $share->ls($path);
+				#push @table, ["mode", "inum", "uid", "gid", "size", "mtime"];
 				foreach my $filename (@$files) {
 					my $dentry = $share->get_entry($filename, 1);
 					push @table, $self->format_dentry($dentry);
