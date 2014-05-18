@@ -37,6 +37,7 @@ use Data::Dumper;
 use Fruitbak::Transfer::Rsync::RPC;
 use Fruitbak::Transfer::Rsync::Lock;
 use IO::File;
+use POSIX qw(PIPE_BUF);
 
 use Class::Clarity -self;
 
@@ -64,15 +65,37 @@ sub raiilock {
 sub dirs {}
 
 sub send_rpc {
-	# TODO: smarter buffering using non-blocking I/O
+	my $buf = pack('LC', length($_[1]), $_[0]).$_[1];
+	if(length($buf) > PIPE_BUF) {
+		my $lock = $self->raiilock;
+		my $r = syswrite(\*STDOUT, $buf);
+		# POSIX guarantees that no partial writes will occur
+		die "short write\n"
+			if $r < length($buf);
+	} else {
+		# POSIX guarantees that writes of up to PIPE_BUF bytes are atomic
+		# so we don't need to acquire a lock here
+		my $r = syswrite(\*STDOUT, $buf);
+		# POSIX guarantees that no partial writes will occur
+		die "short write\n"
+			if $r < length($buf);
+	}
+}
+
+sub send_rpc_unlocked {
+	# When sending an RPC message that requires a reply, we need to
+	# do locking on a higher level.
+	# In that case this non-locking version of send_rpc must be used.
 	confess("internal error: utf8 data passed to send_rpc()")
 		if utf8::is_utf8($_[1]);
-	print pack('LC', length($_[1]), $_[0]), $_[1];
-	STDOUT->flush;
+	my $buf = pack('LC', length($_[1]), $_[0]).$_[1];
+	my $r = syswrite(\*STDOUT, $buf);
+	# POSIX guarantees that no partial writes will occur
+	die "short write\n"
+		if $r < length($buf);
 }
 
 sub recv_rpc {
-	STDOUT->flush;
 	return saferead(\*STDIN, unpack('L', saferead(\*STDIN, 4)));
 }
 
@@ -80,7 +103,6 @@ sub protocol_version {
 	if(@_) {
 		my $protocol_version = shift;
 		$self->{protocol_version} = $protocol_version;
-		my $lock = $self->raiilock;
 		$self->send_rpc(RSYNC_RPC_protocol_version, pack('L', $protocol_version));
 		return;
 	}
@@ -93,7 +115,6 @@ sub checksumSeed {
 	if(@_) {
 		my $checksumSeed = shift;
 		$self->{checksumSeed} = $checksumSeed;
-		my $lock = $self->raiilock;
 		$self->send_rpc(RSYNC_RPC_checksumSeed, pack('L', $checksumSeed));
 		return;
 	}
@@ -105,21 +126,19 @@ sub checksumSeed {
 sub attribGet {
 	my $attrs = shift;
 	my $lock = $self->raiilock;
-	$self->send_rpc(RSYNC_RPC_attribGet, serialize_attrs($attrs));
+	$self->send_rpc_unlocked(RSYNC_RPC_attribGet, serialize_attrs($attrs));
 	my $res = $self->recv_rpc;
 	return $res eq '' ? undef : parse_attrs($res);
 }
 
 sub fileDeltaRxStart {
 	my ($attrs, $numblocks, $blocksize, $lastblocksize) = @_;
-	my $lock = $self->raiilock;
 	$self->send_rpc(RSYNC_RPC_fileDeltaRxStart,
 		pack('QLL', $numblocks, $blocksize, $lastblocksize).serialize_attrs($attrs));
 }
 
 sub fileDeltaRxNext {
 	my ($blocknum, $data) = @_;
-	my $lock = $self->raiilock;
 	if(defined $blocknum) {
 		$self->send_rpc(RSYNC_RPC_fileDeltaRxNext_blocknum, pack('Q', $blocknum));
 	} elsif(defined $data) {
@@ -129,7 +148,6 @@ sub fileDeltaRxNext {
 }
 
 sub fileDeltaRxDone {
-	my $lock = $self->raiilock;
 	$self->send_rpc(RSYNC_RPC_fileDeltaRxDone, '');
 	return undef;
 }
@@ -137,7 +155,6 @@ sub fileDeltaRxDone {
 sub csumStart {
     my ($attrs, $needMD4, $blockSize, $phase) = @_;
 	$self->needMD4($needMD4);
-	my $lock = $self->raiilock;
 	$self->send_rpc(RSYNC_RPC_csumStart, pack('CLC', $needMD4 ? 1 : 0, $blockSize, $phase).serialize_attrs($attrs));
 	return $blockSize;
 }
@@ -146,24 +163,24 @@ sub csumGet {
 	my ($num, $csumLen, $blockSize) = @_;
 	return unless $self->needMD4_isset;
 	my $lock = $self->raiilock;
-	$self->send_rpc(RSYNC_RPC_csumGet, pack('QLL', $num, $csumLen, $blockSize));
+	$self->send_rpc_unlocked(RSYNC_RPC_csumGet, pack('QLL', $num, $csumLen, $blockSize));
 	return $self->recv_rpc;
 }
 
 sub csumEnd {
 	return unless $self->needMD4_isset;
-	my $lock = $self->raiilock;
 	if($self->needMD4) {
-		$self->send_rpc(RSYNC_RPC_csumEnd_digest, '');
+		my $lock = $self->raiilock;
+		$self->send_rpc_unlocked(RSYNC_RPC_csumEnd_digest, '');
 		return $self->recv_rpc;
+	} else {
+		$self->send_rpc(RSYNC_RPC_csumEnd, '');
+		return undef;
 	}
-	$self->send_rpc(RSYNC_RPC_csumEnd, '');
-	return undef;
 }
 
 sub attribSet {
 	my ($attrs, $placeHolder) = @_;
-	my $lock = $self->raiilock;
 	$self->send_rpc(RSYNC_RPC_attribSet, serialize_attrs($attrs));
 	return undef;
 }
@@ -183,6 +200,5 @@ sub logHandlerSet {}
 sub statsGet {{}}
 
 sub finish {
-	my $lock = $self->raiilock;
 	$self->send_rpc(RSYNC_RPC_finish, '');
 }
