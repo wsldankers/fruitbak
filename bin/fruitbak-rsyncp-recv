@@ -42,7 +42,11 @@ binmode STDOUT;
 
 my $lock = new File::Temp;
 
-my $fio = new Fruitbak::Transfer::Rsync::IO(lockfile => $lock->filename);
+my $fio = new Fruitbak::Transfer::Rsync::IO(
+	lockfile => $lock->filename,
+	lockfh => $lock,
+	lockpid => $$,
+);
 
 my $share = shift @ARGV;
 my $rsync = shift @ARGV;
