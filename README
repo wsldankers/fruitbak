@@ -3,24 +3,39 @@ fruitbak
 
 Efficient disk based backups.
 
+Implemented:
+
+ - command line based backup
+ - dedup
+ - rsync backup method
+ - configuration
+
 Initial goals:
 
- - command line based backup and restore
- - compression and dedup
+ - command line based tar restore
+ - command line based browsing
+ - pluggable pool storage
+ - compression
  - test suite
  - manpages
- - rsync transfer method
+ - backup expiry
+ - pluggable expiry
+ - garbage collection
+ - skip pool chunks already in reference backup
  - pluggable expiry methods
 
 After that:
 
- - rsync30 transfer method
- - pluggable pool storage
+ - rsync restore method
  - tar and smb transfer methods
  - web based backup browsing
+ - queued pool storage
+ - pool scrubbing
+ - pool chunk blacklisting
  - tutorials
 
 Later:
 
+ - rsync30 transfer method
  - pluggable metadata storage
  - archiving
