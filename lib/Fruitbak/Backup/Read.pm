@@ -45,7 +45,6 @@ field number; # required for new
 field dir => sub { $self->host->dir . '/' . $self->number };
 field sharedir => sub { $self->dir . '/share' };
 field shares_cache => {};
-field compress => sub { $self->fbak->compress };
 
 field info => sub {
 	my $dir = $self->dir;

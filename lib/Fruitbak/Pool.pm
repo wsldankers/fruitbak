@@ -44,9 +44,7 @@ field cfg => sub { $self->fbak->cfg };
 field hashalgo => sub { \&Digest::SHA::sha256 };
 field hashsize => sub { length($self->hashalgo->('')) };
 field chunksize => sub { $self->cfg->chunksize // 2097152 };
-field compress => sub { $self->cfg->compress };
 field pooldir => sub { normalize_and_check_directory($self->cfg->pooldir // $self->fbak->rootdir . '/pool') };
-field cpooldir => sub { normalize_and_check_directory($self->cfg->cpooldir // $self->fbak->rootdir . '/cpool') };
 
 sub reader {
 	return new Fruitbak::Pool::Read(pool => $self, @_);

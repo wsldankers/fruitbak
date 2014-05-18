@@ -50,7 +50,6 @@ field refShare => sub {
     return undef unless $refbak;
     return $refbak->get_share($self->name); 
 };
-field compress => sub { $self->backup->compress };
 field hhm => sub {
 	my $dir = $self->dir;
 

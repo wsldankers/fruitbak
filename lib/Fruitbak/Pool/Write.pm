@@ -48,7 +48,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Pool::Write;
 
-use IO::Compress::Gzip qw(gzip $GzipError);
 use Digest::SHA qw(sha512);
 use File::Path qw(make_path);
 
@@ -58,7 +57,6 @@ field fbak => sub { $self->pool->fbak };
 field pool;
 field buf => '';
 field hashes => '';
-field compress => sub { $self->pool->compress };
 field chunksize => sub { $self->pool->chunksize };
 field hashalgo => sub { $self->pool->hashalgo };
 field hashsize => sub { $self->pool->hashsize };
@@ -112,18 +110,11 @@ sub savechunk {
 	my $digest = $hashalgo->($chunk);
 
 	my $pool = $self->pool;
-	my $compress = $self->compress;
 
-	my $pooldir = $compress ? $pool->cpooldir : $pool->pooldir;
+	my $pooldir = $pool->pooldir;
 	my $dest = $pooldir.'/'.$pool->digest2path($digest);
 
 	return $digest if -e $dest;
-
-	if($compress) {
-		gzip(\$chunk, \my $res, -Level => $compress)
-			or die "compression failed: $GzipError\n";
-		$chunk = $res;
-	}
 
 	my $partial = "$pooldir/new-$$";
 	unlink($partial) or $!{ENOENT}

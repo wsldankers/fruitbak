@@ -32,13 +32,10 @@ package Fruitbak::Pool::Read;
 
 use Class::Clarity -self;
 
-use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
-use Carp qw(confess carp croak cluck);
 use Digest::SHA qw(sha512);
 
 field fbak => sub { $self->pool->fbak };
 field pool;
-field compress => sub { $self->pool->compress };
 field off => 0;
 field digests;
 field curchunkbuf;
@@ -62,20 +59,20 @@ sub pread {
 	my $startchunk = do { use integer; $off / $chunksize };
 	my $endchunk = do { use integer; ($off + $len - 1) / $chunksize };
 
-	my $chunk = $self->getchunk($startchunk);
+	$self->getchunk($startchunk);
 	my $coff = $off % $chunksize;
-	return '' unless $coff < length($chunk);
-	my $res = substr($chunk, $coff, $len);
+	return '' unless $coff < length($self->{curchunkbuf});
+	my $res = substr($self->{curchunkbuf}, $coff, $len);
 
 	for(my $i = $startchunk + 1; $i <= $endchunk; $i++) {
 		last if length($res) == $len;
-		$chunk = $self->getchunk($i);
+		$self->getchunk($i);
 		if($i == $endchunk) {
-			$res .= substr($chunk, 0, ($off + $len) % $chunksize);
+			$res .= substr($self->{curchunkbuf}, 0, ($off + $len) % $chunksize);
 		} else {
-			$res .= $chunk;
+			$res .= $self->{curchunkbuf};
 		}
-		last if length($chunk) < $chunksize;
+		last if length($self->{curchunkbuf}) < $chunksize;
 	}
 
 	return $res;
@@ -102,8 +99,7 @@ sub seek {
 sub getchunk {
 	my $chunk = shift;
 
-	return $self->curchunkbuf
-		if $self->curchunknum == $chunk;
+	return if $self->curchunknum == $chunk;
 
 	my $chunksize = $self->chunksize;
 	my $hashsize = $self->hashsize;
@@ -117,43 +113,24 @@ sub getchunk {
 	my $digest = substr($digests, $chunk * $hashsize, $hashsize);
 
 	my $pool = $self->pool;
-	my $compress = $self->compress;
 	my $relsource = $pool->digest2path($digest);
-	my $pooldir = $compress ? $pool->cpooldir : $pool->pooldir;
-	my $source = $pooldir.'/'.$relsource;
+	my $pooldir = $pool->pooldir;
+	my $source = "$pooldir/$relsource";
 
-	my $fh = new IO::File($source, '<:raw');
-	if(!$fh) {
-		die "open($source): $!\n"
-			unless $!{ENOENT};
-		$compress = !$compress;
-		$pooldir = $compress ? $pool->cpooldir : $pool->pooldir;
-		$source = $pooldir.'/'.$relsource;
-		$fh = new IO::File($source, '<:raw')
-			or die "open($source): $!\n"
-	}
-	my $raw = '';
+	$self->curchunknum(-1);
+	$self->curchunkbuf('');
+
+	my $fh = new IO::File($source, '<:raw')
+		or die "open($source): $!\n";
 	for(;;) {
-		my $r = $fh->read($raw, $chunksize * 2, length($raw));
+		my $r = $fh->read($self->{curchunkbuf}, $chunksize * 2, length($self->{curchunkbuf}));
 		die "read($source): $!\n" unless defined $r;
 		last unless $r;
 	}
 	$fh->close;
 	undef $fh;
 
-	if($compress) {
-		gunzip(\$raw, \my $res)
-			or die "gunzip($source) $GunzipError\n";
-#		$self->hashalgo->($res) eq $digest
-#			or die "Checksum mismatch for $source\n";
-		$self->curchunkbuf($res);
-		$self->curchunknum($chunk);
-		return $res;
-	} else {
-#		$self->hashalgo->($raw) eq $digest
-#			or die "Checksum mismatch for $source\n";
-		$self->curchunkbuf($raw);
-		$self->curchunknum($chunk);
-		return $raw;
-	}
+#	$self->hashalgo->($self->{curchunkbuf}) eq $digest
+#		or die "Checksum mismatch for $source\n";
+	$self->curchunknum($chunk);
 }

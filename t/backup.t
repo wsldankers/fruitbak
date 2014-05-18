@@ -64,7 +64,7 @@ my $refdata = 'herpderp!'x7e6;
 do {
 	my $bu = new_ok('Fruitbak::Backup::Write', [host => $ho, number => 0])
 		or BAIL_OUT('need a Fruitbak::Backup::Write object to run');
-	my $shw = new_ok('Fruitbak::Share::Write', [backup => $bu, name => '/', compress => 1])
+	my $shw = new_ok('Fruitbak::Share::Write', [backup => $bu, name => '/'])
 		or BAIL_OUT('need a Fruitbak::Share::Write object to run');
 
 	$shw->add_entry(new Fruitbak::Dentry(

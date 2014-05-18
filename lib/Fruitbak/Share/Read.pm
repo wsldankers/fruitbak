@@ -44,7 +44,6 @@ field dir => sub { $self->backup->sharedir . '/' . mangle($self->name) };
 field hh => sub { new Hardhat($self->dir . '/metadata.hh') };
 field backup;
 field fbak => sub { $self->backup->fbak };
-field compress => sub { $self->backup->compress };
 
 # directory listing, returns a list of string
 sub ls {

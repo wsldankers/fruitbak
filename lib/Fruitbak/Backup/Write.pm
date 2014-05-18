@@ -46,7 +46,6 @@ field number => sub {
 	return @$backups ? $backups->[-1] + 1 : 0;
 };
 field fbak => sub { $self->host->fbak };
-field compress => sub { $self->fbak->compress };
 field shares => sub { $self->host->cfg->shares // ['/'] };
 field status => 'failed';
 field type => sub { $self->level ? 'incr' : 'full' };
