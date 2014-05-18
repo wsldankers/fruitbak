@@ -40,6 +40,8 @@ use File::Temp;
 binmode STDIN;
 binmode STDOUT;
 
+$SIG{PIPE} = 'IGNORE';
+
 my $lock = new File::Temp;
 
 my $fio = new Fruitbak::Transfer::Rsync::IO(

@@ -125,7 +125,6 @@ sub attribGet {
 
 sub fileDeltaRxStart {
 	my ($attrs, $numblocks, $blocksize, $lastblocksize) = @_;
-warn "blocksize=$blocksize";
 	my $pool = $self->pool;
 	$self->curfile(new Class::Clarity(
 		attrs => $attrs,
@@ -300,22 +299,37 @@ sub recv_files {
 		}
 	};
 	my $err = $@;
-	if(eval { kill TERM => $pid }) {
+	my $signaled;
+	my $reaped;
+	eval {
+		my $handler = sub {
+			if(eval { waitpid($pid, WNOHANG) }) {
+				$reaped = 1;
+				die "child exited\n";
+			}
+		};
+		local $SIG{CHLD} = $handler;
+		$handler->();
 		sleep(2);
-		eval { kill KILL => $pid };
-	}
-	waitpid($pid, 0);
+		$signaled = 1;
+		kill TERM => $pid;
+		sleep(2);
+		kill KILL => $pid;
+	};
+	waitpid($pid, 0) unless $reaped;
 	die $err if $err;
 	if(WIFEXITED($?)) {
 		my $status = WEXITSTATUS($?);
-		die sprintf("%s exited with status %d\n", $status)
+		die sprintf("sub-process exited with status %d\n", $status)
 			if $status;
 	} elsif(WIFSIGNALED($?)) {
 		my $sig = WTERMSIG($?);
-		die sprintf("%s killed with signal %d%s\n", $sig & 127, ($sig & 128) ? ' (core dumped)' : '')
-	} elsif(WIFSTOPPED($?)) {
-		my $sig = WSTOPSIG($?);
-		warn sprintf("%s stopped with signal %d\n", $sig)
+		my $msg = sprintf("sub-process killed with signal %d%s\n", $sig & 127, ($sig & 128) ? ' (core dumped)' : '');
+		if($signaled) {
+			warn $msg;
+		} else {
+			die $msg;
+		}
 	}
 	return;
 }
