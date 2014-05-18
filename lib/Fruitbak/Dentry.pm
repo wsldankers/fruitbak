@@ -49,6 +49,14 @@ field hlink => undef;
 field hlink_self => undef;
 field original => undef;
 
+sub digests {
+	confess("trying to treat an unreferenced hardlink as a device")
+		if $self->is_hardlink;
+	confess("attempt to read from something that is not a file")
+		unless $self->is_file;
+	return $self->extra(@_);
+}
+
 sub hardlink {
 	return $self->is_hardlink ? $self->extra : undef
 		unless @_;

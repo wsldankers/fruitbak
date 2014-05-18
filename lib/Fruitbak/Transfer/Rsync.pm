@@ -109,7 +109,7 @@ sub setup_reffile {
 				$self->reffile(new Class::Clarity(
 					attrs => $attrs,
 					dentry => $dentry,
-					poolreader => $self->pool->reader(digests => $dentry->extra),
+					poolreader => $self->pool->reader(digests => $dentry->digests),
 				));
 			}
 		}
@@ -154,7 +154,7 @@ sub fileDeltaRxNext {
 sub fileDeltaRxDone {
 	my $curfile = $self->curfile;
 	my ($hashes, $size) = $curfile->poolwriter->close;
-	my $dentry = attrs2dentry($curfile->attrs, extra => $hashes, size => $size);
+	my $dentry = attrs2dentry($curfile->attrs, digests => $hashes, size => $size);
 	$self->share->add_entry($dentry);
 	$self->curfile_reset;
 	return undef;
@@ -236,9 +236,11 @@ sub reply_rpc {
 
 sub recv_files {
 	local $SIG{PIPE} = 'IGNORE';
+	my $name = $self->share->name;
+	$name =~ s{(?:/+\.?)?$}{/.}a;
 	my $pid = open2(my $out, my $in,
 		'fruitbak-rsyncp-recv',
-		$self->share->name,
+		$name,
 		qw(rsync
 			--numeric-ids
 			--perms
