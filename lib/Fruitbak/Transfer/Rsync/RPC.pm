@@ -35,7 +35,7 @@ use warnings FATAL => 'all';
 use autodie;
 
 use Exporter qw(import);
-use Data::Dumper;
+use MIME::Base64;
 
 our @EXPORT = qw(saferead serialize_attrs parse_attrs
 	RSYNC_RPC_finish
@@ -71,12 +71,13 @@ sub saferead {
 sub serialize_attrs {
 	my $attrs = shift;
 	return '' unless defined $attrs;
-	return join("\0", %$attrs);
+	return pack('(Z*)*', %$attrs);
 }
 
 sub parse_attrs {
-	my %attrs = unpack('(Z*)*', shift);
-	return \%attrs;
+	my $attrs = shift;
+	return undef if $attrs eq '';
+	return { unpack('(Z*)*', $attrs) };
 }
 
 use constant RSYNC_RPC_finish => 0;

@@ -110,6 +110,6 @@ sub resolve_share {
 		$bestbase = join('/', @base);
 		$bestshare = $share;
 	}
-	return $bestbase, $bestshare if defined $bestshare;
-	return;
+	return $bestshare, $bestbase if defined $bestshare;
+	die "no such share '$path'\n";
 }

@@ -42,12 +42,14 @@ sub run {
 	my (undef, $hostname, $backupnum, $sharename, $path) = @_;
 
 	die "usage: fruitbak cat <hostname> <backup> <share> <path>\n"
-		unless defined $path;
+		unless defined $sharename;
 
 	my $fbak = $self->fbak;
 
 	my $host = $fbak->get_host($hostname);
 	my $backup = $host->get_backup($backupnum);
+	($sharename, $path) = $backup->resolve_share($sharename)
+		unless defined $path;
 	my $share = $backup->get_share($sharename);
 	my $dentry = $share->get_entry($path, 1)
 		or die "'$path': file not found\n";
@@ -58,6 +60,7 @@ sub run {
 	my $buf = $reader->read;
 	die "refusing to write a binary file to a terminal\n"
 		if -t \*STDOUT && $buf =~ /\0/a;
+	binmode STDOUT;
 	while($buf ne '') {
 		print $buf;
 		$buf = $reader->read;

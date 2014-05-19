@@ -30,7 +30,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Transfer::Rsync::IO;
 
-use autodie;
+use autodie qw(syswrite);
 
 use File::RsyncP::Digest;
 use Data::Dumper;
