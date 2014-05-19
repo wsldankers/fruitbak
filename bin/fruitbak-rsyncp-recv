@@ -33,19 +33,19 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 use strict;
 use warnings FATAL => 'all';
 
+use File::Temp;
 use File::RsyncP;
 use Fruitbak::Transfer::Rsync::IO;
-use File::Temp;
 
 binmode STDIN;
 binmode STDOUT;
 
 $SIG{PIPE} = 'IGNORE';
 
-my $lock = new File::Temp;
+my $lock = new File::Temp(EXLOCK => 0);
 
 my $fio = new Fruitbak::Transfer::Rsync::IO(
-	lockfile => $lock->filename,
+	lockname => $lock->filename,
 	lockfh => $lock,
 	lockpid => $$,
 );

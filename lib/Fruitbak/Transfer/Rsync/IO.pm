@@ -44,7 +44,7 @@ use Class::Clarity -self;
 field needMD4;
 field blockSize;
 field preserve_hard_links;
-field lockfile;
+field lockname => sub { $self->lockfh->filename };
 field lockfh;
 field lockpid => 0;
 
@@ -54,9 +54,9 @@ sub raiilock {
 	my $pid = $$;
 	return new Fruitbak::Transfer::Rsync::Lock(lockfh => $self->lockfh)
 		if $self->lockfh_isset && $self->lockpid == $pid;
-	my $lockfile = $self->lockfile;
-	my $lockfh = new IO::File($lockfile, '+<')
-		or die "can't open $lockfile: $!\n";
+	my $lockname = $self->lockname;
+	my $lockfh = new IO::File($lockname, '+<')
+		or die "can't open $lockname: $!\n";
 	$self->lockfh($lockfh);
 	$self->lockpid($pid);
 	return new Fruitbak::Transfer::Rsync::Lock(lockfh => $lockfh)
@@ -190,12 +190,10 @@ use constant makePath => undef;
 use constant makeSpecial => undef;
 use constant ignoreAttrOnFile => undef;
 
-{
-	no warnings;
-	sub unlink {}
-}
+use subs 'unlink';
+sub unlink { return }
 
-sub logHandlerSet {}
+sub logHandlerSet { return }
 
 sub statsGet {{}}
 
