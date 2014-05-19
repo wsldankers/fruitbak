@@ -35,7 +35,8 @@ use warnings FATAL => 'all';
 
 use Exporter qw(import);
 
-our @EXPORT = qw(normalize_and_check_directory);
+our @EXPORT = qw(normalize_and_check_directory normalize_directory check_directory split_path);
+our @EXPORT_OK = @EXPORT;
 
 sub normalize_directory {
 	local $_ = shift;
@@ -60,4 +61,11 @@ sub check_directory {
 
 sub normalize_and_check_directory {
 	return check_directory(normalize_directory(shift));
+}
+
+sub split_path {
+	my $path = shift;
+	my @path = grep { $_ ne '.' } split(qr{/+}, $path);
+	@path = ('') if !@path && $path =~ m{^/};
+	return @path;
 }

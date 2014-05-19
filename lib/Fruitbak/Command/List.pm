@@ -158,7 +158,11 @@ sub run {
 			my $backup = $host->get_backup($backupnum);
 			if(defined $sharename) {
 				@align[0, 2..4] = ('') x 10;
-				$path //= '';
+				unless(defined $path) {
+					($path, my $share) = $backup->resolve_share($sharename)
+						or die "unknown share '$sharename'\n";
+					$sharename = $share;
+				}
 				my $share = $backup->get_share($sharename);
 				my $files = $share->ls($path);
 				#push @table, ["mode", "inum", "uid", "gid", "size", "mtime"];

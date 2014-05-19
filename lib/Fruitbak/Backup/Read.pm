@@ -36,6 +36,7 @@ use IO::File;
 use IO::Dir;
 use JSON;
 use Scalar::Util qw(weaken);
+use Fruitbak::Util;
 use Fruitbak::Share::Read;
 use Fruitbak::Share::Format;
 
@@ -85,4 +86,30 @@ sub get_share {
 		weaken($cache->{$name});
 	}
 	return $share;
+}
+
+sub resolve_share {
+	my $path = shift;
+	my @path = split_path($path);
+
+	my ($bestbase, $bestshare, $bestnum);
+
+	my $shares = $self->shares;
+	share: foreach my $share (@$shares) {
+		my @share = split_path($share);
+		next if @share > @path;
+		next if defined $bestnum && @share <= $bestnum;
+		my $num = @share;
+		my @base = @path;
+		while(@share) {
+			my $s = shift @share;
+			my $b = shift @base;
+			next share if $s ne $b;
+		}
+		$bestnum = $num;
+		$bestbase = join('/', @base);
+		$bestshare = $share;
+	}
+	return $bestbase, $bestshare if defined $bestshare;
+	return;
 }
