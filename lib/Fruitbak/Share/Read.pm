@@ -37,6 +37,8 @@ use Fcntl qw(:mode);
 use Hardhat;
 use Fruitbak::Share::Format;
 use Fruitbak::Pool::Read;
+use Fruitbak::Dentry;
+use Fruitbak::Dentry::Hardlink;
 
 use Class::Clarity -self;
 
@@ -49,45 +51,47 @@ field fbak => sub { $self->backup->fbak };
 sub ls {
 	my $path = shift;
 	my $c = $self->hh->ls($path);
+	return $c unless wantarray;
 	my @res;
 	for(;;) {
 		my ($name) = $c->fetch()
 			or last;
 		push @res, $name;
 	}
-	return \@res;
+	return @res;
 }
 
 # recursive directory listing, returns a list of string
 sub find {
 	my $path = shift;
 	my $c = $self->hh->find($path);
+	return $c unless wantarray;
 	my @res;
 	for(;;) {
 		my ($name) = $c->fetch()
 			or last;
 		push @res, $name;
 	}
-	return \@res;
+	return @res;
 }
 
 # given a name, return a Fruitbak::Dentry
 sub get_entry {
-	my ($path, $follow) = @_;
+	my $path = shift;
 	my $hh = $self->hh;
 	my ($name, $data, $inode) = $hh->get($path)
 		or return;
 	my $dentry = attrparse($data);
-
-	if($follow && $dentry->is_hardlink) {
-		(undef, $data, $inode) = $hh->get($dentry->hardlink);
-		my $original = $dentry;
-		$dentry = attrparse($data);
-		$dentry->original($original);
-	}
-
 	$dentry->name($name);
 	$dentry->inode($inode);
+
+	if($dentry->is_hardlink) {
+		($name, $data, $inode) = $hh->get($dentry->hardlink);
+		my $target = attrparse($data);
+		$target->name($name);
+		$target->inode($inode);
+		return new Fruitbak::Dentry::Hardlink(original => $dentry, target => $target);
+	}
 
 	return $dentry;
 }

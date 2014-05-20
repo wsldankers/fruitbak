@@ -51,7 +51,7 @@ sub run {
 	($sharename, $path) = $backup->resolve_share($sharename)
 		unless defined $path;
 	my $share = $backup->get_share($sharename);
-	my $dentry = $share->get_entry($path, 1)
+	my $dentry = $share->get_entry($path)
 		or die "'$path': file not found\n";
 	die "'$path' is not a file\n"
 		unless $dentry->is_file;

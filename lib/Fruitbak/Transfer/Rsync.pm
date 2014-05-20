@@ -37,6 +37,7 @@ use Fruitbak::Transfer::Rsync::RPC;
 use IPC::Open2;
 use IO::Handle;
 use POSIX qw(:sys_wait_h);
+use Fcntl qw(:mode);
 use Data::Dumper;
 
 use Class::Clarity -self;
@@ -82,8 +83,6 @@ sub attrs2dentry() {
 sub dentry2attrs() {
 	my $dentry = shift;
 	return undef unless defined $dentry;
-	confess("internal error: hardlink passed to dentry2attrs()")
-		if $dentry->is_hardlink;
 	my %attrs = (
 		name => $dentry->name,
 		mode => $dentry->mode,
@@ -104,7 +103,7 @@ sub dentry2attrs() {
 sub setup_reffile {
 	my $attrs = shift;
 	if(my $refShare = $self->refShare) {
-		if(my $dentry = $refShare->get_entry($attrs->{name}, 1)) {
+		if(my $dentry = $refShare->get_entry($attrs->{name})) {
 			if($dentry->is_file) {
 				$self->reffile(new Class::Clarity(
 					attrs => $attrs,
@@ -120,7 +119,7 @@ sub attribGet {
 	my $attrs = shift;
 	my $ref = $self->refShare;
 	return unless $ref;
-	return dentry2attrs($ref->get_entry($attrs->{name}, 1));
+	return dentry2attrs($ref->get_entry($attrs->{name}));
 }
 
 sub fileDeltaRxStart {
@@ -166,7 +165,7 @@ sub csumStart {
 	$self->csumEnd if $self->reffile;
 
 	my $refShare = $self->refShare or return;
-	my $dentry = $refShare->get_entry($attrs->{name}, 1) or return;
+	my $dentry = $refShare->get_entry($attrs->{name}) or return;
 	return unless $dentry->is_file;
 
 	$self->setup_reffile($attrs);
@@ -213,13 +212,16 @@ sub csumEnd {
 
 sub attribSet {
 	my ($attrs, $placeHolder) = @_;
-	if(my $refShare = $self->refShare) {
-		if(my $dentry = $refShare->get_entry($attrs->{name}, 1)) {
-			$self->share->add_entry($dentry);
-			return undef;
+
+	my $dentry = attrs2dentry($attrs);
+	# if this is an existing regular file:
+	if($dentry->is_file && !$dentry->is_hardlink) {
+		if(my $refShare = $self->refShare) {
+			if(my $ref = $refShare->get_entry($attrs->{name})) {
+				$dentry->digests($ref->digests);
+			}
 		}
 	}
-	my $dentry = attrs2dentry($attrs);
 	$self->share->add_entry($dentry);
 	return undef;
 }

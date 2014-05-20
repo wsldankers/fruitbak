@@ -39,3 +39,4 @@ Later:
  - rsync30 transfer method
  - pluggable metadata storage
  - archiving
+ - xattrs/acls

@@ -45,11 +45,12 @@ field uid;
 field gid;
 field extra => '';
 field inode;
-field hlink => undef;
-field hlink_self => undef;
-field original => undef;
+
+sub target { return $self }
+sub original { return $self }
 
 sub digests {
+	$self = $self->resolved unless @_;
 	confess("trying to treat an unreferenced hardlink as a device")
 		if $self->is_hardlink;
 	confess("attempt to read from something that is not a file")
@@ -61,7 +62,7 @@ sub hardlink {
 	return $self->is_hardlink ? $self->extra : undef
 		unless @_;
 	$self->extra(shift);
-	$self->mode($self->plain_mode | R_HARDLINK);
+	$self->mode($self->mode | R_HARDLINK);
 }
 
 sub symlink {
@@ -100,7 +101,7 @@ sub rdev_major {
 	$self->extra(pack('LL', shift, $minor // 0));
 }
 
-sub plain_mode { $self->mode & ~R_HARDLINK }
+sub resolved { $self->target // $self }
 
 sub is_hardlink { $self->mode & R_HARDLINK }
 

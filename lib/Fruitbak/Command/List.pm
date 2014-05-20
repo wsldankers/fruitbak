@@ -34,6 +34,7 @@ use autodie;
 use v5.14;
 
 use POSIX qw(strftime);
+use Data::Dumper;
 
 use Fruitbak::Command -self;
 
@@ -89,7 +90,8 @@ sub format_dentry {
 	my $dentry = shift;
 	my @row;
 
-	my $original = $dentry->original;
+	my $target = $dentry->target;
+	my $is_hardlink = $dentry->is_hardlink;
 
 	my $typechar = $dentry->is_directory ? 'd'
 		: $dentry->is_symlink ? 'l'
@@ -97,18 +99,17 @@ sub format_dentry {
 		: $dentry->is_blockdev ? 'b'
 		: $dentry->is_fifo ? 'p'
 		: $dentry->is_socket ? 's'
-		: $original ? 'h'
+		: $is_hardlink ? 'h'
 		: $dentry->is_file ? '-'
 		: '?';
 
 	my $name = $dentry->name;
 	$name = '.' if $name eq '';
 	$name =~ s{^.*/}{}a;
-	if($original) {
+	if($is_hardlink) {
 		$typechar = uc($typechar);
-		$name .= " => ".$self->relative_path($dentry->name, $original->hardlink);
+		$name .= " => ".$self->relative_path($dentry->name, $target->name);
 	} elsif($dentry->is_symlink) {
-		$original = $dentry;
 		$name .= " -> ".$dentry->symlink;
 	}
 
@@ -161,10 +162,10 @@ sub run {
 				($sharename, $path) = $backup->resolve_share($sharename)
 					unless defined $path;
 				my $share = $backup->get_share($sharename);
-				my $files = $share->ls($path);
+				my @files = $share->ls($path);
 				#push @table, ["mode", "inum", "uid", "gid", "size", "mtime"];
-				foreach my $filename (@$files) {
-					my $dentry = $share->get_entry($filename, 1);
+				foreach my $filename (@files) {
+					my $dentry = $share->get_entry($filename);
 					push @table, $self->format_dentry($dentry);
 				}
 			} else {
