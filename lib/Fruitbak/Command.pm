@@ -38,6 +38,7 @@ use Fruitbak::Command::Cat;
 use Fruitbak::Command::Help;
 use Fruitbak::Command::Init;
 use Fruitbak::Command::List;
+use Fruitbak::Command::Tar;
 
 # classes may register commands here as they are loaded:
 our %commands;

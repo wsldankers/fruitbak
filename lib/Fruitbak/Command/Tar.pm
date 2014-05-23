@@ -28,7 +28,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Command::Cat;
+package Fruitbak::Command::Tar;
 
 use autodie;
 use IO::Handle;
@@ -37,7 +37,7 @@ use Fcntl qw(:mode);
 use Fruitbak::Command -self;
 
 BEGIN {
-	$Fruitbak::Command::commands{cat} = [__PACKAGE__, "Write a file to stdout"];
+	$Fruitbak::Command::commands{tar} = [__PACKAGE__, "Write a tar file to stdout"];
 }
 
 field fh => sub { select };
@@ -179,8 +179,13 @@ sub finish {
 sub run {
 	my (undef, $hostname, $backupnum, $sharename, $path) = @_;
 
-	die "usage: fruitbak cat <hostname> <backup> <share> <path>\n"
+	die "usage: fruitbak dump <hostname> <backup> <share> <path>\n"
 		unless defined $sharename;
+
+	my $fh = $self->fh;
+	die "refusing to write a binary file to a terminal\n"
+		if -t $fh;
+	binmode $fh;
 
 	my $fbak = $self->fbak;
 
@@ -189,19 +194,41 @@ sub run {
 	($sharename, $path) = $backup->resolve_share($sharename)
 		unless defined $path;
 	my $share = $backup->get_share($sharename);
-	my $dentry = $share->get_entry($path)
-		or die "'$path': file not found\n";
-	die "'$path' is not a file\n"
-		unless $dentry->is_file;
-	my $reader = $fbak->pool->reader(digests => $dentry->digests);
+	my $cursor = $share->find($path);
+	my $first = $cursor->read->inode;
+	while(my $dentry = $cursor->fetch) {
+		if($dentry->is_hardlink) {
+			my $target = $dentry->target;
+			my $targetname = $target->name;
+			my $remapped = $remap{$targetname};
+			if(defined $remapped) {
+				$target->name($remapped);
+				$self->output_hardlink($dentry);
+				next;
+			}
+			# already seen as a regular file
+			my $inode = $dentry->target->inode;
+			if($inode >= $first && $inode < $dentry->inode) {
+				$self->output_hardlink($dentry);
+				next;
+			}
+			$remap{$targetname} = $dentry->name;
+			# fall-through: this hardlink will be dumped as a regular file
+		}
+		if($dentry->is_file) {
+			$self->start_file($dentry);
 
-	my $buf = $reader->read;
-	die "refusing to write a binary file to a terminal\n"
-		if -t \*STDOUT && $buf =~ /\0/a;
-	binmode STDOUT;
-	while($buf ne '') {
-		print $buf;
-		$buf = $reader->read;
+			my $reader = $fbak->pool->reader(digests => $dentry->digests);
+
+			my $buf = $reader->read;
+			while($buf ne '') {
+				print $fh $buf;
+				$buf = $reader->read;
+			}
+			$self->end_file;
+		} else {
+			$self->dump_entry($dentry);
+		}
 	}
 
 	return 0;
