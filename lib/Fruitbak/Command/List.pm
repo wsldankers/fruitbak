@@ -53,6 +53,22 @@ sub width() {
 	return length($str);
 }
 
+my %escapechars = (
+	"\t" => '\t',
+	"\n" => '\n',
+	"\r" => '\r',
+	"\f" => '\f',
+	"\b" => '\b',
+	"\a" => '\a',
+	"\e" => '\e',
+	"\013" => '\v',
+);
+
+sub escapechars() {
+	return $_[0] =~ s{\\}{\\\\}gra
+		=~ s{([\0-\037])}{$escapechars{$1} // sprintf('\%03o', ord($1))}gera;
+}
+
 sub format_table {
 	my $table = shift;
 	my $align = shift // [];
@@ -147,11 +163,13 @@ sub format_dentry {
 	utf8_testandset_inplace($name);
 	$name = '.' if $name eq '';
 	$name =~ s{^.*/}{}a;
+	$name = escapechars($name);
 	if($is_hardlink) {
 		$typechar = uc($typechar);
-		$name .= " => ".utf8_testandset($self->relative_path($dentry->name, $target->name));
+		my $link = $self->relative_path($dentry->name, $target->name);
+		$name .= " => ".escapechars(utf8_testandset($link));
 	} elsif($dentry->is_symlink) {
-		$name .= " -> ".utf8_testandset($dentry->symlink);
+		$name .= " -> ".escapechars(utf8_testandset($dentry->symlink));
 	}
 
 	my $mode = $dentry->mode;
