@@ -31,7 +31,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 package Fruitbak::Share::Format;
 
 use strict;
-use warnings;
+use warnings FATAL => 'all';
 
 use constant ATTRLEN => 28;
 use constant MAXNAMELEN => 65535;
@@ -53,7 +53,7 @@ sub attrformat {
 sub attrparse {
 	my %attrs;
 	@attrs{qw(size mtime mode uid gid extra)} = unpack('QQLLLa*', shift);
-	return new Fruitbak::Dentry(%attrs);
+	return new Fruitbak::Dentry(%attrs, @_);
 }
 
 sub mangle {

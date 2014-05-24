@@ -40,30 +40,50 @@ BEGIN {
 	$Fruitbak::Command::commands{tar} = [__PACKAGE__, "Write a tar file to stdout"];
 }
 
-field fh => sub { select };
+field fh => sub {
+	my $fh = select;
+	return ref $fh ? $fh : eval "\*$fh";
+};
 field curfile;
 
 sub format8 {
 	my $value = shift;
 	return sprintf("%07o\0", $value)
-		if $value < 010000000;
-	use bytes;
+		if $value < (1 << 21);
+	no utf8;
 	return "\x80".substr(pack('Q>', $value), 1)
 		if $value < (1 << 56);
 	return shift;
 }
 
 sub format12 {
-	my $value = shift
+	my $value = shift;
 	return sprintf("%011o\0", $value)
-		if $size < 0100000000000;
-	use bytes;
+		if $value < (1 << 33);
+	no utf8;
 	return "\x80\0\0\0".pack('Q>', $value);
 }
 
 sub output_header {
-	my ($dentry, $type) = shift;
-	my $header = pack('Z100Z8Z8Z8Z12Z12Z8aZ100a8Z32Z32Z8Z8Z155Z12', @_, '');
+	my ($name, $mode, $uid, $gid, $size, $mtime, $type, $link, $maj, $min) = @_;
+	my $header = pack('Z100Z8Z8Z8Z12Z12Z8aZ100a8Z32Z32Z8Z8Z155Z12',
+		$name,
+		$self->format8($mode),
+		$self->format8($uid),
+		$self->format8($gid),
+		$self->format12($size),
+		$self->format12($mtime),
+		'        ', # checksum placeholder
+		$type,
+		$link,
+		"ustar  ", # magic + version
+		'', # username
+		'', # groupname
+		($maj // ''),
+		($min // ''),
+		'', # prefix
+		'', # padding
+	);
 
 	my $csum = 0;
 	foreach(unpack('C*', $header)) {
@@ -84,47 +104,40 @@ $filetypes[S_IFDIR] = 5;
 $filetypes[S_IFIFO] = 6;
 
 sub output_dentry {
-	my ($dentry, $is_hardlink) = @_;
+	my ($dentry, $hardlink) = @_;
 
 	my $mode = $dentry->mode;
 
-	my $type = $filetyps[$mode];
+	my $type = $filetypes[$mode & S_IFMT];
 	return undef unless defined $type;
-	$type = 1 if $is_hardlink;
+	$type = 1 if defined $hardlink;
 
 	my $name = $dentry->name;
 	$name .= '/' if $type == 5;
 
-	my $linkname = $type == 1 ? $dentry->hardlink
+	my $linkname = $type == 1 ? $hardlink
 		: $type == 2 ? $dentry->symlink
 		: '';
 
 	my @dev;
-	if($type == 3 || $type == 4) {
+	if($dentry->is_device) {
 		my $major = $self->format8($dentry->rdev_major);
 		return undef unless defined $major;
 		my $minor = $self->format8($dentry->rdev_minor);
 		return undef unless defined $minor;
 		@dev = ($major, $minor);
-	} else {
-		@dev = ('', '');
 	}
 
 	$self->output_header(
 		$name,
-		$self->format8($dentry->mode & 07777),
-		$self->format8($dentry->uid),
-		$self->format8($dentry->gid),
-		$self->format12($dentry->size),
-		$self->format12($dentry->mtime),
-		'        ', # checksum placeholder
+		$dentry->mode & 07777,
+		$dentry->uid,
+		$dentry->gid,
+		$dentry->size,
+		$dentry->mtime,
 		$type,
 		$linkname,
-		"ustar  ", # magic + version
-		'', # username
-		'', # groupname
 		@dev,
-		'', # prefix
 	);
 
 	return 1;
@@ -154,19 +167,10 @@ sub end_file {
 sub output_entry {
 	confess("output_entry called when a file is still in progress")
 		if $self->curfile_isset;
-	my $dentry = shift;
+	my ($dentry, $hardlink) = @_;
 	confess("output_entry called on a file")
-		if $dentry->is_file;
-	return $self->output_dentry($dentry);
-}
-
-sub output_hardlink {
-	confess("output_hardlink called when a file is still in progress")
-		if $self->curfile_isset;
-	my $dentry = shift;
-	confess("output_hardlink called on something that is not a hardlink")
-		if $dentry->is_hardlink;
-	return $self->output_dentry($dentry, 1);
+		if !defined $hardlink && $dentry->is_file;
+	return $self->output_dentry(@_);
 }
 
 sub finish {
@@ -196,27 +200,30 @@ sub run {
 	my $share = $backup->get_share($sharename);
 	my $cursor = $share->find($path);
 	my $first = $cursor->read->inode;
+	my %remap;
 	while(my $dentry = $cursor->fetch) {
+		my $name = $dentry->name;
+		my $remapped = $remap{$name};
+		if(defined $remapped) {
+			$self->output_entry($dentry, $remapped);
+			next;
+		}
 		if($dentry->is_hardlink) {
 			my $target = $dentry->target;
 			my $targetname = $target->name;
 			my $remapped = $remap{$targetname};
-			if(defined $remapped) {
-				$target->name($remapped);
-				$self->output_hardlink($dentry);
-				next;
-			}
 			# already seen as a regular file
-			my $inode = $dentry->target->inode;
+			my $inode = $target->inode;
 			if($inode >= $first && $inode < $dentry->inode) {
-				$self->output_hardlink($dentry);
+				$self->output_entry($dentry, $targetname);
 				next;
 			}
-			$remap{$targetname} = $dentry->name;
+			$remap{$targetname} = $name;
 			# fall-through: this hardlink will be dumped as a regular file
 		}
 		if($dentry->is_file) {
-			$self->start_file($dentry);
+			$self->start_file($dentry)
+				or confess("regular entry refused?");
 
 			my $reader = $fbak->pool->reader(digests => $dentry->digests);
 
@@ -227,7 +234,7 @@ sub run {
 			}
 			$self->end_file;
 		} else {
-			$self->dump_entry($dentry);
+			$self->output_entry($dentry);
 		}
 	}
 

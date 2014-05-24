@@ -35,6 +35,7 @@ use warnings;
 
 use Fcntl qw(:mode);
 use Hardhat;
+use Fruitbak::Share::Cursor;
 use Fruitbak::Share::Format;
 use Fruitbak::Pool::Read;
 use Fruitbak::Dentry;
@@ -51,11 +52,12 @@ field fbak => sub { $self->backup->fbak };
 sub ls {
 	my $path = shift;
 	my $c = $self->hh->ls($path);
-	return $c unless wantarray;
+	return new Fruitbak::Share::Cursor(share => $self, hhcursor => $c)
+		unless wantarray;
 	my @res;
 	for(;;) {
-		my ($name) = $c->fetch()
-			or last;
+		my $name = $c->fetch;
+		last unless defined $name;
 		push @res, $name;
 	}
 	return @res;
@@ -65,11 +67,12 @@ sub ls {
 sub find {
 	my $path = shift;
 	my $c = $self->hh->find($path);
-	return $c unless wantarray;
+	return new Fruitbak::Share::Cursor(share => $self, hhcursor => $c)
+		unless wantarray;
 	my @res;
 	for(;;) {
-		my ($name) = $c->fetch()
-			or last;
+		my $name = $c->fetch;
+		last unless defined $name;
 		push @res, $name;
 	}
 	return @res;
@@ -81,15 +84,11 @@ sub get_entry {
 	my $hh = $self->hh;
 	my ($name, $data, $inode) = $hh->get($path)
 		or return;
-	my $dentry = attrparse($data);
-	$dentry->name($name);
-	$dentry->inode($inode);
+	my $dentry = attrparse($data, name => $name, inode => $inode);
 
 	if($dentry->is_hardlink) {
 		($name, $data, $inode) = $hh->get($dentry->hardlink);
-		my $target = attrparse($data);
-		$target->name($name);
-		$target->inode($inode);
+		my $target = attrparse($data, name => $name, inode => $inode);
 		return new Fruitbak::Dentry::Hardlink(original => $dentry, target => $target);
 	}
 
