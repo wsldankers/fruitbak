@@ -23,6 +23,8 @@ Initial goals:
  - garbage collection
  - skip pool chunks already in reference backup
  - pluggable expiry methods
+ - rsync includes/excludes
+ - pre/post-commands (per-backup, per-share)
 
 After that:
 
