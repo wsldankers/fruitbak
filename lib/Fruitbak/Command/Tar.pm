@@ -66,12 +66,12 @@ sub format12 {
 
 sub output_header {
 	my ($name, $mode, $uid, $gid, $size, $mtime, $type, $link, $maj, $min) = @_;
-	my $header = pack('Z100Z8Z8Z8Z12Z12a8aZ100a8Z32Z32Z8Z8Z155Z12',
+	my $header = pack('Z100 Z8 Z8 Z8 Z12 Z12 a8 a Z100 a8 Z32 Z32 Z8 Z8 Z155 Z12',
 		$name,
 		$self->format8($mode),
 		$self->format8($uid),
 		$self->format8($gid),
-		$self->format12($size),
+		$self->format12($type ? 0 : $size),
 		$self->format12($mtime),
 		'        ', # checksum placeholder
 		$type,
@@ -84,9 +84,6 @@ sub output_header {
 		'', # prefix
 		'', # padding
 	);
-
-	confess("header has wrong size")
-		unless length($header) == 512;
 
 	my $csum = 0;
 	foreach(unpack('C*', $header)) {
