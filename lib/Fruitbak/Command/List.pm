@@ -34,9 +34,24 @@ use autodie;
 use v5.14;
 
 use POSIX qw(strftime);
-use Data::Dumper;
+use Text::Tabs qw(expand);
+use Fruitbak::Util;
 
 use Fruitbak::Command -self;
+
+sub width() {
+	my $str = shift;
+	# the order matters: the backspace code doesn't like combining
+	# characters so they need to be removed. The cjk code doesn't know
+	# how to deal with backspaces, and the tab code doesn't know how
+	# to deal with any of the other special characters so they need to
+	# be removed first.
+	$str =~ s/(?:\p{Me}|\p{Mn})+//g;      # combining characters
+	$str =~ s/(?:^|.)\010//gm;            # backspaces
+	$str =~ s/(?:\p{Ea=W}|\p{Ea=F})/xx/g; # cjk characters
+	$str = expand($str);                  # tabs
+	return length($str);
+}
 
 sub format_table {
 	my $table = shift;
@@ -45,17 +60,26 @@ sub format_table {
 	my @numeric;
 	foreach my $row (@$table) {
 		while(my ($i, $col) = each @$row) {
-			my $len = length($col // '');
+			my $len = width($col // '');
 			$widths[$i] = $len if $len > ($widths[$i] // -1);
 		}
 	}
-	my @fmts = ("\n", map {
-		join('  ', (map { '%'.($align->[$_] // '-').($widths[$_] // 0).'s' } 0..$_-2), '%s')."\n";
-	} 1..@widths);
 
 	my $res = '';
 	foreach my $row (@$table) {
-		$res .= sprintf($fmts[@$row], map { $_ // '' } @$row);
+		if(@$row) {
+			my @row = @$row;
+			my $last = pop @row;
+			while(my ($i, $col) = each @row) {
+				if(defined $align->[$i]) {
+					$res .= ' 'x($widths[$i] - width($col)) . $col . '  ';
+				} else {
+					$res .= $col . ' 'x($widths[$i] - width($col) + 2);
+				}
+			}
+			$res .= $last;
+		}
+		$res .= "\n";
 	}
 	return $res;
 }
@@ -71,8 +95,20 @@ sub human_readable {
 		$num >>= 10;
 		$index++;
 	}
-	$rest = defined $rest && $num < 10 ? '.'.(($rest * 10) >> 10) : '';
-	return "$num$rest$units[$index]";
+	my $sub = '';
+	if(defined $rest) {
+		if($num < 10) {
+			my $dec = ($rest * 10 + 512) >> 10;
+			if($dec > 9) {
+				$dec = 0;
+				$num++;
+			}
+			$sub = ".$dec";
+		} else {
+			$num++ if $rest >= 512;
+		}
+	}
+	return "$num$sub$units[$index]";
 }
 
 sub relative_path {
@@ -108,13 +144,14 @@ sub format_dentry {
 		: '?';
 
 	my $name = $dentry->name;
+	utf8_testandset_inplace($name);
 	$name = '.' if $name eq '';
 	$name =~ s{^.*/}{}a;
 	if($is_hardlink) {
 		$typechar = uc($typechar);
-		$name .= " => ".$self->relative_path($dentry->name, $target->name);
+		$name .= " => ".utf8_testandset($self->relative_path($dentry->name, $target->name));
 	} elsif($dentry->is_symlink) {
-		$name .= " -> ".$dentry->symlink;
+		$name .= " -> ".utf8_testandset($dentry->symlink);
 	}
 
 	my $mode = $dentry->mode;
@@ -205,6 +242,7 @@ sub run {
 		}
 	}
 
+	binmode STDOUT, ':utf8';
 	print $self->format_table(\@table, \@align);
 
 	return 0;

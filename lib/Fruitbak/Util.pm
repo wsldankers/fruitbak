@@ -34,8 +34,9 @@ use strict;
 use warnings FATAL => 'all';
 
 use Exporter qw(import);
+use Encode;
 
-our @EXPORT = qw(normalize_and_check_directory normalize_directory check_directory split_path);
+our @EXPORT = qw(normalize_and_check_directory normalize_directory check_directory split_path utf8_testandset_inplace utf8_testandset utf8_disable_inplace utf8_disable);
 our @EXPORT_OK = @EXPORT;
 
 sub normalize_directory {
@@ -68,4 +69,34 @@ sub split_path {
 	my @path = grep { $_ ne '.' } split(qr{/+}, $path);
 	@path = ('') if !@path && $path =~ m{^/};
 	return @path;
+}
+
+sub utf8_testandset_inplace {
+	foreach my $val (@_) {
+		# upgrade to UTF-8 if possible, without changing any bytes
+		Encode::_utf8_on($val);
+		Encode::_utf8_off($val) unless utf8::valid($val);
+	}
+	return;
+}
+
+sub utf8_testandset {
+	my $str = shift;
+	return undef unless defined $str;
+	utf8_testandset_inplace($str);
+	return $str;
+}
+
+sub utf8_disable_inplace {
+	foreach my $val (@_) {
+		Encode::_utf8_off($val);
+	}
+	return;
+}
+
+sub utf8_disable {
+	my $str = shift;
+	return undef unless defined $str;
+	Encode::_utf8_off($str);
+	return $str;
 }
