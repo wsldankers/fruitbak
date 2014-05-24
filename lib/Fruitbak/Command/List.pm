@@ -62,13 +62,17 @@ sub format_table {
 
 my @units = ('', qw(k M G T P E Z Y));
 sub human_readable {
+	use integer;
 	my $num = shift;
+	my $rest;
 	my $index = 0;
 	while($num >= 1000) {
+		$rest = $num & 1023;
 		$num >>= 10;
 		$index++;
 	}
-	return "$num$units[$index]";
+	$rest = defined $rest && $num < 10 ? '.'.(($rest * 10) >> 10) : '';
+	return "$num$rest$units[$index]";
 }
 
 sub relative_path {

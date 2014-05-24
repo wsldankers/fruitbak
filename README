@@ -10,10 +10,10 @@ Implemented:
  - rsync backup method
  - configuration
  - command line based browsing
+ - command line based tar restore
 
 Initial goals:
 
- - command line based tar restore
  - pluggable pool storage
  - compression
  - test suite

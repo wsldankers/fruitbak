@@ -214,10 +214,12 @@ sub run {
 		unless defined $path;
 	my $share = $backup->get_share($sharename);
 	my $cursor = $share->find($path);
-	my $first = $cursor->read->inode;
+	my $first;
 	my %remap;
 	while(my $dentry = $cursor->fetch) {
 		my $name = $dentry->name;
+		my $inode = $dentry->inode;
+		$first //= $inode;
 		my $remapped = $remap{$name};
 		if(defined $remapped) {
 			$self->output_entry($dentry, $remapped);
@@ -228,8 +230,8 @@ sub run {
 			my $targetname = $target->name;
 			my $remapped = $remap{$targetname};
 			# already seen as a regular file
-			my $inode = $target->inode;
-			if($inode >= $first && $inode < $dentry->inode) {
+			my $targetinode = $target->inode;
+			if($targetinode >= $first && $targetinode < $inode) {
 				$self->output_entry($dentry, $targetname);
 				next;
 			}
