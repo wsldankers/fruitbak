@@ -166,10 +166,9 @@ sub run {
 				($sharename, $path) = $backup->resolve_share($sharename)
 					unless defined $path;
 				my $share = $backup->get_share($sharename);
-				my @files = $share->ls($path);
 				#push @table, ["mode", "inum", "uid", "gid", "size", "mtime"];
-				foreach my $filename (@files) {
-					my $dentry = $share->get_entry($filename);
+				my $cursor = $share->ls($path);
+				while(my $dentry = $cursor->fetch) {
 					push @table, $self->format_dentry($dentry);
 				}
 			} else {
