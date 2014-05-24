@@ -71,11 +71,11 @@ sub output_header {
 		$self->format8($mode),
 		$self->format8($uid),
 		$self->format8($gid),
-		$self->format12($type ? 0 : $size),
+		$self->format12($size),
 		$self->format12($mtime),
 		'        ', # checksum placeholder
 		$type,
-		$link,
+		($link // ''),
 		"ustar  ", # magic + version
 		'', # username
 		'', # groupname
@@ -120,6 +120,20 @@ sub output_dentry {
 		: $type == 2 ? $dentry->symlink
 		: '';
 
+	my $fh;
+	if(length($linkname) > 100) {
+		my $size = length($linkname) + 1;
+		$self->output_header('././@LongLink', 0644, 0, 0, $size, 0, 'K');
+		$fh //= $self->fh;
+		print $fh $linkname, "\0" x ((-$size & 511) + 1);
+	}
+	if(length($name) > 100) {
+		my $size = length($name) + 1;
+		$self->output_header('././@LongLink', 0644, 0, 0, $size, 0, 'L');
+		$fh //= $self->fh;
+		print $fh $name, "\0" x ((-$size & 511) + 1);
+	}
+
 	my @dev;
 	if($dentry->is_device) {
 		my $major = $self->format8($dentry->rdev_major);
@@ -134,7 +148,7 @@ sub output_dentry {
 		$dentry->mode & 07777,
 		$dentry->uid,
 		$dentry->gid,
-		$dentry->size,
+		($type ? 0 : $dentry->size),
 		$dentry->mtime,
 		$type,
 		$linkname,
