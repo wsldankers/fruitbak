@@ -66,7 +66,7 @@ sub format12 {
 
 sub output_header {
 	my ($name, $mode, $uid, $gid, $size, $mtime, $type, $link, $maj, $min) = @_;
-	my $header = pack('Z100Z8Z8Z8Z12Z12Z8aZ100a8Z32Z32Z8Z8Z155Z12',
+	my $header = pack('Z100Z8Z8Z8Z12Z12a8aZ100a8Z32Z32Z8Z8Z155Z12',
 		$name,
 		$self->format8($mode),
 		$self->format8($uid),
@@ -85,11 +85,14 @@ sub output_header {
 		'', # padding
 	);
 
+	confess("header has wrong size")
+		unless length($header) == 512;
+
 	my $csum = 0;
 	foreach(unpack('C*', $header)) {
 		$csum += $_;
 	}
-	substr($header, 148, 6, sprintf('%06o', $csum));
+	substr($header, 148, 7, sprintf('%06o', $csum)."\0");
 
 	my $fh = $self->fh;
 	print $fh $header;
@@ -113,6 +116,7 @@ sub output_dentry {
 	$type = 1 if defined $hardlink;
 
 	my $name = $dentry->name;
+	$name = '.' if $name eq '';
 	$name .= '/' if $type == 5;
 
 	my $linkname = $type == 1 ? $hardlink
@@ -159,8 +163,8 @@ sub end_file {
 	my $curfile = $self->curfile;
 	$self->curfile_reset;
 	my $size = $curfile->size;
-	my $padding = $size & 511;
-	print "\0"x(512 - $padding) if $padding;
+	my $fh = $self->fh;
+	print $fh "\0"x(-$size & 511);
 	return;
 }
 
@@ -237,6 +241,8 @@ sub run {
 			$self->output_entry($dentry);
 		}
 	}
+
+	$self->finish;
 
 	return 0;
 }
