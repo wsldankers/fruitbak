@@ -64,14 +64,10 @@ sub instantiate_storage {
 		eval "use $class ()";
 		die $@ if $@;
 	} elsif($name =~ /^\w+$/a) {
-		foreach($name, uc($name), ucfirst($name), ucfirst(lc($name))) {
-			my $classname = "Fruitbak::Pool::Storage::$_";
-			if($classname->can('has') || eval "use $classname (); 1") {
-				$class = $classname;
-				last;
-			}
-		}
-		die $@ unless defined $class;
+		$class = "Fruitbak::Pool::Storage::\u$name";
+		local $@;
+		eval "use $class ()";
+		die $@ if $@;
 	} else {
 		die "don't know how to load storage type '$name'\n";
 	}
