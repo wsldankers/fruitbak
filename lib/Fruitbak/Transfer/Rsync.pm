@@ -218,6 +218,7 @@ sub attribSet {
 	if($dentry->is_file && !$dentry->is_hardlink) {
 		if(my $refShare = $self->refShare) {
 			if(my $ref = $refShare->get_entry($attrs->{name})) {
+				$dentry->size($ref->size);
 				$dentry->digests($ref->digests);
 			}
 		}

@@ -58,6 +58,13 @@ sub digests {
 	return $self->extra(@_);
 }
 
+sub storedsize {
+	return 0 unless $self->is_file;
+	return 0 if $self->is_hardlink;
+	return 0 unless $self->digests;
+	return $self->size;
+}
+
 sub hardlink {
 	return $self->is_hardlink ? $self->extra : undef
 		unless @_;

@@ -55,6 +55,11 @@ sub size {
 	return $self->target->size;
 }
 
+sub storedsize {
+	confess "attempt to modify a Fruitbak::Dentry::Hardlink directly" if @_;
+	return $self->target->storedsize;
+}
+
 sub mtime {
 	confess "attempt to modify a Fruitbak::Dentry::Hardlink directly" if @_;
 	return $self->target->mtime;

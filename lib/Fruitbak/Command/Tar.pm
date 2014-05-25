@@ -31,6 +31,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 package Fruitbak::Command::Tar;
 
 use autodie;
+no utf8;
+
 use IO::Handle;
 use Fcntl qw(:mode);
 
@@ -47,20 +49,18 @@ field fh => sub {
 field curfile;
 
 sub format8 {
-	my $value = shift;
-	return sprintf("%07o\0", $value)
-		if $value < (1 << 21);
-	no utf8;
-	return "\x80".substr(pack('Q>', $value), 1)
-		if $value < (1 << 56);
-	return shift;
+	foreach(@_) {
+		return sprintf("%07o\0", $_)
+			if $_ < (1 << 21);
+		return "\x80".substr(pack('Q>', $_), 1)
+			if $_ < (1 << 56);
+	}
 }
 
 sub format12 {
 	my $value = shift;
 	return sprintf("%011o\0", $value)
 		if $value < (1 << 33);
-	no utf8;
 	return "\x80\0\0\0".pack('Q>', $value);
 }
 
@@ -69,8 +69,8 @@ sub output_header {
 	my $header = pack('Z100 Z8 Z8 Z8 Z12 Z12 a8 a Z100 a8 Z32 Z32 Z8 Z8 Z155 Z12',
 		$name,
 		$self->format8($mode),
-		$self->format8($uid),
-		$self->format8($gid),
+		$self->format8($uid, 65534),
+		$self->format8($gid, 65534),
 		$self->format12($size),
 		$self->format12($mtime),
 		'        ', # checksum placeholder
@@ -148,7 +148,7 @@ sub output_dentry {
 		$dentry->mode & 07777,
 		$dentry->uid,
 		$dentry->gid,
-		($type ? 0 : $dentry->size),
+		$dentry->storedsize,
 		$dentry->mtime,
 		$type,
 		$linkname,
@@ -173,7 +173,7 @@ sub end_file {
 		unless $self->curfile_isset;
 	my $curfile = $self->curfile;
 	$self->curfile_reset;
-	my $size = $curfile->size;
+	my $size = $curfile->storedsize;
 	my $fh = $self->fh;
 	print $fh "\0"x(-$size & 511);
 	return;
