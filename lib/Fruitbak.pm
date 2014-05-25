@@ -42,7 +42,7 @@ field rootdir => sub { normalize_and_check_directory($self->cfg->rootdir) };
 field hostdir => sub { normalize_and_check_directory($self->cfg->hostdir // $self->rootdir . '/host') };
 
 weakfield cfg => sub { new Fruitbak::Config(fbak => $self) };
-weakfield pool => sub { new Fruitbak::Pool(fbak => $self) };
+field pool => sub { new Fruitbak::Pool(fbak => $self) };
 
 field hosts => sub {
 	my %hosts;

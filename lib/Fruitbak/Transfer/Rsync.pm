@@ -38,7 +38,6 @@ use IPC::Open2;
 use IO::Handle;
 use POSIX qw(:sys_wait_h);
 use Fcntl qw(:mode);
-use Data::Dumper;
 
 use Class::Clarity -self;
 
@@ -136,17 +135,19 @@ sub fileDeltaRxStart {
 }
 
 sub fileDeltaRxNext {
-	my ($blocknum, $data) = @_;
+	my $blocknum = shift;
 	my $curfile = $self->curfile;
-	unless(defined $data) {
+	if(defined $blocknum) {
 		return unless defined $blocknum;
 		my $reffile = $self->reffile;
 		die "No reffile but \$data undef? blocknum=$blocknum\n"
 			unless defined $reffile;
 		my $blocksize = $curfile->blocksize;
-		$data = $reffile->poolreader->pread($blocknum * $blocksize, $blocksize);
+		my $data = $reffile->poolreader->pread($blocknum * $blocksize, $blocksize);
+		$curfile->poolwriter->write($data);
+	} else {
+		$curfile->poolwriter->write(\($_[0]));
 	}
-	$curfile->poolwriter->write($data);
 	return 0;
 }
 
@@ -187,10 +188,10 @@ sub csumGet {
 
 	my $data = $self->reffile->poolreader->read($blockSize * $num);
 
-	$self->csumDigest->add($data)
+	$self->csumDigest->add($$data)
 		if $self->csumDigest_isset;
 
-	return $self->digest->blockDigest($data, $blockSize, $csumLen, $self->checksumSeed);
+	return $self->digest->blockDigest($$data, $blockSize, $csumLen, $self->checksumSeed);
 }
 
 sub csumEnd {
@@ -203,7 +204,7 @@ sub csumEnd {
 		for(;;) {
 			my $data = $self->reffile->poolreader->read;
 			last if $data eq '';
-			$csumDigest->add($data);
+			$csumDigest->add($$data);
 		}
 		return $csumDigest->digest;
 	}

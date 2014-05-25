@@ -11,11 +11,12 @@ Implemented:
  - configuration
  - command line based browsing
  - command line based tar restore
+ - pluggable pool storage
 
 Initial goals:
 
- - pluggable pool storage
  - compression
+ - encryption
  - test suite
  - manpages
  - backup expiry

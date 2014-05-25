@@ -17,7 +17,7 @@ are executed:
 
 =item 2) Each chunk is hashed and written into the pool.
 
-=item 3) A list of hashes is kept in memory for later retrieval by the
+=item 3) A list of digests is kept in memory for later retrieval by the
 caller.
 
 =back
@@ -48,35 +48,35 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Pool::Write;
 
-use Digest::SHA qw(sha512);
-use File::Path qw(make_path);
-
 use Class::Clarity -self;
 
 field fbak => sub { $self->pool->fbak };
 field pool;
-field buf => '';
-field hashes => '';
-field chunksize => sub { $self->pool->chunksize };
-field hashalgo => sub { $self->pool->hashalgo };
+field buf => sub { my $x = ''; return \$x };
+field digests => sub { my $x = ''; return \$x };
 field hashsize => sub { $self->pool->hashsize };
-
-sub new() {
-	my $self = super;
-	$self->buf;
-	$self->hashes;
-	return $self;
-}
+field chunksize => sub { $self->pool->chunksize };
 
 sub write {
-	$self->{buf} .= $_[0];
+	my $buf = $self->buf;
+	$$buf .= ${$_[0]};
+	my $digests = $self->digests;
 
 	my $chunksize = $self->chunksize;
 
-	while(length($self->{buf}) >= $chunksize) {
-		my $chunk = substr($self->{buf}, 0, $chunksize, '');
-		$self->{hashes} .= $self->savechunk($chunk);
+	for(;;) {
+		my $len = length($$buf);
+		if($len == $chunksize) {
+			$$digests .= $self->pool->store($buf);
+			$$buf = '';
+		} elsif($len > $chunksize) {
+			my $chunk = substr($$buf, 0, $chunksize, '');
+			$$digests .= $self->pool->store(\$chunk);
+		} else {
+			last;
+		}
 	}
+	return;
 }
 
 # Finish writing. Returns a 2 element list:
@@ -86,65 +86,20 @@ sub write {
 sub close {
 	my $hashsize = $self->hashsize;
 	my $chunksize = $self->chunksize;
-	my $size = length($self->{hashes}) / $hashsize * $chunksize + length($self->{buf});
 
-	if(length($self->{buf})) {
-		my $chunk = $self->{buf};
-		$self->{hashes} .= $self->savechunk($chunk);
-	}
-	delete $self->{buf};
+	my $buf = $self->buf;
+	my $len = length($$buf);
+	my $digests = $self->digests;
+	my $size = length($$digests) / $hashsize * $chunksize + $len;
+	$$digests .= $self->pool->store($buf)
+		if $len;
 
-	return $self->{hashes}, $size;
+	$self->buf_reset;
+
+	return $$digests, $size;
 }
 
 # Abort a pool write
 sub abort {
 	$self->buf_reset;
-}
-
-sub savechunk {
-	my $chunk = shift;
-
-	my $hashalgo = $self->hashalgo;
-
-	my $digest = $hashalgo->($chunk);
-
-	my $pool = $self->pool;
-
-	my $pooldir = $pool->pooldir;
-	my $dest = $pooldir.'/'.$pool->digest2path($digest);
-
-	return $digest if -e $dest;
-
-	my $partial = "$pooldir/new-$$";
-	unlink($partial) or $!{ENOENT}
-		or die "unlink($partial): $!\n";
-	my $fh = new IO::File("$partial", '>:raw')
-		or die "open($partial): $!\n";
-	my $off = 0;
-	while($off < length($chunk)) {
-		my $r = $fh->syswrite($chunk, length($chunk) - $off, $off)
-			or die "write($partial): $!\n";
-		$off += $r;
-	}
-	$fh->flush
-		or die "write($partial): $!\n";
-#	$fh->sync
-#		or die "fsync($partial): $!\n";
-	$fh->close
-		or die "write($partial): $!\n";
-	undef $fh;
-
-	unless(rename($partial, $dest)) {
-		die "rename($partial, $dest): $!\n" unless $!{ENOENT};
-		my $dir = $dest;
-		$dir =~ s{/[^/]*$}{};
-		make_path($dir, {error => \my $err});
-		die map { my ($file, $message) = %$_; $file ? "mkdir($file): $message\n" : "$message\n" } @$err
-			if @$err;
-		rename($partial, $dest)
-			or die "rename($partial, $dest): $!\n";
-	}
-
-	return $digest;
 }

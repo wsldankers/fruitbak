@@ -59,10 +59,10 @@ sub run {
 
 	my $buf = $reader->read;
 	die "refusing to write a binary file to a terminal\n"
-		if -t \*STDOUT && $buf =~ /\0/a;
+		if -t \*STDOUT && $$buf =~ /\0/a;
 	binmode STDOUT;
-	while($buf ne '') {
-		print $buf;
+	while($$buf ne '') {
+		print $$buf;
 		$buf = $reader->read;
 	}
 

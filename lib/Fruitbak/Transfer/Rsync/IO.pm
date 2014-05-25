@@ -33,7 +33,6 @@ package Fruitbak::Transfer::Rsync::IO;
 use autodie qw(syswrite);
 
 use File::RsyncP::Digest;
-use Data::Dumper;
 use Fruitbak::Transfer::Rsync::RPC;
 use Fruitbak::Transfer::Rsync::Lock;
 use IO::File;

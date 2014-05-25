@@ -37,45 +37,55 @@ use Digest::SHA qw(sha512);
 field fbak => sub { $self->pool->fbak };
 field pool;
 field off => 0;
-field digests;
 field curchunkbuf;
 field curchunknum => -1;
-field chunksize => sub { $self->pool->chunksize };
-field hashalgo => sub { $self->pool->hashalgo };
 field hashsize => sub { $self->pool->hashsize };
+field chunksize => sub { $self->pool->chunksize };
+
+sub digests {
+	return $self->{digests} = ref $_[0] ? $_[0] : \($_[0])
+		if @_;
+	confess("field 'digests' used uninitialized") unless exists $self->{digests};
+	return $self->{digests};
+}
 
 sub new() {
 	my $self = super;
 	my $digests = $self->digests;
 	my $hashsize = $self->hashsize;
 	confess "invalid digests length"
-		if length($digests) % $hashsize;
+		if length($$digests) % $hashsize;
 	return $self;
 }
 
 sub pread {
 	my ($off, $len) = @_;
+
 	my $chunksize = $self->chunksize;
 	my $startchunk = do { use integer; $off / $chunksize };
 	my $endchunk = do { use integer; ($off + $len - 1) / $chunksize };
-
-	$self->getchunk($startchunk);
 	my $coff = $off % $chunksize;
-	return '' unless $coff < length($self->{curchunkbuf});
-	my $res = substr($self->{curchunkbuf}, $coff, $len);
+
+	my $chunk = $self->getchunk($startchunk);
+	my $chunklen = length($$chunk);
+	return \'' unless $coff < $chunklen;
+	return $chunk if $coff == 0 && $len == $chunklen;
+	my $res = substr($$chunk, $coff, $len);
 
 	for(my $i = $startchunk + 1; $i <= $endchunk; $i++) {
 		last if length($res) == $len;
-		$self->getchunk($i);
-		if($i == $endchunk) {
-			$res .= substr($self->{curchunkbuf}, 0, ($off + $len) % $chunksize);
+		$chunk = $self->getchunk($i);
+		$chunklen = length($$chunk);
+		my $appendlen = ($off + $len) % $chunksize;
+		if($i == $endchunk && $appendlen != $chunklen) {
+			$res .= substr($$chunk, 0, $appendlen);
 		} else {
-			$res .= $self->{curchunkbuf};
+			$res .= $$chunk;
 		}
-		last if length($self->{curchunkbuf}) < $chunksize;
+		last if $chunklen < $chunksize;
 	}
 
-	return $res;
+	return \$res;
 }
 
 sub read {
@@ -87,7 +97,7 @@ sub read {
 		$len = $chunksize - ($off % $chunksize);
 	}
 	my $res = $self->pread($off, $len);
-	$self->off($off + length($res));
+	$self->off($off + length($$res));
 	return $res;
 }
 
@@ -97,44 +107,31 @@ sub seek {
 }
 
 sub getchunk {
-	my $chunk = shift;
+	my $chunknum = shift;
 
-	return if $self->curchunknum == $chunk;
+	return $self->curchunkbuf if $self->curchunknum == $chunknum;
 
 	my $chunksize = $self->chunksize;
 	my $hashsize = $self->hashsize;
 
 	my $digests = $self->digests;
-	unless($chunk < length($digests) / $hashsize) {
-		$self->curchunknum($chunk);
-		$self->curchunkbuf('');
-		return;
+	unless($chunknum < length($$digests) / $hashsize) {
+		$self->curchunknum($chunknum);
+		$self->curchunkbuf(\'');
+		return \'';
 	}
 
 	$self->curchunknum_reset;
 	$self->curchunkbuf_reset;
 
-	my $digest = substr($digests, $chunk * $hashsize, $hashsize);
+	my $digest = substr($$digests, $chunknum * $hashsize, $hashsize);
+	my $chunkbuf = $self->pool->retrieve($digest);
 
-	my $pool = $self->pool;
-	my $relsource = $pool->digest2path($digest);
-	my $pooldir = $pool->pooldir;
-	my $source = "$pooldir/$relsource";
+	die "missing hash in pool\n"
+		unless defined $chunkbuf;
 
-	$self->curchunknum(-1);
-	$self->curchunkbuf('');
+	$self->curchunkbuf($chunkbuf);
+	$self->curchunknum($chunknum);
 
-	my $fh = new IO::File($source, '<:raw')
-		or die "open($source): $!\n";
-	for(;;) {
-		my $r = $fh->read($self->{curchunkbuf}, $chunksize * 2, length($self->{curchunkbuf}));
-		die "read($source): $!\n" unless defined $r;
-		last unless $r;
-	}
-	$fh->close;
-	undef $fh;
-
-#	$self->hashalgo->($self->{curchunkbuf}) eq $digest
-#		or die "Checksum mismatch for $source\n";
-	$self->curchunknum($chunk);
+	return $chunkbuf;
 }

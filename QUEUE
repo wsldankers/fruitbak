@@ -1,0 +1,33 @@
+idee voor queues:
+
+Het hoofd-pool-object heeft de volgende methode:
+
+ - queue: queuet een operatie
+   - returnt een event als er een klaar is (operatie is dan niet gequeued)
+   - returnt undef als de operatie succesvol gequeued is
+
+Elk storage-object heeft de volgende methoden:
+
+ - fds: een lijst met fds waarop-ie een notify wil krijgen
+   (composiete objecten houden bij welk kind-object welke fd heeft, om te routeren)
+   retourneert een array hash of undef (als er niets veranderd is)
+
+ - depth: hoeveel queue-slots er nog vrij zijn
+
+ - queue: queuet een operatie (verpakt in een object)
+   (recheckt fds)
+   indien geen slots beschikbaar: faal en return undef
+
+ - event: met fds als argumenten, checkt bij de betrokken storage-objecten of
+   er iets moet gebeuren
+   retourneert een lijst met voltooide (gefaalde) operatie-objecten
+   indien aangeroepen zonder fds: check alle storage-objecten
+   (recheckt fds)
+
+Een operatie-object heeft de volgende attributen/methoden:
+
+ - [type, args…]
+
+ - result
+
+ - error

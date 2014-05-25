@@ -245,8 +245,8 @@ sub run {
 			my $reader = $fbak->pool->reader(digests => $dentry->digests);
 
 			my $buf = $reader->read;
-			while($buf ne '') {
-				print $fh $buf;
+			while($$buf ne '') {
+				print $fh $$buf;
 				$buf = $reader->read;
 			}
 			$self->end_file;

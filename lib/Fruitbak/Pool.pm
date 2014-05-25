@@ -39,12 +39,64 @@ use Fruitbak::Pool::Read;
 use Fruitbak::Pool::Write;
 use Fruitbak::Util;
 
-field fbak;
+weakfield fbak;
 field cfg => sub { $self->fbak->cfg };
 field hashalgo => sub { \&Digest::SHA::sha256 };
 field hashsize => sub { length($self->hashalgo->('')) };
 field chunksize => sub { $self->cfg->chunksize // 2097152 };
-field pooldir => sub { normalize_and_check_directory($self->cfg->pooldir // $self->fbak->rootdir . '/pool') };
+
+field storage => sub {
+	my $cfg = $self->cfg;
+	my $storagecfg = $cfg->pool // ['filesystem'];
+	return $self->instantiate_storage($storagecfg);
+};
+
+sub instantiate_storage {
+	my $storagecfg = shift;
+	die "number of arguments to storage method must be even\n"
+		if @$storagecfg & 0;
+	my ($name, %args) = @$storagecfg;
+	die "storage method missing a name\n"
+		unless defined $name;
+	my $class;
+	if($name =~ /^\w+(::\w+)+$/a) {
+		$class = $name;
+		eval "use $class ()";
+		die $@ if $@;
+	} elsif($name =~ /^\w+$/a) {
+		foreach($name, uc($name), ucfirst($name), ucfirst(lc($name))) {
+			my $classname = "Fruitbak::Pool::Storage::$_";
+			if($classname->can('has') || eval "use $classname (); 1") {
+				$class = $classname;
+				last;
+			}
+		}
+		die $@ unless defined $class;
+	} else {
+		die "don't know how to load storage type '$name'\n";
+	}
+	return $class->new(pool => $self, cfg => \%args);
+}
+
+sub store {
+	my $data = shift;
+	my $hash = $self->hashalgo->($$data);
+	$self->storage->store($hash, $data);
+	return $hash;
+}
+
+sub retrieve {
+	return $self->storage->retrieve(shift);
+}
+
+sub exists {
+	return $self->storage->exists(shift);
+}
+
+sub remove {
+	$self->storage->remove(shift);
+	return;
+}
 
 sub reader {
 	return new Fruitbak::Pool::Read(pool => $self, @_);
@@ -54,23 +106,7 @@ sub writer {
 	return new Fruitbak::Pool::Write(pool => $self, @_);
 }
 
-sub digest2path {
-    my $digest = shift;
-
-	my $b64 = encode_base64($digest, '');
-	$b64 =~ tr{/}{_};
-	$b64 =~ s{=+$}{}a;
-	$b64 =~ s{^(..)}{}a;
-
-    return "$1/$b64";
-}
-
-sub path2digest {
-    my $path = shift;
-	$path =~ tr{_/}{/}d;
-	return decode_base64(shift =~ tr{_/}{/}dr);
-}
-
+# for debugging
 sub digestlist {
 	my $hashsize = $self->hashsize;
 	my @hashes = map { encode_base64($_, '')."\n" } unpack("(a$hashsize)*", shift);
