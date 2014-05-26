@@ -44,9 +44,9 @@ field name;
 field dir => sub { $self->backup->sharedir . '/' . mangle($self->name) };
 field fbak => sub { $self->backup->fbak };
 field backup;
-field refBackup => sub { $self->backup->refBackup };
-field refShare => sub {
-    my $refbak = $self->refBackup;
+field refbackup => sub { $self->backup->refbackup };
+field refshare => sub {
+    my $refbak = $self->refbackup;
     return undef unless $refbak;
     return $refbak->get_share($self->name); 
 };

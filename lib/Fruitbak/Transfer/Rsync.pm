@@ -46,9 +46,11 @@ field pool => sub { $self->fbak->pool };
 field host => sub { $self->backup->host };
 field backup => sub { $self->share->backup };
 field share;
-field refShare => sub { $self->share->refShare };
+field refshare => sub { $self->share->refshare };
 field curfile;
-field reffile => undef;
+field curfile_attrs;
+field curfile_blocksize;
+field reffile;
 field protocol_version;
 field checksumSeed;
 field digest => sub { new File::RsyncP::Digest($self->protocol_version) };
@@ -101,14 +103,11 @@ sub dentry2attrs() {
 
 sub setup_reffile {
 	my $attrs = shift;
-	if(my $refShare = $self->refShare) {
-		if(my $dentry = $refShare->get_entry($attrs->{name})) {
+	if(my $refshare = $self->refshare) {
+		if(my $dentry = $refshare->get_entry($attrs->{name})) {
 			if($dentry->is_file) {
-				$self->reffile(new Class::Clarity(
-					attrs => $attrs,
-					dentry => $dentry,
-					poolreader => $self->pool->reader(digests => $dentry->digests),
-				));
+				my $poolreader = $self->pool->reader(digests => $dentry->digests);
+				$self->reffile($poolreader);
 			}
 		}
 	}
@@ -116,7 +115,7 @@ sub setup_reffile {
 
 sub attribGet {
 	my $attrs = shift;
-	my $ref = $self->refShare;
+	my $ref = $self->refshare;
 	return unless $ref;
 	return dentry2attrs($ref->get_entry($attrs->{name}));
 }
@@ -124,13 +123,9 @@ sub attribGet {
 sub fileDeltaRxStart {
 	my ($attrs, $numblocks, $blocksize, $lastblocksize) = @_;
 	my $pool = $self->pool;
-	$self->curfile(new Class::Clarity(
-		attrs => $attrs,
-		numblocks => $numblocks,
-		blocksize => $blocksize,
-		lastblocksize => $lastblocksize,
-		poolwriter => $pool->writer,
-	));
+	$self->curfile($pool->writer);
+	$self->curfile_attrs($attrs);
+	$self->curfile_blocksize($blocksize);
 	$self->setup_reffile($attrs);
 }
 
@@ -142,19 +137,18 @@ sub fileDeltaRxNext {
 		my $reffile = $self->reffile;
 		die "No reffile but \$data undef? blocknum=$blocknum\n"
 			unless defined $reffile;
-		my $blocksize = $curfile->blocksize;
-		my $data = $reffile->poolreader->pread($blocknum * $blocksize, $blocksize);
-		$curfile->poolwriter->write($data);
+		my $blocksize = $self->curfile_blocksize;
+		my $data = $reffile->pread($blocknum * $blocksize, $blocksize);
+		$curfile->write($data);
 	} else {
-		$curfile->poolwriter->write(\($_[0]));
+		$curfile->write(\($_[0]));
 	}
 	return 0;
 }
 
 sub fileDeltaRxDone {
-	my $curfile = $self->curfile;
-	my ($hashes, $size) = $curfile->poolwriter->close;
-	my $dentry = attrs2dentry($curfile->attrs, digests => $hashes, size => $size);
+	my ($hashes, $size) = $self->curfile->close;
+	my $dentry = attrs2dentry($self->curfile_attrs, digests => $hashes, size => $size);
 	$self->share->add_entry($dentry);
 	$self->curfile_reset;
 	return undef;
@@ -163,10 +157,10 @@ sub fileDeltaRxDone {
 sub csumStart {
     my ($attrs, $needMD4, $blockSize, $phase) = @_;
 
-	$self->csumEnd if $self->reffile;
+	$self->csumEnd if $self->reffile_isset;
 
-	my $refShare = $self->refShare or return;
-	my $dentry = $refShare->get_entry($attrs->{name}) or return;
+	my $refshare = $self->refshare or return;
+	my $dentry = $refshare->get_entry($attrs->{name}) or return;
 	return unless $dentry->is_file;
 
 	$self->setup_reffile($attrs);
@@ -186,7 +180,7 @@ sub csumGet {
 	$num ||= 100;
 	$csumLen ||= 16;
 
-	my $data = $self->reffile->poolreader->read($blockSize * $num);
+	my $data = $self->reffile->read($blockSize * $num);
 
 	$self->csumDigest->add($$data)
 		if $self->csumDigest_isset;
@@ -202,7 +196,7 @@ sub csumEnd {
 		# read the rest of the file for the MD4 digest
 		my $csumDigest = $self->csumDigest;
 		for(;;) {
-			my $data = $self->reffile->poolreader->read;
+			my $data = $reffile->read;
 			last if $data eq '';
 			$csumDigest->add($$data);
 		}
@@ -217,8 +211,8 @@ sub attribSet {
 	my $dentry = attrs2dentry($attrs);
 	# if this is an existing regular file:
 	if($dentry->is_file && !$dentry->is_hardlink) {
-		if(my $refShare = $self->refShare) {
-			if(my $ref = $refShare->get_entry($attrs->{name})) {
+		if(my $refshare = $self->refshare) {
+			if(my $ref = $refshare->get_entry($attrs->{name})) {
 				$dentry->size($ref->size);
 				$dentry->digests($ref->digests);
 			}

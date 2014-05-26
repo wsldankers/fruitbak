@@ -50,7 +50,7 @@ field shares => sub { $self->host->cfg->shares // ['/'] };
 field status => 'failed';
 field type => sub { $self->level ? 'incr' : 'full' };
 field level => sub {
-	my $ref = $self->refBackup;
+	my $ref = $self->refbackup;
 	return $ref ? $ref->level + 1 : 0;
 };
 field startTime;
@@ -63,7 +63,7 @@ field info => sub {
 		endTime => $self->endTime
 	};
 };
-field refBackup => sub {
+field refbackup => sub {
 	my $host = $self->host;
 	my $backups = $host->backups;
 	my $number = $backups->[-1];

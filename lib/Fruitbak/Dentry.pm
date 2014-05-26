@@ -46,6 +46,11 @@ field gid;
 field extra => '';
 field inode;
 
+sub new() {
+	my $class = shift;
+	return bless {@_}, $class;
+}
+
 sub target { return $self }
 sub original { return $self }
 
