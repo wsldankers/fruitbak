@@ -46,19 +46,13 @@ field gid;
 field extra => '';
 field inode;
 
-sub new() {
-	my $class = shift;
-	return bless {@_}, $class;
-}
-
 sub target { return $self }
 sub original { return $self }
 
 sub digests {
-	$self = $self->resolved unless @_;
 	confess("trying to treat an unreferenced hardlink as a device")
 		if $self->is_hardlink;
-	confess("attempt to read from something that is not a file")
+	confess("attempt to access digests for something that is not a file")
 		unless $self->is_file;
 	return $self->extra(@_);
 }
@@ -112,8 +106,6 @@ sub rdev_major {
 	return $major unless @_;
 	$self->extra(pack('LL', shift, $minor // 0));
 }
-
-sub resolved { $self->target // $self }
 
 sub is_hardlink { $self->mode & R_HARDLINK }
 

@@ -54,28 +54,53 @@ field fbak => sub { $self->pool->fbak };
 field pool;
 field buf => sub { my $x = ''; return \$x };
 field digests => sub { my $x = ''; return \$x };
+field refdigests => sub { my $x = ''; return \$x };
+field hashalgo => sub { $self->pool->hashalgo };
 field hashsize => sub { $self->pool->hashsize };
 field chunksize => sub { $self->pool->chunksize };
 
-sub write {
-	my $buf = $self->buf;
-	$$buf .= ${$_[0]};
+sub putchunk {
+	my $chunk = shift;
 	my $digests = $self->digests;
+	my $refdigests = $self->refdigests;
+	my $hash = $self->hashalgo->($$chunk);
+	my $hashsize = length($hash);
+	my $digestslen = length($$digests);
+	my $refhash = $digestslen < length($$refdigests)
+		? substr($$refdigests, $digestslen, $hashsize) : '';
+	$self->pool->store($hash, $chunk)
+		unless $hash eq $refhash;
+	$$digests .= $hash;
+	return;
+}
 
+sub write {
+	my $data = shift;
+	my $datalen = length($$data);
+	my $buf = $self->buf;
+	my $buflen = length($$buf);
 	my $chunksize = $self->chunksize;
 
-	for(;;) {
-		my $len = length($$buf);
-		if($len == $chunksize) {
-			$$digests .= $self->pool->store($buf);
-			$$buf = '';
-		} elsif($len > $chunksize) {
-			my $chunk = substr($$buf, 0, $chunksize, '');
-			$$digests .= $self->pool->store(\$chunk);
-		} else {
-			last;
-		}
+	if($datalen == 0 && $datalen == $chunksize) {
+		$self->putchunk($data);
+		return;
 	}
+
+	$$buf .= $$data;
+	$buflen += $datalen;
+
+	if($buflen == $chunksize) {
+		$self->putchunk($buf);
+		$$buf = '';
+		return;
+	}
+
+	while($buflen > $chunksize) {
+		my $chunk = substr($$buf, 0, $chunksize, '');
+		$self->putchunk(\$chunk);
+		$buflen -= $chunksize;
+	}
+
 	return;
 }
 
@@ -91,7 +116,7 @@ sub close {
 	my $len = length($$buf);
 	my $digests = $self->digests;
 	my $size = length($$digests) / $hashsize * $chunksize + $len;
-	$$digests .= $self->pool->store($buf)
+	$self->putchunk($buf)
 		if $len;
 
 	$self->buf_reset;

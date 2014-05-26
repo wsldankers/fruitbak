@@ -14,6 +14,7 @@ Implemented:
  - pluggable pool storage
  - compression
  - encryption
+ - skip unchanged chunks
 
 Initial goals:
 
@@ -22,7 +23,6 @@ Initial goals:
  - backup expiry
  - pluggable expiry methods
  - garbage collection
- - skip pool chunks already in reference backup
  - rsync includes/excludes
  - pre/post-commands (per-backup, per-share)
 
@@ -34,6 +34,7 @@ After that:
  - queued pool storage
  - pool scrubbing
  - pool chunk blacklisting
+ - skip pool chunks already in reference backup
  - tutorials
 
 Later:
@@ -42,3 +43,4 @@ Later:
  - pluggable metadata storage
  - archiving
  - xattrs/acls
+ - custom client

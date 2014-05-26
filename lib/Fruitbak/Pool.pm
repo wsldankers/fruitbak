@@ -75,10 +75,8 @@ sub instantiate_storage {
 }
 
 sub store {
-	my $data = shift;
-	my $hash = $self->hashalgo->($$data);
-	$self->storage->store($hash, $data);
-	return $hash;
+	$self->storage->store(@_);
+	return;
 }
 
 sub retrieve {

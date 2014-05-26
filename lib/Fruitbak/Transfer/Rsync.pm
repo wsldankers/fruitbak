@@ -114,19 +114,25 @@ sub setup_reffile {
 }
 
 sub attribGet {
+	return if $self->backup->type eq 'full';
 	my $attrs = shift;
 	my $ref = $self->refshare;
 	return unless $ref;
-	return dentry2attrs($ref->get_entry($attrs->{name}));
+	my $a = dentry2attrs($ref->get_entry($attrs->{name}));
+	$a->{hlink_self} = $attrs->{hlink_self}
+		if exists $attrs->{hlink_self};
+	return $a;
 }
 
 sub fileDeltaRxStart {
 	my ($attrs, $numblocks, $blocksize, $lastblocksize) = @_;
-	my $pool = $self->pool;
-	$self->curfile($pool->writer);
+	$self->setup_reffile($attrs);
+	my $writer = $self->pool->writer;
+	$writer->refdigests($self->reffile->digests)
+		if $self->reffile_isset;
+	$self->curfile($writer);
 	$self->curfile_attrs($attrs);
 	$self->curfile_blocksize($blocksize);
-	$self->setup_reffile($attrs);
 }
 
 sub fileDeltaRxNext {
