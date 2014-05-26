@@ -4,15 +4,15 @@ Het hoofd-pool-object heeft de volgende methode:
 
  - queue: queuet een operatie
    - returnt een event als er een klaar is (operatie is dan niet gequeued)
+   - roept operatie->done() aan vlak voor retourneren
    - returnt undef als de operatie succesvol gequeued is
+   - indien geen argument gegeven en undef: alle operaties zijn voltooid
 
 Elk storage-object heeft de volgende methoden:
 
  - fds: een lijst met fds waarop-ie een notify wil krijgen
    (composiete objecten houden bij welk kind-object welke fd heeft, om te routeren)
-   retourneert een array hash of undef (als er niets veranderd is)
-
- - depth: hoeveel queue-slots er nog vrij zijn
+   retourneert een arrayref of undef (als er niets veranderd is)
 
  - queue: queuet een operatie (verpakt in een object)
    (recheckt fds)
@@ -31,3 +31,5 @@ Een operatie-object heeft de volgende attributen/methoden:
  - result
 
  - error
+
+ - done
