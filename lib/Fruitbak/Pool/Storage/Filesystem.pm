@@ -122,7 +122,7 @@ sub retrieve {
 	my $buf = '';
 	my $chunksize = $self->chunksize;
 	for(;;) {
-		my $r = $fh->read($buf, $chunksize * 2, length($buf));
+		my $r = $fh->sysread($buf, $chunksize * 2, length($buf));
 		die "read($source): $!\n" unless defined $r;
 		last unless $r;
 	}
