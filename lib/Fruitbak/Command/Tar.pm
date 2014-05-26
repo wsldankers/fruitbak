@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Command::Backup - implementation of CLI cat command
+Fruitbak::Command::Tar - implementation of CLI tar command
 
 =head1 AUTHOR
 
@@ -198,7 +198,7 @@ sub finish {
 sub run {
 	my (undef, $hostname, $backupnum, $sharename, $path) = @_;
 
-	die "usage: fruitbak dump <hostname> <backup> <share> <path>\n"
+	die "usage: fruitbak tar <hostname> <backup> <share> <path>\n"
 		unless defined $sharename;
 
 	my $fh = $self->fh;

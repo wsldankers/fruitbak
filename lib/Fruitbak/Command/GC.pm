@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Command::Cat - implementation of CLI cat command
+Fruitbak::Command::GC - implementation of CLI gc command
 
 =head1 AUTHOR
 
@@ -28,42 +28,33 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Command::Cat;
+package Fruitbak::Command::GC;
 
 use autodie;
+no utf8;
 
 use Fruitbak::Command -self;
 
+use MIME::Base64;
+
 BEGIN {
-	$Fruitbak::Command::commands{cat} = [__PACKAGE__, "Write a file to stdout"];
+	$Fruitbak::Command::commands{gc} = [__PACKAGE__, "Clean up unused pool chunks"];
 }
 
 sub run {
-	my (undef, $hostname, $backupnum, $sharename, $path) = @_;
+	my (undef, $dummy) = @_;
 
-	die "usage: fruitbak cat <hostname> <backup> <share> <path>\n"
-		unless defined $sharename;
+	die "usage: fruitbak gc\n"
+		if defined $dummy;
 
 	my $fbak = $self->fbak;
+	my $pool = $fbak->pool;
+	my $iterator = $pool->iterator;
 
-	my $host = $fbak->get_host($hostname);
-	my $backup = $host->get_backup($backupnum);
-	($sharename, $path) = $backup->resolve_share($sharename)
-		unless defined $path;
-	my $share = $backup->get_share($sharename);
-	my $dentry = $share->get_entry($path)
-		or die "'$path': file not found\n";
-	die "'$path' is not a file\n"
-		unless $dentry->is_file;
-	my $reader = $fbak->pool->reader(digests => $dentry->digests);
-
-	my $buf = $reader->read;
-	die "refusing to write a binary file to a terminal\n"
-		if -t \*STDOUT && $$buf =~ /\0/a;
-	binmode STDOUT;
-	while($$buf ne '') {
-		print $$buf;
-		$buf = $reader->read;
+	while(my $chunks = $iterator->fetch) {
+		foreach my $chunk (@$chunks) {
+			print encode_base64($chunk);
+		}
 	}
 
 	return 0;

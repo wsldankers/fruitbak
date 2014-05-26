@@ -59,6 +59,7 @@ sub retrieve {
 }
 sub has { return $self->subpool->has(@_) }
 sub remove { return $self->subpool->remove(@_) }
+sub iterator { return $self->subpool->iterator(@_) }
 
 stub apply;
 stub unapply;

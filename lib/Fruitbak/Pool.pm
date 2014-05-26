@@ -92,6 +92,10 @@ sub remove {
 	return;
 }
 
+sub iterator {
+	return $self->storage->iterator(@_);
+}
+
 sub reader {
 	return new Fruitbak::Pool::Read(pool => $self, @_);
 }

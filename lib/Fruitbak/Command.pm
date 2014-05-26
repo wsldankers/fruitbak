@@ -35,6 +35,7 @@ use Class::Clarity -self;
 use Fruitbak;
 use Fruitbak::Command::Backup;
 use Fruitbak::Command::Cat;
+use Fruitbak::Command::GC;
 use Fruitbak::Command::Help;
 use Fruitbak::Command::Init;
 use Fruitbak::Command::List;

@@ -35,6 +35,7 @@ use MIME::Base64;
 use File::Path qw(make_path);
 
 use Fruitbak::Util;
+use Fruitbak::Pool::Storage::Filesystem::Iterator;
 
 use Fruitbak::Pool::Storage -self;
 
@@ -61,7 +62,7 @@ sub digest2path {
 sub path2digest {
     my $path = shift;
 	$path =~ tr{_/}{/}d;
-	return decode_base64(shift =~ tr{_/}{/}dr);
+	return decode_base64($path);
 }
 
 sub store {
@@ -148,4 +149,8 @@ sub remove {
 
 	unlink($dest) or $!{ENOENT}
 		or die "unlink($dest): $!\n";
+}
+
+sub iterator {
+	return new Fruitbak::Pool::Storage::Filesystem::Iterator(storage => $self);
 }
