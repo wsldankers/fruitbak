@@ -32,7 +32,7 @@ package Fruitbak::Pool::Storage::Filesystem::Iterator;
 
 use autodie;
 
-use Class::Clarity -self;
+use Fruitbak::Pool::Iterator -self;
 
 use IO::Dir;
 use MIME::Base64;

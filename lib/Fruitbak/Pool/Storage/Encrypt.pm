@@ -30,64 +30,124 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Pool::Storage::Encrypt;
 
+use Fruitbak::Pool::Storage -self;
+
 use Crypt::Rijndael;
 use Crypt::OpenSSL::Random;
-use Digest::SHA qw(sha256 hmac_sha256);
+use Digest::SHA qw(hmac_sha512);
+use MIME::Base64;
 use IO::File;
 
-use Fruitbak::Pool::Storage::Filter -self;
+use Fruitbak::Pool::Storage::Encrypt::Iterator;
 
-field key => sub { $self->cfg->{key} // die "no key configured for encryption plugin\n" };
-
-# yes, this is a crappy key expansion algorithm.
-# we work around this in two ways: use a random first block
-# and an IV that is different for each hash
-field expanded_key => sub { sha256($self->key) };
+field hashsize => sub { $self->pool->hashsize };
 
 sub random_bytes() {
-	unless(Crypt::OpenSSL::Random::random_status()) {
+	my ($num, $force) = @_;
+	if($force || !Crypt::OpenSSL::Random::random_status()) {
 		my $fh = new IO::File('<', '/dev/urandom')
 			or die "can't open /dev/urandom: $!\n";
 		do {
-			$fh->read(my $buf, 16)
+			$fh->read(my $buf, $force ? $num : 16)
 				or die "can't read from /dev/urandom: $!\n";
 			Crypt::OpenSSL::Random::random_seed($buf);
 		} until Crypt::OpenSSL::Random::random_status();
 	}
-	return Crypt::OpenSSL::Random::random_bytes(shift);
+	return Crypt::OpenSSL::Random::random_bytes($num);
 }
 
-sub apply {
-	my ($hash, $data) = @_;
+field key => sub {
+	my $key = $self->cfg->{key};
+	local $@;
+	eval {
+		die "no key configured for encryption plugin\n"
+			unless defined $key;
+		if($key =~ /^[A-Za-z0-9+\/]{43}=$/a) {
+			$key = decode_base64($key);
+		} else {
+			die "encryption key must be randomly generated data\n"
+				if utf8::is_utf8($key);
+			die "encryption key must be 32 bytes of randomly generated data\n"
+				unless length($key) == 32;
+		}
+		die "encryption key must be randomly generated data\n"
+			if $key !~ /[^ -~]/a;
+	};
+	if(my $err = $@) {
+		if(my $suggestion = eval { encode_base64($self->random_bytes(32, 1), '') }) {
+			die $err."suggestion for a proper key: '$suggestion'\n";
+		} else {
+			die $err;
+		}
+	}
+	return $key;
+};
 
-	my $aes = new Crypt::Rijndael($self->expanded_key, Crypt::Rijndael::MODE_CBC);
-	my $iv = hmac_sha256($hash, $self->key);
-	$aes->set_iv(substr($iv, 0, 16));
-	my $len = length($$data);
+field aes => sub { new Crypt::Rijndael($self->key, Crypt::Rijndael::MODE_CBC) };
+field aes_iv => sub { new Crypt::Rijndael($self->key, Crypt::Rijndael::MODE_CBC) };
 
-	# Because the byte that indicates the padding length is part
-	# of the first block, we must make it semi-random. Take an unused
-	# byte from $iv and xor it with the number of padding bytes.
+sub encrypt_hash {
+	my $hash = shift;
+	die "configured hash size must be a multiple of 16 bytes (128 bits)\n"
+		if length($hash) % 16;
+	return $self->aes->encrypt($hash);
+}
+
+sub decrypt_hash {
+	my $hash = shift;
+	die "invalid encrypted data\n"
+		if length($hash) != $self->hashsize;
+	return $self->aes->decrypt($hash);
+}
+
+sub encrypt_data {
+	my $data = shift;
+	my $len = length($$data) + 1;
 	my $pad = -$len & 15;
-	my ($padbyte) = unpack('C', substr($iv, 16, 1));
-	my $padxor = $pad ^ $padbyte;
 
-	my $header = pack('C', $padxor).random_bytes(15 + $pad);
-	return \($aes->encrypt($header.$$data));
+	my $aes = $self->aes_iv;
+	my $iv = $self->random_bytes(16);
+	$aes->set_iv(substr($iv, 0, 16));
+
+	my $buf = pack('C', $pad).$self->random_bytes($pad).$$data;
+	$buf = hmac_sha512($buf, $self->key).$buf;
+
+	return \($iv.$aes->encrypt($buf));
 }
 
-sub unapply {
-	my ($hash, $encrypted) = @_;
+sub decrypt_data {
+	my $data = shift;
 
-	my $aes = new Crypt::Rijndael($self->expanded_key, Crypt::Rijndael::MODE_CBC);
-	my $iv = hmac_sha256($hash, $self->key);
+	my $len = length($$data);
+	die "invalid encrypted data\n"
+		if $len % 16 || $len < 96;
+
+	my $aes = $self->aes_iv;
+	my $iv = substr($$data, 0, 16);
 	$aes->set_iv(substr($iv, 0, 16));
-	my ($padbyte) = unpack('C', substr($iv, 16, 1));
 
-	my $data = $aes->decrypt($$encrypted);
-	my ($padxor) = unpack('C', $data);
-	my $pad = $padxor ^ $padbyte;
-	substr($data, 0, 16 + $pad, '');
+	my $buf = $aes->decrypt(substr($$data, 16));
 
-	return \$data;
+	die "invalid encrypted data\n"
+		unless hmac_sha512(substr($buf, 64), $self->key) eq substr($buf, 0, 64);
+	my $pad = unpack('C', substr($buf, 64, 1));
+
+	return \(substr($buf, 64 + 1 + $pad));
+}
+
+field subpool => sub {
+	return $self->pool->instantiate_storage($self->cfg->{pool} // ['filesystem']);
+};
+
+sub store {
+	my ($hash, $data) = @_;
+	return $self->subpool->store($self->encrypt_hash($hash), $self->encrypt_data($data));
+}
+sub retrieve {
+	return $self->decrypt_data($self->subpool->retrieve($self->encrypt_hash(shift)));
+}
+sub has { return $self->subpool->has($self->encrypt_hash(shift)) }
+sub remove { return $self->subpool->remove($self->encrypt_hash(shift)) }
+sub iterator {
+	return new Fruitbak::Pool::Storage::Encrypt::Iterator(subiterator => $self->subpool->iterator(@_));
 }
