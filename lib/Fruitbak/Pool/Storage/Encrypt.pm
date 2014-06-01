@@ -44,11 +44,12 @@ field hashsize => sub { $self->pool->hashsize };
 
 sub random_bytes() {
 	my ($num, $force) = @_;
+	return '' if defined $num && $num == 0;
 	if($force || !Crypt::OpenSSL::Random::random_status()) {
 		my $fh = new IO::File('<', '/dev/urandom')
 			or die "can't open /dev/urandom: $!\n";
 		do {
-			$fh->read(my $buf, $force ? $num : 16)
+			$fh->read(my $buf, $force ? $num // 16 : 16)
 				or die "can't read from /dev/urandom: $!\n";
 			Crypt::OpenSSL::Random::random_seed($buf);
 		} until Crypt::OpenSSL::Random::random_status();
@@ -107,7 +108,7 @@ sub encrypt_data {
 
 	my $aes = $self->aes_iv;
 	my $iv = $self->random_bytes(16);
-	$aes->set_iv(substr($iv, 0, 16));
+	$aes->set_iv($iv);
 
 	my $buf = pack('C', $pad).$self->random_bytes($pad).$$data;
 	$buf = hmac_sha512($buf, $self->key).$buf;
