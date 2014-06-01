@@ -61,5 +61,10 @@ sub has { return $self->subpool->has(@_) }
 sub remove { return $self->subpool->remove(@_) }
 sub iterator { return $self->subpool->iterator(@_) }
 
-stub apply;
-stub unapply;
+sub apply {
+	return $_[1];
+}
+
+sub unapply {
+	return $_[1];
+}

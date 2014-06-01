@@ -42,11 +42,11 @@ use Fruitbak::Pool::Storage::Encrypt::Iterator;
 
 field hashsize => sub { $self->pool->hashsize };
 
-sub random_bytes() {
+sub random_bytes {
 	my ($num, $force) = @_;
 	return '' if defined $num && $num == 0;
 	if($force || !Crypt::OpenSSL::Random::random_status()) {
-		my $fh = new IO::File('<', '/dev/urandom')
+		my $fh = new IO::File('/dev/urandom', '<')
 			or die "can't open /dev/urandom: $!\n";
 		do {
 			$fh->read(my $buf, $force ? $num // 16 : 16)
@@ -78,6 +78,7 @@ field key => sub {
 		if(my $suggestion = eval { encode_base64($self->random_bytes(32, 1), '') }) {
 			die $err."suggestion for a proper key: '$suggestion'\n";
 		} else {
+			warn $@;
 			die $err;
 		}
 	}
@@ -113,7 +114,8 @@ sub encrypt_data {
 	my $buf = pack('C', $pad).$self->random_bytes($pad).$$data;
 	$buf = hmac_sha512($buf, $self->key).$buf;
 
-	return \($iv.$aes->encrypt($buf));
+	my $ciphertext = $iv.$aes->encrypt($buf);
+	return \$ciphertext;
 }
 
 sub decrypt_data {
@@ -133,7 +135,8 @@ sub decrypt_data {
 		unless hmac_sha512(substr($buf, 64), $self->key) eq substr($buf, 0, 64);
 	my $pad = unpack('C', substr($buf, 64, 1));
 
-	return \(substr($buf, 64 + 1 + $pad));
+	my $plaintext = substr($buf, 64 + 1 + $pad);
+	return \$plaintext;
 }
 
 field subpool => sub {
@@ -141,14 +144,29 @@ field subpool => sub {
 };
 
 sub store {
-	my ($hash, $data) = @_;
-	return $self->subpool->store($self->encrypt_hash($hash), $self->encrypt_data($data));
+	my $hash = shift;
+	my $data = shift;
+	return $self->subpool->store($self->encrypt_hash($hash), $self->encrypt_data($data), @_);
 }
+
 sub retrieve {
-	return $self->decrypt_data($self->subpool->retrieve($self->encrypt_hash(shift)));
+	my $hash = shift;
+	return $self->decrypt_data($self->subpool->retrieve($self->encrypt_hash($hash), @_));
 }
-sub has { return $self->subpool->has($self->encrypt_hash(shift)) }
-sub remove { return $self->subpool->remove($self->encrypt_hash(shift)) }
+
+sub has {
+	my $hash = shift;
+	return $self->subpool->has($self->encrypt_hash($hash), @_);
+}
+
+sub remove {
+	my $hash = shift;
+	return $self->subpool->remove($self->encrypt_hash($hash), @_);
+}
+
 sub iterator {
-	return new Fruitbak::Pool::Storage::Encrypt::Iterator(subiterator => $self->subpool->iterator(@_));
+	return new Fruitbak::Pool::Storage::Encrypt::Iterator(
+		storage => $self,
+		subiterator => $self->subpool->iterator(@_),
+	);
 }
