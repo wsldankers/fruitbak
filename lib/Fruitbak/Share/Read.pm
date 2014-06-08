@@ -36,7 +36,7 @@ use autodie;
 
 use Fcntl qw(:mode);
 use IO::File;
-use Hardhat;
+use File::Hardhat;
 use File::Hashset;
 use Fruitbak::Share::Cursor;
 use Fruitbak::Share::Format;
@@ -47,7 +47,7 @@ use Fruitbak::Dentry::Hardlink;
 use Class::Clarity -self;
 
 field dir => sub { $self->backup->sharedir . '/' . mangle($self->name) };
-field hh => sub { new Hardhat($self->dir . '/metadata.hh') };
+field hh => sub { new File::Hardhat($self->dir . '/metadata.hh') };
 field backup;
 field fbak => sub { $self->backup->fbak };
 field hashes => sub {
@@ -71,7 +71,7 @@ field hashes => sub {
 		$fh->sync or die "fsync($hashes.new): $!\n";
 		$fh->close or die "close($hashes.new): $!\n";
 		undef $fh;
-		File::Hashset::sortfile("$hashes.new", $self->fbak->pool->hashsize);
+		File::Hashset->sortfile("$hashes.new", $self->fbak->pool->hashsize);
 		rename("$hashes.new", $hashes);
 	}
 	return File::Hashset->load($hashes);

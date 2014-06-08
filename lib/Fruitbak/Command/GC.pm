@@ -54,10 +54,8 @@ sub run {
 
 	while(my $chunks = $iterator->fetch) {
 		foreach my $chunk (@$chunks) {
-			unless($hashes->exists($chunk)) {
-				print encode_base64($chunk);
-				$pool->remove($chunk);
-			}
+			$pool->remove($chunk)
+				unless $hashes->exists($chunk);
 		}
 	}
 

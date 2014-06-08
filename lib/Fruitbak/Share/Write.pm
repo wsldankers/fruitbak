@@ -34,7 +34,7 @@ use Class::Clarity -self;
 
 use Fcntl qw(:mode);
 use Carp qw(confess);
-use Hardhat::Maker;
+use File::Hardhat::Maker;
 
 use Fruitbak::Share::Format;
 use Fruitbak::Pool::Write;
@@ -56,7 +56,7 @@ field hhm => sub {
 	mkdir($dir) or $!{EEXIST}
 		or die "mkdir($dir): $!\n";
 
-	return new Hardhat::Maker("$dir/metadata.hh");
+	return new File::Hardhat::Maker("$dir/metadata.hh");
 };
 
 # add a Fruitbak::Dentry to the database
