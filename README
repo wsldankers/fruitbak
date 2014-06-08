@@ -15,6 +15,7 @@ Implemented:
  - compression
  - encryption
  - skip unchanged chunks
+ - garbage collection
 
 Initial goals:
 
@@ -22,7 +23,6 @@ Initial goals:
  - manpages
  - backup expiry
  - pluggable expiry methods
- - garbage collection
  - rsync includes/excludes
  - pre/post-commands (per-backup, per-share)
 
