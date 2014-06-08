@@ -33,6 +33,7 @@ package Fruitbak;
 use Class::Clarity -self;
 
 use IO::Dir;
+use File::Hashset;
 use Fruitbak::Util;
 use Fruitbak::Config;
 use Fruitbak::Pool;
@@ -43,6 +44,13 @@ field hostdir => sub { normalize_and_check_directory($self->cfg->hostdir // $sel
 
 weakfield cfg => sub { new Fruitbak::Config(fbak => $self) };
 field pool => sub { new Fruitbak::Pool(fbak => $self) };
+
+field hashes => sub {
+	my $hashes = $self->rootdir . '/hashes';
+	File::Hashset->merge($hashes, $self->pool->hashsize,
+		map { $self->get_host($_)->hashes } @{$self->hosts});
+	return File::Hashset->load($hashes);
+};
 
 field hosts => sub {
 	my %hosts;

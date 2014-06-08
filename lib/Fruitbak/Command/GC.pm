@@ -50,10 +50,12 @@ sub run {
 	my $fbak = $self->fbak;
 	my $pool = $fbak->pool;
 	my $iterator = $pool->iterator;
+	my $hashes = $fbak->hashes;
 
 	while(my $chunks = $iterator->fetch) {
 		foreach my $chunk (@$chunks) {
-			print encode_base64($chunk);
+			print encode_base64($chunk)
+				unless $hashes->exists($chunk);
 		}
 	}
 

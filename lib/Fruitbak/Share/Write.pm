@@ -79,12 +79,9 @@ sub run {
 # finish the share and convert this object to a Fruitbak::Share::Read
 # FIXME: register this object with the backup object it belongs to
 sub finish {
-	# hack around File::RsyncP forking
-	if($self->hhm_isset) {
-		my $hhm = $self->hhm;
-		$self->hhm_reset;
-		$hhm->parents;
-		$hhm->finish;
-	}
+	my $hhm = $self->hhm;
+	$self->hhm_reset;
+	$hhm->parents;
+	$hhm->finish;
 	bless $self, 'Fruitbak::Share::Read';
 }

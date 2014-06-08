@@ -32,9 +32,12 @@ package Fruitbak::Share::Read;
 
 use strict;
 use warnings;
+use autodie;
 
 use Fcntl qw(:mode);
+use IO::File;
 use Hardhat;
+use File::Hashset;
 use Fruitbak::Share::Cursor;
 use Fruitbak::Share::Format;
 use Fruitbak::Pool::Read;
@@ -47,6 +50,32 @@ field dir => sub { $self->backup->sharedir . '/' . mangle($self->name) };
 field hh => sub { new Hardhat($self->dir . '/metadata.hh') };
 field backup;
 field fbak => sub { $self->backup->fbak };
+field hashes => sub {
+	my $hashes = $self->dir . '/hashes';
+	unless(-e $hashes) {
+		open my $fh, '>:raw', "$hashes.new";
+		my $c = $self->hh->find('');
+		my $data = $c->read;
+		(undef, $data) = $c->fetch
+			unless defined $data;
+		while(defined $data) {
+			my ($mode, $hashes) = mode_and_hashes($data);
+
+			if(S_ISREG($mode) && !($mode & Fruitbak::Dentry::R_HARDLINK)) {
+				print $fh $hashes;
+			}
+
+			(undef, $data) = $c->fetch;
+		}
+		$fh->flush or die "write($hashes.new): $!\n";
+		$fh->sync or die "fsync($hashes.new): $!\n";
+		$fh->close or die "close($hashes.new): $!\n";
+		undef $fh;
+		File::Hashset::sortfile("$hashes.new", $self->fbak->pool->hashsize);
+		rename("$hashes.new", $hashes);
+	}
+	return File::Hashset->load($hashes);
+};
 
 # directory listing, returns a list of string
 sub ls {

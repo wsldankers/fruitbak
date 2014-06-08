@@ -40,7 +40,7 @@ use Encode;
 use Fruitbak::Dentry;
 use Exporter qw(import);
 
-our @EXPORT_OK = qw(ATTRLEN MAXNAMELEN attrformat attrparse mangle unmangle);
+our @EXPORT_OK = qw(ATTRLEN MAXNAMELEN attrformat attrparse mangle unmangle mode_and_hashes);
 our @EXPORT = @EXPORT_OK;
 
 # serialize attributes
@@ -54,6 +54,12 @@ sub attrparse {
 	my %attrs;
 	@attrs{qw(size mtime mode uid gid extra)} = unpack('QQLLLa*', shift);
 	return new Fruitbak::Dentry(%attrs, @_);
+}
+
+# extract just the hashes
+sub mode_and_hashes {
+	my (undef, undef, $mode, undef, undef, $extra) = unpack('QQLLLa*', $_[0]);
+	return $mode, $extra;
 }
 
 sub mangle {

@@ -36,6 +36,7 @@ use IO::File;
 use IO::Dir;
 use JSON;
 use Scalar::Util qw(weaken);
+use File::Hashset;
 use Fruitbak::Util;
 use Fruitbak::Share::Read;
 use Fruitbak::Share::Format;
@@ -61,6 +62,15 @@ field level => sub { $self->info->{level} };
 field type => sub { $self->level ? 'incr' : 'full' };
 field startTime => sub { $self->info->{startTime} };
 field endTime => sub { $self->info->{endTime} };
+
+field hashes => sub {
+	my $hashes = $self->dir . '/hashes';
+	unless(-e $hashes) {
+		File::Hashset->merge($hashes, $self->fbak->pool->hashsize,
+			map { $self->get_share($_)->hashes } @{$self->shares});
+	}
+	return File::Hashset->load($hashes);
+};
 
 # return a list of names, one for each share in this backup
 field shares => sub {

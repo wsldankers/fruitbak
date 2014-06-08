@@ -32,6 +32,7 @@ package Fruitbak::Host;
 
 use IO::Dir;
 use Scalar::Util qw(weaken);
+use File::Hashset;
 use Fruitbak::Backup::Read;
 use Fruitbak::Backup::Write;
 
@@ -66,6 +67,13 @@ sub new() {
 
 	return $self;
 }
+
+field hashes => sub {
+	my $hashes = $self->dir . '/hashes';
+	File::Hashset->merge($hashes, $self->fbak->pool->hashsize,
+		map { $self->get_backup($_)->hashes } @{$self->backups});
+	return File::Hashset->load($hashes);
+};
 
 # return a sorted list of backups for this host
 field backups => sub {
