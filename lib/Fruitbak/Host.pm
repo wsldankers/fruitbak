@@ -33,6 +33,7 @@ package Fruitbak::Host;
 use IO::Dir;
 use Scalar::Util qw(weaken);
 use File::Hashset;
+use File::Path qw(remove_tree);
 use Fruitbak::Backup::Read;
 use Fruitbak::Backup::Write;
 
@@ -103,4 +104,11 @@ sub get_backup {
 
 sub new_backup {
 	return new Fruitbak::Backup::Write(host => $self, @_);
+}
+
+sub remove_backup {
+	my $number = int(shift);
+	my $backup = $self->get_backup($number);
+	remove_tree($backup->dir);
+	delete $self->backups_cache->{$number};
 }

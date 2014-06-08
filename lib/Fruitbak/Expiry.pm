@@ -1,10 +1,8 @@
-#! /usr/bin/perl
-
 =encoding utf8
 
 =head1 NAME
 
-fruitbak-rsyncp-recv - process wrapper for File::RsyncP
+Fruitbak::Expiry - base class for expiry policies
 
 =head1 AUTHOR
 
@@ -30,47 +28,11 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-use strict;
-use warnings FATAL => 'all';
+package Fruitbak::Expiry;
 
-use File::Temp;
-use File::RsyncP;
-use Fruitbak::Transfer::Rsync::IO;
+use Class::Clarity -self;
 
-binmode STDIN;
-binmode STDOUT;
+weakfield fbak;
+field cfg;
 
-$SIG{PIPE} = 'IGNORE';
-
-my $lock = new File::Temp(EXLOCK => 0);
-
-my $fio = new Fruitbak::Transfer::Rsync::IO(
-	lockname => $lock->filename,
-	lockfh => $lock,
-	lockpid => $$,
-);
-
-my $share = shift @ARGV;
-my $rsync = shift @ARGV;
-
-my $rs = new File::RsyncP({
-#	logLevel => 2,
-	rsyncCmd => [$rsync],
-	rsyncArgs => \@ARGV,
-	fio => $fio,
-});
-
-die "REMOVE BEFORE FLIGHT"
-	if $share eq '/';
-
-eval {
-	$rs->remoteStart(1, $share);
-	$rs->go('/DUMMY');
-	$rs->serverClose;
-};
-if(my $err = $@) {
-	eval { $rs->abort };
-	warn $@ if $@;
-	die $err;
-}
-exit 0;
+stub expired;

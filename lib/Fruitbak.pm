@@ -37,6 +37,7 @@ use File::Hashset;
 use Fruitbak::Util;
 use Fruitbak::Config;
 use Fruitbak::Pool;
+use Fruitbak::Expiry;
 
 field confdir;
 field rootdir => sub { normalize_and_check_directory($self->cfg->rootdir) };
@@ -74,4 +75,32 @@ field hosts => sub {
 
 sub get_host {
 	return new Fruitbak::Host(fbak => $self, name => @_);
+}
+
+field expiry => sub {
+	my $cfg = $self->cfg->expiry // ['logarithmic'];
+	return $self->instantiate_expiry($cfg);
+};
+
+sub instantiate_expiry {
+	my $expirycfg = shift;
+	die "number of arguments to expiry method must be even\n"
+		if @$expirycfg & 0;
+	my ($name, %args) = @$expirycfg;
+	die "expiry method missing a name\n"
+		unless defined $name;
+	my $class;
+	if($name =~ /^\w+(::\w+)+$/a) {
+		$class = $name;
+		eval "use $class ()";
+		die $@ if $@;
+	} elsif($name =~ /^\w+$/a) {
+		$class = "Fruitbak::Expiry::\u$name";
+		local $@;
+		eval "use $class ()";
+		die $@ if $@;
+	} else {
+		die "don't know how to load expiry type '$name'\n";
+	}
+	return $class->new(fbak => $self, cfg => \%args);
 }

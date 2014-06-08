@@ -36,7 +36,7 @@ use warnings FATAL => 'all';
 use Exporter qw(import);
 use Encode;
 
-our @EXPORT = qw(normalize_and_check_directory normalize_directory check_directory split_path utf8_testandset_inplace utf8_testandset utf8_disable_inplace utf8_disable);
+our @EXPORT = qw(normalize_and_check_directory normalize_directory check_directory split_path utf8_testandset_inplace utf8_testandset utf8_disable_inplace utf8_disable parse_interval parse_size parse_bool);
 our @EXPORT_OK = @EXPORT;
 
 sub normalize_directory {
@@ -99,4 +99,66 @@ sub utf8_disable {
 	return undef unless defined $str;
 	Encode::_utf8_off($str);
 	return $str;
+}
+
+{
+	my %units = (
+		'' => 1,
+		ns => 0.000000001,
+		us => 0.000001,
+		ms => 0.001,
+		s => 1,
+		m => 60,
+		h => 3600,
+		d => 86400,
+		w => 604800,
+		l => 31 * 86400,
+		q => 92 * 86400,
+		y => int(365.2425 * 86400),
+	);
+
+	sub parse_interval {
+		my ($time) = @_;
+		return undef unless defined $time;
+		$time =~ /^(\d+)\s*(\w*)$/i;
+		my ($scalar, $unit) = ($1, $2);
+		die "can't parse time value '$time'\n"
+			unless defined $scalar;
+		my $multiplier = $units{lc $unit}
+			or die "unknown unit $unit\n";
+		return $scalar * $multiplier;
+	}
+}
+
+{
+	my %units = (
+		'' => 1,
+		k => 1024,
+		m => 1048576,
+		g => 1073741824,
+		t => 1099511627776,
+		p => 1125899906842624,
+		e => 1152921504606846976,
+		z => 1180591620717411303424,
+		y => 1208925819614629174706176,
+	);
+
+	sub parse_size {
+		my ($size) = @_;
+		return undef unless defined $size;
+		$size =~ /^(\d+)\s*([a-z]?)$/i
+			or die "can't parse size value '$size'\n";
+		my ($bytes, $unit) = ($1, $2);
+		my $multiplier = $units{lc $unit}
+			or die "unknown unit $unit\n";
+		return $bytes * $multiplier;
+	}
+}
+
+sub parse_bool {
+	local $_ = shift;
+	return undef unless defined;
+	return 1 if /^(?:1|y|yes|true|on|enabled?)$/i;
+	return 0 if /^(?:0|n|no|false|off|disabled?)$/i;
+	die "unknown boolean value '$_'\n";
 }

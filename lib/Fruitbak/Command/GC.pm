@@ -48,16 +48,36 @@ sub run {
 		if defined $dummy;
 
 	my $fbak = $self->fbak;
+
+	my $expiry = $fbak->expiry;
+	my $hosts = $fbak->hosts;
+	foreach my $name (@$hosts) {
+		my $host = $fbak->get_host($name);
+		my $expired = $expiry->expired($host);
+		foreach my $e (@$expired) {
+			warn "removing $name/$e\n";
+			$host->remove_backup($e);
+		}
+	}
+
 	my $pool = $fbak->pool;
 	my $iterator = $pool->iterator;
 	my $hashes = $fbak->hashes;
+	my $total = 0;
+	my $removed = 0;
 
 	while(my $chunks = $iterator->fetch) {
 		foreach my $chunk (@$chunks) {
-			$pool->remove($chunk)
-				unless $hashes->exists($chunk);
+			unless($hashes->exists($chunk)) {
+				warn encode_base64($chunk);
+				$pool->remove($chunk);
+				$removed++;
+			}
+			$total++;
 		}
 	}
+
+	warn "removed $removed out of $total pool files\n";
 
 	return 0;
 }

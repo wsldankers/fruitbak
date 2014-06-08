@@ -1,10 +1,8 @@
-#! /usr/bin/perl
-
 =encoding utf8
 
 =head1 NAME
 
-fruitbak-rsyncp-recv - process wrapper for File::RsyncP
+Fruitbak::Expiry::Not - logical “not” operator for policies
 
 =head1 AUTHOR
 
@@ -30,47 +28,19 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-use strict;
-use warnings FATAL => 'all';
+package Fruitbak::Expiry::Not;
 
-use File::Temp;
-use File::RsyncP;
-use Fruitbak::Transfer::Rsync::IO;
+use Fruitbak::Expiry -self;
 
-binmode STDIN;
-binmode STDOUT;
-
-$SIG{PIPE} = 'IGNORE';
-
-my $lock = new File::Temp(EXLOCK => 0);
-
-my $fio = new Fruitbak::Transfer::Rsync::IO(
-	lockname => $lock->filename,
-	lockfh => $lock,
-	lockpid => $$,
-);
-
-my $share = shift @ARGV;
-my $rsync = shift @ARGV;
-
-my $rs = new File::RsyncP({
-#	logLevel => 2,
-	rsyncCmd => [$rsync],
-	rsyncArgs => \@ARGV,
-	fio => $fio,
-});
-
-die "REMOVE BEFORE FLIGHT"
-	if $share eq '/';
-
-eval {
-	$rs->remoteStart(1, $share);
-	$rs->go('/DUMMY');
-	$rs->serverClose;
+field subpol => sub {
+	return $self->fbak->instantiate_expiry($self->cfg->{in});
 };
-if(my $err = $@) {
-	eval { $rs->abort };
-	warn $@ if $@;
-	die $err;
+
+sub expired {
+	my $host = shift;
+	my $all = $host->backups;
+	my %remaining; @remaining{@$all} = ();
+	my $e = $self->subpol->expired($host);
+	delete @remaining{$e};
+	return [sort { $a <=> $b } map { int($_) } keys %remaining];
 }
-exit 0;
