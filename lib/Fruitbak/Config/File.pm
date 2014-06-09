@@ -35,6 +35,23 @@ use warnings FATAL => 'all';
 
 our %conf;
 
+sub include_if_exists {
+	die "include(): missing argument\n"
+		unless @_;
+	my $file = shift;
+	die "include(): undefined argument\n"
+		unless defined $file;
+	# make relative paths absolute
+	$file =~ s{^(?!/)}{$conf{confdir}/}a;
+	local $!;
+	unless(do $file) {
+		die "parsing $file: $@" if $@;
+		return if $! && $!{ERRNO};
+		die "reading $file: $!\n" if $!;
+		die "error loading $file\n";
+	}
+}
+
 sub include {
 	die "include(): missing argument\n"
 		unless @_;
@@ -49,3 +66,5 @@ sub include {
 		die "error loading $file\n";
 	}
 }
+
+1;

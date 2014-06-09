@@ -46,9 +46,9 @@ field name;
 field data => sub {
 	my $dir = $self->dir;
 	my $name = $self->name;
-	my $file = "$dir/host/$name.pl";
-	my $commonfile = "$dir/common.pl";
-	my $conf = eval "package Fruitbak::Config::File; local our %conf = (confdir => \$dir, name => \$name); include(\$commonfile); include(\$file) if -e \$file; {%conf}";
+	my $file = "host/$name.pl";
+	my $commonfile = 'common.pl';
+	my $conf = eval "package Fruitbak::Config::File; local our %conf = (confdir => \$dir, name => \$name); include(\$commonfile); include_if_exists(\$file); return {%conf}";
 	die $@ if $@;
 	return $conf;
 };

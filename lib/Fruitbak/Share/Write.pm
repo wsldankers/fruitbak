@@ -60,12 +60,6 @@ field hhm => sub {
 };
 
 # add a Fruitbak::Dentry to the database
-# the extra field must be filled depending on the type of the dentry:
-# - regular files: the concatenated hashes that make up the file contents
-# - symlinks: the symlink target (use $dentry->symlink)
-# - hardlinks: the hardlink target (the path, not the inode - use $dentry->hardlink)
-# - device nodes: the device number encoded using $dentry->rdev
-# - directories, fifos and sockets: leave empty
 sub add_entry {
 	my $dentry = shift;
 	$self->hhm->add($dentry->name, attrformat($dentry));

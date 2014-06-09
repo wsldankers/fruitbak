@@ -241,6 +241,7 @@ sub reply_rpc {
 sub recv_files {
 	local $SIG{PIPE} = 'IGNORE';
 	my $name = $self->share->name;
+die "REMOVE BEFORE FLIGHT" if $name eq '/';
 	$name =~ s{(?:/+\.?)?$}{/.}a;
 	my $pid = open2(my $out, my $in,
 		'fruitbak-rsyncp-recv',

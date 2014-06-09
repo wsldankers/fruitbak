@@ -44,8 +44,8 @@ field dir => sub { $self->cfg->dir };
 
 field data => sub {
 	my $dir = $self->dir;
-	my $file = "$dir/global.pl";
-	my $conf = eval "package Fruitbak::Config::File; local our %conf = (confdir => \$dir); include(\$file); {%conf}";
+	my $file = 'global.pl';
+	my $conf = eval "package Fruitbak::Config::File; local our %conf = (confdir => \$dir); include(\$file); return {%conf}";
 	die $@ if $@;
 	return $conf;
 };
