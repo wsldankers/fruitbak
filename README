@@ -16,13 +16,13 @@ Implemented:
  - encryption
  - skip unchanged chunks
  - garbage collection
+ - backup expiry
+ - pluggable expiry methods
 
 Initial goals:
 
  - test suite
  - manpages
- - backup expiry
- - pluggable expiry methods
  - rsync includes/excludes
  - pre/post-commands (per-backup, per-share)
 
