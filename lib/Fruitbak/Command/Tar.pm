@@ -215,9 +215,12 @@ sub run {
 	my $share = $backup->get_share($sharename);
 	my $cursor = $share->find($path);
 	my %remap;
-	my $dentry = $cursor->read;
+	# Tricky: we need both the root node (which we can only fetch now) and the
+	# first node. However, we need to iterate over both of them (though $root may
+	# be undef) and only then continue with the other, normal nodes.
+	my $root = $cursor->read;
 	my $first = $cursor->fetch;
-	for($dentry //= $first; $dentry; $dentry = $cursor->fetch) {
+	for(my $dentry = $root || $first; $dentry; $dentry = $root ? do { undef $root; $first } : $cursor->fetch) {
 		my $name = $dentry->name;
 		my $inode = $dentry->inode;
 		my $remapped = $remap{$name};
