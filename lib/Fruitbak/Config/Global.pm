@@ -34,6 +34,7 @@ use Class::Clarity -self;
 
 use Fruitbak::Host;
 use Fruitbak::Config;
+use Fruitbak::Config::File;
 
 field fbak;
 field cfg;
@@ -42,11 +43,21 @@ field dir => sub { $self->cfg->dir };
 field data => sub {
 	my $dir = $self->dir;
 	my $file = "$dir/global.pl";
-	my $code = Fruitbak::Config::include_code();
-	my $conf = eval "package Fruitbak::Config::Global::file; our %conf = (confdir => \$dir); *include = sub { $code }; include(\$file); \\%conf";
+	my $conf = eval "package Fruitbak::Config::File; local our %conf = (confdir => \$dir); include(\$file); {%conf}";
 	die $@ if $@;
 	return $conf;
 };
+
+sub call_if_sub {
+	my $name = shift;
+	my $value = shift;
+	my $type = reftype($value);
+	return $value unless defined $type && $type eq 'CODE';
+	local %Fruitbak::Config::File::conf = %{$self->data};
+	$value = $value->();
+	$self->data({%Fruitbak::Config::File::conf, $name => $value});
+	return $value;
+}
 
 sub DESTROY {} # don't try to autoload this
 
@@ -57,8 +68,8 @@ sub AUTOLOAD {
 		if $off == -1;
 	my $pkg = substr($sub, 0, $off + 2, '');
 	confess("Can't locate object method \"$sub\" via package \"$pkg\"") if @_;
-	my $code = "sub $sub { my \$self = shift; return \$self->data->{\$sub} }";
+	my $code = "sub $sub { my \$self = shift; return \$self->call_if_sub(\$sub, \$self->data->{\$sub}) }";
 	my $err = do { local $@; eval $code; $@ };
 	confess($err) if $err;
-	return $self->data->{$sub};
+	return $self->call_if_sub($sub, $self->data->{$sub});
 }

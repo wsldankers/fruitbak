@@ -58,19 +58,6 @@ sub get_host {
 	return new Fruitbak::Config::Host(fbak => $self->fbak, cfg => $self, name => @_);
 }
 
-use constant include_code => <<'EOT';
-	die "include(): missing argument\n"
-		unless @_;
-	my $file = shift;
-	die "include(): undefined argument\n"
-		unless defined $file;
-	unless(do $file) {
-		die "parsing $file: $@" if $@;
-		die "reading $file: $!\n" if $!;
-		die "error loading $file\n";
-	}
-EOT
-
 sub DESTROY {} # don't try to autoload this
 
 sub AUTOLOAD {
