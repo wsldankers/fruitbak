@@ -23,7 +23,10 @@ Initial goals:
 
  - test suite
  - manpages
- - rsync includes/excludes
+ - local backup/restore method
+ - logging (per-backup, per-share)
+ - warning e-mails
+ - includes/excludes
  - pre/post-commands (per-backup, per-share)
 
 After that:

@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Host::Expiry::Logarithmic - logarithmic expiry policy
+Fruitbak::Host::Expiry::Status - expiry policy that expires by status
 
 =head1 AUTHOR
 
@@ -28,28 +28,22 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Host::Expiry::Logarithmic;
+package Fruitbak::Host::Expiry::Status;
 
 use Fruitbak::Host::Expiry -self;
 
-field keep => sub { int($self->cfg->{keep} // 1) };
-
-field subpol => sub {
-    my $of = $self->cfg->{of} // ['status', in => 'done'];
-	return $self->host->instantiate_expiry($of);
+field in => sub {
+	my $in = $self->cfg->{in};
+	die "no 'in' parameter configured for 'status' expiry policy\n"
+		unless defined $in;
+	$in = [$in] unless ref $in;
+	my %in; @in{@$in} = ();
+	return \%in;
 };
 
-sub generation() {
-	my $seq = shift;
-	return 0 unless $seq;
-	my $gen = 0;
-	until($seq & 1<<$gen++) {}
-	return $gen;
-}
-
 sub expired {
-	my $backups = $self->subpol->expired;
-	my $keep = $self->keep;
-	my @generations;
-	return [reverse grep { $generations[generation($_)]++ >= $keep } reverse @$backups];
+	my $host = $self->host;
+	my $backups = $host->backups;
+	my $in = $self->in;
+	return [grep { exists $in->{$host->get_backup($_)->status} } @$backups];
 }

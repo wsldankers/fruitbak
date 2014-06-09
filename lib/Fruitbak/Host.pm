@@ -120,7 +120,16 @@ sub expired {
 }
 
 field expiry => sub {
-	my $cfg = $self->cfg->expiry // ['logarithmic'];
+	my $cfg = $self->cfg->expiry //
+		['or' => any => [
+			['logarithmic'],
+			['and', all => [
+				['age', max => '1w'],
+				['not', in =>
+					['status', in => 'done']
+				],
+			]],
+		]];
 	return $self->instantiate_expiry($cfg);
 };
 
