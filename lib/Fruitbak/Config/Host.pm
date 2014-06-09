@@ -53,14 +53,15 @@ field data => sub {
 	return $conf;
 };
 
-sub call_if_sub {
+sub get_value {
 	my $name = shift;
-	my $value = shift;
+	my $data = $self->data;
+	my $value = $data->{$name};
 	my $type = reftype($value);
 	return $value unless defined $type && $type eq 'CODE';
-	local %Fruitbak::Config::File::conf = %{$self->data};
+	local %Fruitbak::Config::File::conf = %$data;
 	$value = $value->();
-	$self->data({%Fruitbak::Config::File::conf, $name => $value});
+	%$data = (%Fruitbak::Config::File::conf, $name => $value);
 	return $value;
 }
 
@@ -73,8 +74,8 @@ sub AUTOLOAD {
 		if $off == -1;
 	my $pkg = substr($sub, 0, $off + 2, '');
 	confess("Can't locate object method \"$sub\" via package \"$pkg\"") if @_;
-	my $code = "sub $sub { my \$self = shift; return \$self->call_if_sub(\$sub, \$self->data->{\$sub}) }";
+	my $code = "sub $sub { my \$self = shift; return \$self->get_value(\$sub) }";
 	my $err = do { local $@; eval $code; $@ };
 	confess($err) if $err;
-	return $self->call_if_sub($sub, $self->data->{$sub});
+	return $self->get_value($sub);
 }
