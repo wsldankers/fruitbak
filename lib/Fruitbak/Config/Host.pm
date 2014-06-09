@@ -74,8 +74,7 @@ sub AUTOLOAD {
 		if $off == -1;
 	my $pkg = substr($sub, 0, $off + 2, '');
 	confess("Can't locate object method \"$sub\" via package \"$pkg\"") if @_;
-	my $code = "sub $sub { my \$self = shift; return \$self->get_value(\$sub) }";
-	my $err = do { local $@; eval $code; $@ };
+	my $err = do { local $@; eval "sub $sub { shift->get_value(\$sub) }"; $@ };
 	confess($err) if $err;
 	return $self->get_value($sub);
 }
