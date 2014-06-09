@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Expiry::Logarithmic - logarithmic expiry policy
+Fruitbak::Host::Expiry::Logarithmic - logarithmic expiry policy
 
 =head1 AUTHOR
 
@@ -28,9 +28,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Expiry::Logarithmic;
+package Fruitbak::Host::Expiry::Logarithmic;
 
-use Fruitbak::Expiry -self;
+use Fruitbak::Host::Expiry -self;
 
 field keep => sub { int($self->cfg->{keep} // 1) };
 
@@ -43,9 +43,8 @@ sub generation() {
 }
 
 sub expired {
-	my $host = shift;
-	my $backups = $host->backups;
+	my $backups = $self->host->backups;
 	my $keep = $self->keep;
 	my @generations;
-	return [sort { $a <=> $b } grep { $generations[generation($_)]++ >= $keep } reverse @$backups];
+	return [reverse grep { $generations[generation($_)]++ >= $keep } reverse @$backups];
 }

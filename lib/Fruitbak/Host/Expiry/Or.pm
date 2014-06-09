@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Expiry::And - logical “and” operator for policies
+Fruitbak::Host::Expiry::Or - logical “or” operator for policies
 
 =head1 AUTHOR
 
@@ -28,26 +28,26 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Expiry::And;
+package Fruitbak::Host::Expiry::Or;
 
-use Fruitbak::Expiry -self;
+use Fruitbak::Host::Expiry -self;
+
+use Data::Dumper;
 
 field subpols => sub {
-	my $fbak = $self->fbak;
-	return [map { $fbak->instantiate_expiry($_) } @{$self->cfg->{all}}];
+	my $host = $self->host;
+	my $any = $self->cfg->{any};
+	die "no 'any' set configured for 'or' expiry policy\n"
+		unless defined $any;
+	return [map { $host->instantiate_expiry($_) } @$any];
 };
 
 sub expired {
-	my $host = shift;
 	my $subpols = $self->subpols;
-	my $all = $host->backups;
-	my %all; @all{@$all} = ();
-	my %remaining; @remaining{@$all} = ();
+	my %total;
 	foreach my $p (@$subpols) {
-		my $e = $p->expired($host);
-		my %inverse = %all;
-		delete @inverse{@$e};
-		delete @remaining{keys %inverse};
+		my $e = $p->expired;
+		@total{@$e} = ();
 	}
-	return [sort { $a <=> $b } map { int($_) } keys %remaining];
+	return [sort { $a <=> $b } map { int($_) } keys %total];
 }

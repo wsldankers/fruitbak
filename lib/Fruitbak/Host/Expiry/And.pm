@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Expiry::Age - age-based expiry policy
+Fruitbak::Host::Expiry::And - logical “and” operator for policies
 
 =head1 AUTHOR
 
@@ -28,17 +28,28 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Expiry::Age;
+package Fruitbak::Host::Expiry::And;
 
-use Fruitbak::Expiry -self;
+use Fruitbak::Host::Expiry -self;
 
-use Fruitbak::Util;
-
-field maxage => sub { parse_interval($self->cfg->{max} // die "no maxage configured\n") };
+field subpols => sub {
+	my $host = $self->host;
+	my $all = $self->cfg->{all};
+	die "no 'all' set configured for 'and' expiry policy\n"
+		unless defined $all;
+	return [map { $host->instantiate_expiry($_) } @$all];
+};
 
 sub expired {
-	my $host = shift;
-	my $backups = $host->backups;
-	my $then = time - $self->maxage;
-	return [grep { $host->get_backup($_)->startTime < $then } @$backups];
+	my $subpols = $self->subpols;
+	my $all = $self->host->backups;
+	my %all; @all{@$all} = ();
+	my %remaining; @remaining{@$all} = ();
+	foreach my $p (@$subpols) {
+		my $e = $p->expired;
+		my %inverse = %remaining;
+		delete @inverse{@$e};
+		delete @remaining{keys %inverse};
+	}
+	return [sort { $a <=> $b } map { int($_) } keys %remaining];
 }

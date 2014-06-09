@@ -34,6 +34,7 @@ use IO::Dir;
 use Scalar::Util qw(weaken);
 use File::Hashset;
 use File::Path qw(remove_tree);
+
 use Fruitbak::Backup::Read;
 use Fruitbak::Backup::Write;
 
@@ -111,4 +112,37 @@ sub remove_backup {
 	my $backup = $self->get_backup($number);
 	remove_tree($backup->dir);
 	delete $self->backups_cache->{$number};
+}
+
+sub expired {
+	my @backups = map { $self->get_backup($_) } @{$self->backups};
+	return $self->expiry->expired;
+}
+
+field expiry => sub {
+	my $cfg = $self->cfg->expiry // ['logarithmic'];
+	return $self->instantiate_expiry($cfg);
+};
+
+sub instantiate_expiry {
+	my $expirycfg = shift;
+	die "number of arguments to expiry method must be even\n"
+		if @$expirycfg & 0;
+	my ($name, %args) = @$expirycfg;
+	die "expiry method missing a name\n"
+		unless defined $name;
+	my $class;
+	if($name =~ /^\w+(::\w+)+$/a) {
+		$class = $name;
+		eval "use $class ()";
+		die $@ if $@;
+	} elsif($name =~ /^\w+$/a) {
+		$class = "Fruitbak::Host::Expiry::\u$name";
+		local $@;
+		eval "use $class ()";
+		die $@ if $@;
+	} else {
+		die "don't know how to load expiry type '$name'\n";
+	}
+	return $class->new(host => $self, cfg => \%args);
 }

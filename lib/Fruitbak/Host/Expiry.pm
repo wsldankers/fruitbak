@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Expiry - base class for expiry policies
+Fruitbak::Host::Expiry - base class for expiry policies
 
 =head1 AUTHOR
 
@@ -28,11 +28,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Expiry;
+package Fruitbak::Host::Expiry;
 
 use Class::Clarity -self;
 
-weakfield fbak;
+weakfield fbak => sub { $self->host->fbak };
+weakfield host;
 field cfg;
 
 stub expired;

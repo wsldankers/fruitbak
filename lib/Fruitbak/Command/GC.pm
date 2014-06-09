@@ -49,11 +49,10 @@ sub run {
 
 	my $fbak = $self->fbak;
 
-	my $expiry = $fbak->expiry;
 	my $hosts = $fbak->hosts;
 	foreach my $name (@$hosts) {
 		my $host = $fbak->get_host($name);
-		my $expired = $expiry->expired($host);
+		my $expired = $host->expired($host);
 		foreach my $e (@$expired) {
 			warn "removing $name/$e\n";
 			$host->remove_backup($e);
@@ -69,7 +68,7 @@ sub run {
 	while(my $chunks = $iterator->fetch) {
 		foreach my $chunk (@$chunks) {
 			unless($hashes->exists($chunk)) {
-				warn encode_base64($chunk);
+#				warn encode_base64($chunk);
 				$pool->remove($chunk);
 				$removed++;
 			}
