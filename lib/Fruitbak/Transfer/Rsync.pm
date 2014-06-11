@@ -43,11 +43,17 @@ use File::Hashset;
 
 use Fruitbak::Transfer::Rsync::RPC;
 
-field fbak => sub { $self->host->fbak };
-field pool => sub { $self->fbak->pool };
-field host => sub { $self->backup->host };
-field backup => sub { $self->share->backup };
-field share;
+weakfield fbak => sub { $self->host->fbak };
+weakfield pool => sub { $self->fbak->pool };
+weakfield host => sub { $self->backup->host };
+weakfield backup => sub { $self->share->backup };
+weakfield share;
+field cfg;
+field command => sub {
+	$self->sharecfg->{command} //
+	$self->hostcfg->{command} //
+	q{exec ssh root@$hostname exec rsync "$@"}
+};
 field refbackup => sub { $self->share->refbackup };
 field refshare => sub { $self->share->refshare };
 field refhashes => sub {
@@ -253,13 +259,13 @@ sub reply_rpc {
 
 sub recv_files {
 	local $SIG{PIPE} = 'IGNORE';
-	my $name = $self->share->name;
+	my $path = $self->share->path;
 die "REMOVE BEFORE FLIGHT" if $name eq '/';
 	$name =~ s{(?:/+\.?)?$}{/.}a;
 	my $pid = open2(my $out, my $in,
 		'fruitbak-rsyncp-recv',
-		$name,
-		qw(rsync
+		$self->command,
+		qw(
 			--numeric-ids
 			--perms
 			--owner

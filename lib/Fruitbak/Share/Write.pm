@@ -40,10 +40,12 @@ use Fruitbak::Share::Format;
 use Fruitbak::Pool::Write;
 use Fruitbak::Transfer::Rsync;
 
-field name;
+field name => sub { $self->cfg->name // die "share has no name" };
+field path => sub { $self->cfg->path // $self->name };
 field dir => sub { $self->backup->sharedir . '/' . mangle($self->name) };
 field fbak => sub { $self->backup->fbak };
 field backup;
+field cfg;
 field refbackup => sub { $self->backup->refbackup };
 field refshare => sub {
     my $refbak = $self->refbackup;
@@ -78,4 +80,32 @@ sub finish {
 	$hhm->parents;
 	$hhm->finish;
 	bless $self, 'Fruitbak::Share::Read';
+}
+
+field method => sub {
+	my $cfg = $self->cfg->method // ['rsync'];
+	return $self->instantiate_method($cfg);
+};
+
+sub instantiate_method {
+	my $methodcfg = shift;
+	die "number of arguments to transfer method must be even\n"
+		if @$methodcfg & 0;
+	my ($name, %args) = @$methodcfg;
+	die "transfer method missing a name\n"
+		unless defined $name;
+	my $class;
+	if($name =~ /^\w+(::\w+)+$/a) {
+		$class = $name;
+		eval "use $class ()";
+		die $@ if $@;
+	} elsif($name =~ /^\w+$/a) {
+		$class = "Fruitbak::Transfer::\u$name";
+		local $@;
+		eval "use $class ()";
+		die $@ if $@;
+	} else {
+		die "don't know how to load transfer method '$name'\n";
+	}
+	return $class->new(share => $self, cfg => \%args);
 }
