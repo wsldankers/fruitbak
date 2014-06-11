@@ -30,23 +30,32 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Transfer::Rsync;
 
+use Class::Clarity -self;
+
 use autodie;
 
 use File::RsyncP::Digest;
-use Fruitbak::Transfer::Rsync::RPC;
 use IPC::Open2;
 use IO::Handle;
 use POSIX qw(:sys_wait_h);
 use Fcntl qw(:mode);
+use File::Hashset;
 
-use Class::Clarity -self;
+use Fruitbak::Transfer::Rsync::RPC;
 
 field fbak => sub { $self->host->fbak };
 field pool => sub { $self->fbak->pool };
 field host => sub { $self->backup->host };
 field backup => sub { $self->share->backup };
 field share;
+field refbackup => sub { $self->share->refbackup };
 field refshare => sub { $self->share->refshare };
+field refhashes => sub {
+	my $refbackup = $self->refbackup;
+	return undef unless defined $refbackup;
+	return $refbackup->hashes;
+};
+field hashsize => sub { $self->pool->hashsize };
 field curfile;
 field curfile_attrs;
 field curfile_blocksize;
@@ -128,8 +137,12 @@ sub fileDeltaRxStart {
 	my ($attrs, $numblocks, $blocksize, $lastblocksize) = @_;
 	$self->setup_reffile($attrs);
 	my $writer = $self->pool->writer;
-	$writer->refdigests($self->reffile->digests)
-		if $self->reffile_isset;
+	if(my $refhashes = $self->refhashes) {
+		my @hashsets = ($refhashes);
+		unshift @hashsets, new File::Hashset(${$self->reffile->digests}, $self->hashsize)
+			if $self->reffile_isset;
+		$writer->hashsets(\@hashsets);
+	}
 	$self->curfile($writer);
 	$self->curfile_attrs($attrs);
 	$self->curfile_blocksize($blocksize);

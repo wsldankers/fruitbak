@@ -54,7 +54,7 @@ field fbak => sub { $self->pool->fbak };
 field pool;
 field buf => sub { my $x = ''; return \$x };
 field digests => sub { my $x = ''; return \$x };
-field refdigests => sub { my $x = ''; return \$x };
+field hashsets => [];
 field hashalgo => sub { $self->pool->hashalgo };
 field hashsize => sub { $self->pool->hashsize };
 field chunksize => sub { $self->pool->chunksize };
@@ -62,14 +62,11 @@ field chunksize => sub { $self->pool->chunksize };
 sub putchunk {
 	my $chunk = shift;
 	my $digests = $self->digests;
-	my $refdigests = $self->refdigests;
 	my $hash = $self->hashalgo->($$chunk);
 	my $hashsize = length($hash);
 	my $digestslen = length($$digests);
-	my $refhash = $digestslen < length($$refdigests)
-		? substr($$refdigests, $digestslen, $hashsize) : '';
 	$self->pool->store($hash, $chunk)
-		unless $hash eq $refhash;
+		unless grep { $_->exists($hash) } @{$self->hashsets};
 	$$digests .= $hash;
 	return;
 }
