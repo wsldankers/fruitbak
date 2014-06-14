@@ -218,9 +218,12 @@ sub run {
 			my $backup = $host->get_backup($backupnum);
 			if(defined $sharename) {
 				@align[0, 2..4] = ('') x 10;
-				($sharename, $path) = $backup->resolve_share($sharename)
-					unless defined $path;
-				my $share = $backup->get_share($sharename);
+				my $share;
+				if(defined $path) {
+					$share = $backup->get_share($sharename);
+				} else {
+					($share, $path) = $backup->resolve_share($sharename);
+				}
 				#push @table, ["mode", "inum", "uid", "gid", "size", "mtime"];
 				my $cursor = $share->ls($path);
 				while(my $dentry = $cursor->fetch) {

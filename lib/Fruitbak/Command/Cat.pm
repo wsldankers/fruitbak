@@ -48,9 +48,12 @@ sub run {
 
 	my $host = $fbak->get_host($hostname);
 	my $backup = $host->get_backup($backupnum);
-	($sharename, $path) = $backup->resolve_share($sharename)
-		unless defined $path;
-	my $share = $backup->get_share($sharename);
+	my $share;
+	if(defined $path) {
+		$share = $backup->get_share($sharename);
+	} else {
+		($share, $path) = $backup->resolve_share($sharename);
+	}
 	my $dentry = $share->get_entry($path)
 		or die "'$path': file not found\n";
 	die "'$path' is not a file\n"

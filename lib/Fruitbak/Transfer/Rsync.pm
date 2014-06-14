@@ -50,9 +50,8 @@ weakfield backup => sub { $self->share->backup };
 weakfield share;
 field cfg;
 field command => sub {
-	$self->sharecfg->{command} //
-	$self->hostcfg->{command} //
-	q{exec ssh root@$hostname exec rsync "$@"}
+	$self->cfg->{command} //
+		q{exec ssh root@$hostname exec rsync "$@"}
 };
 field refbackup => sub { $self->share->refbackup };
 field refshare => sub { $self->share->refshare };
@@ -255,12 +254,19 @@ sub reply_rpc {
 
 sub recv_files {
 	local $SIG{PIPE} = 'IGNORE';
-	my $path = $self->share->path;
-die "REMOVE BEFORE FLIGHT" if $name eq '/';
-	$name =~ s{(?:/+\.?)?$}{/.}a;
+	my $share = $self->share;
+	my $host = $self->host;
+	my $path = $share->path;
+die "REMOVE BEFORE FLIGHT" if $path eq '/';
+	local $ENV{name} = $host->name;
+	local $ENV{hostname} = $host->hostname;
+	local $ENV{backup_name} = $share->name;
+	local $ENV{backup_path} = $path;
+	$path =~ s{(?:/+\.?)?$}{/.}a;
 	my $pid = open2(my $out, my $in,
 		'fruitbak-rsyncp-recv',
 		$self->command,
+		$path,
 		qw(
 			--numeric-ids
 			--perms

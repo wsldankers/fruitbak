@@ -105,8 +105,9 @@ sub resolve_share {
 	my ($bestbase, $bestshare, $bestnum);
 
 	my $shares = $self->shares;
-	share: foreach my $share (@$shares) {
-		my @share = split_path($share);
+	share: foreach my $name (@$shares) {
+		my $share = $self->get_share($name);
+		my @share = split_path($share->path);
 		next if @share > @path;
 		next if defined $bestnum && @share <= $bestnum;
 		my $num = @share;

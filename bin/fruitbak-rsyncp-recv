@@ -50,8 +50,8 @@ my $fio = new Fruitbak::Transfer::Rsync::IO(
 	lockpid => $$,
 );
 
-my $path = shift @ARGV;
 my $command = shift @ARGV;
+my $path = shift @ARGV;
 
 my $rs = new File::RsyncP({
 #	logLevel => 2,
@@ -61,7 +61,7 @@ my $rs = new File::RsyncP({
 });
 
 die "REMOVE BEFORE FLIGHT"
-	if $share eq '/';
+	if $path eq '/';
 
 eval {
 	$rs->remoteStart(1, $path);

@@ -210,9 +210,12 @@ sub run {
 
 	my $host = $fbak->get_host($hostname);
 	my $backup = $host->get_backup($backupnum);
-	($sharename, $path) = $backup->resolve_share($sharename)
-		unless defined $path;
-	my $share = $backup->get_share($sharename);
+	my $share;
+	if(defined $path) {
+		$share = $backup->get_share($sharename);
+	} else {
+		($share, $path) = $backup->resolve_share($sharename);
+	}
 	my $cursor = $share->find($path);
 	my %remap;
 	# Tricky: we need both the root node (which we can only fetch now) and the

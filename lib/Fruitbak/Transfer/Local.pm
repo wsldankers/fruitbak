@@ -39,7 +39,7 @@ use Fcntl qw(:mode);
 use File::Hashset;
 use File::Find;
 
-use Fruitbak::Transfer::Rsync::RPC;
+use Fruitbak::Util;
 
 weakfield fbak => sub { $self->host->fbak };
 weakfield pool => sub { $self->fbak->pool };
@@ -54,31 +54,24 @@ field refhashes => sub {
 	return undef unless defined $refbackup;
 	return $refbackup->hashes;
 };
+field hashsize => sub { $self->pool->hashsize };
 field chunksize => sub { $self->pool->chunksize };
 field curfile;
 field curfile_attrs;
 field curfile_blocksize;
-field reffile;
 field inodes => {};
 field path => sub { normalize_path($self->share->path) };
 field pathre => sub {
 	my $path = quotemeta($self->path);
-	return qr(^$path/};
+	return qr{^$path/};
 };
 
-sub setup_reffile {
+sub reffile {
 	my $name = shift;
 	if(my $refshare = $self->refshare) {
-		if(my $dentry = $refshare->get_entry($name)) {
-			if($dentry->is_file) {
-				my $poolreader = $self->pool->reader(digests => $dentry->digests);
-				$self->reffile($poolreader);
-			}
-		}
+		return $refshare->get_entry($name);
 	}
-}
 
-	$self->share->add_entry($dentry);
 	return undef;
 }
 
@@ -87,12 +80,12 @@ sub wanted {
 	my $pathre = $self->pathre;
 	my $is_hardlink;
 	my @st = lstat($_);
-	my $relpath = $path;
+	my $relpath = $_;
 	unless($relpath =~ s{$pathre}{}a) {
 		if(-d _) {
 			$relpath = '.';
 		} else {
-			$relpath = $path =~ s{^.*/}{}a;
+			$relpath = $path =~ s{^.*/}{}ar;
 		}
 	}
 	my $dentry = new Fruitbak::Dentry(
@@ -103,39 +96,57 @@ sub wanted {
 		uid => $st[4],
 		gid => $st[5],
 	);
-	if(!-d _ && $st{3} > 1) {
+	if(!-d _ && $st[3] > 1) {
 		# potentially a hardlink
-		my $links = $self->links;
+		my $inodes = $self->inodes;
 		my $inode = "$st[0]$;$st[1]";
-		if(exists $links->{$inode}) {
-			$dentry->hardlink($links->{$inode});
+		if(exists $inodes->{$inode}) {
+			$dentry->hardlink($inodes->{$inode});
 			$is_hardlink = 1;
 		} else {
-			$links->{$inode} = $relpath;
+			$inodes->{$inode} = $relpath;
 		}
 	}
 	if(!$is_hardlink) {
 		if(-f _) {
 			if(-s _) {
-				my $writer = new Fruitbak::Pool::Write(pool => $self->pool);
-				my $chunksize = $self->chunksize;
-				local $@;
-				eval {
-					my $fh = new IO::File($_, '<')
-						or die "open($_): $!\n";
-					for(;;) {
-						my $r = sysread $fh, my $buf, $chunksize;
-						die "read($_): $!\n" unless defined $r;
-						last if !$r;
-						$writer->write(\$buf);
-						last if $r < $chunksize;
+				my $reffile = $self->reffile($relpath);
+				if($self->backup->type ne 'full'
+						&& $reffile
+						&& $reffile->is_file
+						&& $reffile->size == $dentry->size
+						&& $reffile->uid == $dentry->uid
+						&& $reffile->gid == $dentry->gid
+						&& $reffile->mode == $dentry->mode
+						&& $reffile->mtime == $dentry->mtime) {
+					$dentry->digests($reffile->digests);
+				} else {
+					my @refhashes;
+					push @refhashes, new File::Hashset($reffile->digests, $self->hashsize)
+						if $reffile && $reffile->is_file;
+					if(my $refhashes = $self->refhashes) {
+						push @refhashes, $refhashes;
 					}
-					$fh->close;
-				};
-				warn $@ if $@;
-				my ($digests, $size) = $writer->finish;
-				$dentry->size($size) if $digests ne '';
-				$dentry->digests($digests);
+					my $writer = new Fruitbak::Pool::Write(pool => $self->pool, refhashes => \@refhashes);
+					my $chunksize = $self->chunksize;
+					local $@;
+					eval {
+						my $fh = new IO::File($_, '<')
+							or die "open($_): $!\n";
+						for(;;) {
+							my $r = sysread($fh, my $buf, $chunksize);
+							die "read($_): $!\n" unless defined $r;
+							last if !$r;
+							$writer->write(\$buf);
+							last if $r < $chunksize;
+						}
+						$fh->close;
+					};
+					warn $@ if $@;
+					my ($digests, $size) = $writer->close;
+					$dentry->size($size) if $digests ne '';
+					$dentry->digests($digests);
+				}
 			}
 		} elsif(-l _) {
 			my $symlink = readlink($_);
@@ -149,9 +160,9 @@ sub wanted {
 			$dentry->rdev($st[6]);
 		}
 	}
+	$self->share->add_entry($dentry);
 }
 
 sub recv_files {
-	find({ wanted => sub { $self->wanted(@_) }, no_chdir => 1, follow => 0},
-		$self->share->path);
+	find({ wanted => sub { $self->wanted(@_) }, no_chdir => 1, follow => 0}, $self->share->path);
 }

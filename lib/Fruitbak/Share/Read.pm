@@ -36,6 +36,7 @@ use autodie;
 
 use Fcntl qw(:mode);
 use IO::File;
+use JSON;
 use File::Hardhat;
 use File::Hashset;
 use Fruitbak::Share::Cursor;
@@ -50,6 +51,19 @@ field dir => sub { $self->backup->sharedir . '/' . mangle($self->name) };
 field hh => sub { new File::Hardhat($self->dir . '/metadata.hh') };
 field backup;
 field fbak => sub { $self->backup->fbak };
+field info => sub {
+	my $dir = $self->dir;
+	my $info = new IO::File("$dir/info.json", '<')
+		or die "open($dir/info.json): $!\n";
+	my $json = do { local $/; <$info> };
+	$info->eof or die "read($dir/info.json): $!\n";
+	$info->close;
+	return decode_json($json);
+};
+field path => sub { $self->info->{path} };
+field startTime => sub { $self->info->{startTime} };
+field endTime => sub { $self->info->{endTime} };
+
 field hashes => sub {
 	my $hashes = $self->dir . '/hashes';
 	unless(-e $hashes) {

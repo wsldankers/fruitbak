@@ -34,14 +34,15 @@ use Class::Clarity -self;
 
 use Fcntl qw(:mode);
 use Carp qw(confess);
+use JSON;
 use File::Hardhat::Maker;
 
 use Fruitbak::Share::Format;
 use Fruitbak::Pool::Write;
 use Fruitbak::Transfer::Rsync;
 
-field name => sub { $self->cfg->name // die "share has no name" };
-field path => sub { $self->cfg->path // $self->name };
+field name => sub { $self->cfg->{name} // die "share has no name" };
+field path => sub { $self->cfg->{path} // $self->name };
 field dir => sub { $self->backup->sharedir . '/' . mangle($self->name) };
 field fbak => sub { $self->backup->fbak };
 field backup;
@@ -51,6 +52,16 @@ field refshare => sub {
     my $refbak = $self->refbackup;
     return undef unless $refbak;
     return $refbak->get_share($self->name); 
+};
+field startTime;
+field endTime;
+field info => sub {
+	return {
+		name => $self->name,
+		path => $self->path,
+		startTime => $self->startTime,
+		endTime => $self->endTime,
+	};
 };
 field hhm => sub {
 	my $dir = $self->dir;
@@ -68,8 +79,10 @@ sub add_entry {
 }
 
 sub run {
-	my $xfer = $self->method;
+	my $xfer = $self->transfer;
+	$self->startTime(time);
 	$xfer->recv_files;
+	$self->endTime(time);
 	$self->finish;
 }
 
@@ -80,19 +93,30 @@ sub finish {
 	$self->hhm_reset;
 	$hhm->parents;
 	$hhm->finish;
+
+	my $dir = $self->dir;
+	my $info = new IO::File("$dir/info.json", '>')
+		or die "open($dir/info.json): $!\n";
+	$info->write(encode_json($self->info))
+		or die "write($dir/info.json): $!\n";
+	$info->flush or die "write($dir/info.json): $!\n";
+	$info->sync or die "write($dir/info.json): $!\n";
+	$info->close or die "write($dir/info.json): $!\n";
+	undef $info;
+
 	bless $self, 'Fruitbak::Share::Read';
 }
 
-field method => sub {
-	my $cfg = $self->cfg->method // ['rsync'];
-	return $self->instantiate_method($cfg);
+field transfer => sub {
+	my $cfg = $self->cfg->{transfer} // ['rsync'];
+	return $self->instantiate_transfer($cfg);
 };
 
-sub instantiate_method {
-	my $methodcfg = shift;
+sub instantiate_transfer {
+	my $transfercfg = shift;
 	die "number of arguments to transfer method must be even\n"
-		if @$methodcfg & 0;
-	my ($name, %args) = @$methodcfg;
+		if @$transfercfg & 0;
+	my ($name, %args) = @$transfercfg;
 	die "transfer method missing a name\n"
 		unless defined $name;
 	my $class;

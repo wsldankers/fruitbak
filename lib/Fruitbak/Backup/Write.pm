@@ -46,7 +46,16 @@ field number => sub {
 	return @$backups ? $backups->[-1] + 1 : 0;
 };
 field fbak => sub { $self->host->fbak };
-field shares => sub { $self->host->cfg->shares // ['/'] };
+field cfg => sub { $self->host->cfg };
+field sharecfg => sub {
+	my $shares = $self->cfg->shares // ['/'];
+	my $cfg = $self->host->cfg;
+	my $transfer = $cfg->transfer;
+	my @transfer = (transfer => $transfer)
+		if $transfer;
+	return [map { ref $_ ? $_ : { name => $_, @transfer } } @$shares];
+};
+field shares => sub { [map { $_->{name} } @{$self->sharecfg}] };
 field status => 'failed';
 field type => sub { $self->level ? 'incr' : 'full' };
 field level => sub {
@@ -60,7 +69,7 @@ field info => sub {
 		status => $self->status,
 		level => $self->level,
 		startTime => $self->startTime,
-		endTime => $self->endTime
+		endTime => $self->endTime,
 	};
 };
 field refbackup => sub {
@@ -85,7 +94,6 @@ sub new() {
 	mkdir($sharedir) or $!{EEXIST} or
 		die "mkdir($sharedir): $!\n";
 	$self->lock;
-	$self->startTime(time);
 
 	return $self;
 }
@@ -111,11 +119,13 @@ sub unlock {
 }
 
 sub run {
-	my $shares = $self->shares;
-	foreach my $sharename (@$shares) {
-		my $share = new Fruitbak::Share::Write(name => $sharename, backup => $self);
+	$self->startTime(time);
+	my $shares = $self->sharecfg;
+	foreach my $cfg (@$shares) {
+		my $share = new Fruitbak::Share::Write(backup => $self, cfg => $cfg);
 		$share->run;
 	}
+	$self->endTime(time);
 	$self->finish;
 }
 
@@ -127,7 +137,6 @@ sub finish {
 	my $src = $self->dir;
 
 	$self->status('done');
-	$self->endTime(time);
 	my $info = new IO::File("$src/info.json", '>')
 		or die "open($src/info.json): $!\n";
 	$info->write(encode_json($self->info))
