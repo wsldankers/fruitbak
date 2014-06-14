@@ -36,10 +36,10 @@ use warnings FATAL => 'all';
 use Exporter qw(import);
 use Encode;
 
-our @EXPORT = qw(normalize_and_check_directory normalize_directory check_directory split_path utf8_testandset_inplace utf8_testandset utf8_disable_inplace utf8_disable parse_interval parse_size parse_bool);
+our @EXPORT = qw(normalize_and_check_directory normalize_path check_directory split_path utf8_testandset_inplace utf8_testandset utf8_disable_inplace utf8_disable parse_interval parse_size parse_bool);
 our @EXPORT_OK = @EXPORT;
 
-sub normalize_directory {
+sub normalize_path {
 	local $_ = shift;
 	return undef unless defined;
 	s{//+}{/}ga;
@@ -61,7 +61,7 @@ sub check_directory {
 }
 
 sub normalize_and_check_directory {
-	return check_directory(normalize_directory(shift));
+	return check_directory(normalize_path(shift));
 }
 
 sub split_path {

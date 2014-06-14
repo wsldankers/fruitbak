@@ -247,10 +247,6 @@ sub attribSet {
 	return undef;
 }
 
-sub finish {
-	$self->share->finish;
-}
-
 sub reply_rpc {
 	my $in = $self->rpc;
 	print $in pack('L', length($_[0])), $_[0];
@@ -287,7 +283,6 @@ die "REMOVE BEFORE FLIGHT" if $name eq '/';
 			my ($len, $cmd) = unpack('LC', saferead($out, 5));
 			my $data = saferead($out, $len) if $len;
 			if($cmd == RSYNC_RPC_finish) {
-				$self->finish;
 				last;
 			} elsif($cmd == RSYNC_RPC_protocol_version) {
 				$self->protocol_version(unpack('L', $data));
