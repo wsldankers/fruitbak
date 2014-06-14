@@ -32,7 +32,7 @@ package Fruitbak::Config::Global;
 
 use Class::Clarity -self;
 
-use Scalar::Util qw(reftype);
+use Scalar::Util qw(reftype blessed);
 
 use Fruitbak::Host;
 use Fruitbak::Config;
@@ -56,8 +56,13 @@ sub get_value {
 	my $value = $data->{$name};
 	my $type = reftype($value);
 	return $value unless defined $type && $type eq 'CODE';
+	my $blessed = blessed($value);
+	return $value if $blessed && $blessed eq 'Fruitbak::Config::Global::Resolved';
 	local %Fruitbak::Config::File::conf = %$data;
 	$value = $value->();
+	$type = reftype($value);
+	bless $value, 'Fruitbak::Config::Global::Resolved'
+		if defined $type && $type eq 'CODE';
 	%$data = (%Fruitbak::Config::File::conf, $name => $value);
 	return $value;
 }
