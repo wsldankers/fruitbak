@@ -119,6 +119,14 @@ sub unlock {
 }
 
 sub run {
+	my $cfg = $self->cfg;
+	my $name = self->host->name;
+	local $ENV{name} = $name;
+	local $ENV{host} = $cfg->host // $name;
+	my $user = $cfg->user;
+	local $ENV{user} = $user if defined $user;
+	my $port = $cfg->port;
+	local $ENV{port} = $port if defined $port;
 	$self->startTime(time);
 	my $shares = $self->sharecfg;
 	foreach my $cfg (@$shares) {

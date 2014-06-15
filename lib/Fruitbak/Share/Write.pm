@@ -79,6 +79,8 @@ sub add_entry {
 }
 
 sub run {
+	local $ENV{share} = $self->name;
+	local $ENV{path} = $self->path;
 	my $xfer = $self->transfer;
 	$self->startTime(time);
 	$xfer->recv_files;
