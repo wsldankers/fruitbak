@@ -64,7 +64,8 @@ field hashsize => sub { $self->pool->hashsize };
 field curfile;
 field curfile_attrs;
 field curfile_blocksize;
-field reffile;
+field deltafile;
+field csumfile;
 field protocol_version;
 field checksumSeed;
 field digest => sub { new File::RsyncP::Digest($self->protocol_version) };
@@ -116,12 +117,14 @@ sub dentry2attrs() {
 }
 
 sub setup_reffile {
-	my $attrs = shift;
+	my ($attrs, $which) = @_;
+	my $reset = $which.'_reset';
+	$self->$reset;
 	if(my $refshare = $self->refshare) {
 		if(my $dentry = $refshare->get_entry($attrs->{name})) {
 			if($dentry->is_file) {
 				my $poolreader = $self->pool->reader(digests => $dentry->digests);
-				$self->reffile($poolreader);
+				$self->$which($poolreader);
 			}
 		}
 	}
@@ -140,12 +143,12 @@ sub attribGet {
 
 sub fileDeltaRxStart {
 	my ($attrs, $numblocks, $blocksize, $lastblocksize) = @_;
-	$self->setup_reffile($attrs);
+	$self->setup_reffile($attrs, 'deltafile');
 	my $writer = $self->pool->writer;
 	if(my $refhashes = $self->refhashes) {
 		my @hashsets = ($refhashes);
-		unshift @hashsets, new File::Hashset(${$self->reffile->digests}, $self->hashsize)
-			if $self->reffile_isset;
+		unshift @hashsets, new File::Hashset(${$self->deltafile->digests}, $self->hashsize)
+			if $self->deltafile_isset;
 		$writer->hashsets(\@hashsets);
 	}
 	$self->curfile($writer);
@@ -158,11 +161,9 @@ sub fileDeltaRxNext {
 	my $curfile = $self->curfile;
 	if(defined $blocknum) {
 		return unless defined $blocknum;
-		my $reffile = $self->reffile;
-		die "No reffile but \$data undef? blocknum=$blocknum\n"
-			unless defined $reffile;
+		my $deltafile = $self->deltafile;
 		my $blocksize = $self->curfile_blocksize;
-		my $data = $reffile->pread($blocknum * $blocksize, $blocksize);
+		my $data = $deltafile->pread($blocknum * $blocksize, $blocksize);
 		$curfile->write($data);
 	} else {
 		$curfile->write(\($_[0]));
@@ -181,13 +182,11 @@ sub fileDeltaRxDone {
 sub csumStart {
     my ($attrs, $needMD4, $blockSize, $phase) = @_;
 
-	$self->csumEnd if $self->reffile_isset;
+	$self->csumEnd if $self->csumfile_isset;
 
-	my $refshare = $self->refshare or return;
-	my $dentry = $refshare->get_entry($attrs->{name}) or return;
-	return unless $dentry->is_file;
-
-	$self->setup_reffile($attrs);
+	$self->setup_reffile($attrs, 'csumfile');
+	confess("csumStart called without an existing file\n")
+		unless $self->csumfile_isset;
 
 	$self->csumDigest_reset;
 	$self->csumDigest->add(pack('V', $self->checksumSeed))
@@ -197,14 +196,15 @@ sub csumStart {
 }
 
 sub csumGet {
-	return unless $self->reffile_isset;
+	confess("csumGet called without a csum_file\n")
+		unless $self->csumfile_isset;
 
 	my ($num, $csumLen, $blockSize) = @_;
 
 	$num ||= 100;
 	$csumLen ||= 16;
 
-	my $data = $self->reffile->read($blockSize * $num);
+	my $data = $self->csumfile->read($blockSize * $num);
 
 	$self->csumDigest->add($$data)
 		if $self->csumDigest_isset;
@@ -213,14 +213,15 @@ sub csumGet {
 }
 
 sub csumEnd {
-	return unless $self->reffile_isset;
-	my $reffile = $self->reffile;
-	$self->reffile_reset;
+	confess("csumEnd called without a csum_file\n")
+		unless $self->csumfile_isset;
+	my $csumfile = $self->csumfile;
+	$self->csumfile_reset;
 	if($self->csumDigest_isset) {
 		# read the rest of the file for the MD4 digest
 		my $csumDigest = $self->csumDigest;
 		for(;;) {
-			my $data = $reffile->read;
+			my $data = $csumfile->read;
 			last if $data eq '';
 			$csumDigest->add($$data);
 		}
@@ -281,6 +282,8 @@ die "REMOVE BEFORE FLIGHT" if $path eq '/';
 		$self->rpc($in);
 		for(;;) {
 			my ($len, $cmd) = unpack('LC', saferead($out, 5));
+			die "internal protocol error: unknown RPC opcode $cmd\n"
+				if $cmd > RSYNC_RPC_max;
 			my $data = saferead($out, $len) if $len;
 			if($cmd == RSYNC_RPC_finish) {
 				last;
@@ -315,7 +318,7 @@ die "REMOVE BEFORE FLIGHT" if $path eq '/';
 			} elsif($cmd == RSYNC_RPC_attribSet) {
 				$self->attribSet(parse_attrs($data));
 			} else {
-				die "Internal protocol error: unknown RPC opcode $cmd\n";
+				die "internal protocol error: unknown RPC opcode $cmd\n";
 			}
 		}
 	};

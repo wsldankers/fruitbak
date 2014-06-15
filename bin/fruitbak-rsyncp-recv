@@ -32,6 +32,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 use strict;
 use warnings FATAL => 'all';
+use autodie;
 
 use File::Temp;
 use File::RsyncP;
@@ -44,7 +45,14 @@ $SIG{PIPE} = 'IGNORE';
 
 my $lock = new File::Temp(EXLOCK => 0);
 
+open(my $in, '<&', \*STDIN);
+open(my $out, '>&', \*STDOUT);
+open(STDIN, '<', '/dev/null');
+open(STDOUT, '>&', \*STDERR);
+
 my $fio = new Fruitbak::Transfer::Rsync::IO(
+	in => $in,
+	out => $out,
 	lockname => $lock->filename,
 	lockfh => $lock,
 	lockpid => $$,

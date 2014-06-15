@@ -46,19 +46,21 @@ field preserve_hard_links;
 field lockname => sub { $self->lockfh->filename };
 field lockfh;
 field lockpid => 0;
+field in;
+field out;
 
 use constant version => 2;
 
 sub raiilock {
 	my $pid = $$;
-	return new Fruitbak::Transfer::Rsync::Lock(lockfh => $self->lockfh)
+	return new Fruitbak::Transfer::Rsync::Lock(lockfh => $self->lockfh, shared => shift)
 		if $self->lockfh_isset && $self->lockpid == $pid;
 	my $lockname = $self->lockname;
 	my $lockfh = new IO::File($lockname, '+<')
 		or die "can't open $lockname: $!\n";
 	$self->lockfh($lockfh);
 	$self->lockpid($pid);
-	return new Fruitbak::Transfer::Rsync::Lock(lockfh => $lockfh)
+	return new Fruitbak::Transfer::Rsync::Lock(lockfh => $lockfh, shared => shift)
 }
 
 sub dirs {}
@@ -67,16 +69,19 @@ sub send_rpc {
 	my $buf = pack('LC', length($_[1]), $_[0]).$_[1];
 	if(length($buf) > PIPE_BUF) {
 		my $lock = $self->raiilock;
-		my $r = syswrite(\*STDOUT, $buf);
+		my $r = syswrite($self->out, $buf);
 		# POSIX guarantees that no partial writes will occur
-		die "short write\n"
+		confess "short write"
 			if $r < length($buf);
 	} else {
-		# POSIX guarantees that writes of up to PIPE_BUF bytes are atomic
-		# so we don't need to acquire a lock here
-		my $r = syswrite(\*STDOUT, $buf);
+		# POSIX guarantees that writes of up to PIPE_BUF bytes are atomic.
+		# However, even if this write is atomic, we might interrupt a larger
+		# non-atomic write. We therefore still have to take out a lock, but
+		# it only has to be a shared one.
+		my $lock = $self->raiilock(1);
+		my $r = syswrite($self->out, $buf);
 		# POSIX guarantees that no partial writes will occur
-		die "short write\n"
+		confess "short write"
 			if $r < length($buf);
 	}
 }
@@ -88,14 +93,15 @@ sub send_rpc_unlocked {
 	confess("internal error: utf8 data passed to send_rpc()")
 		if utf8::is_utf8($_[1]);
 	my $buf = pack('LC', length($_[1]), $_[0]).$_[1];
-	my $r = syswrite(\*STDOUT, $buf);
+	my $r = syswrite($self->out, $buf);
 	# POSIX guarantees that no partial writes will occur
 	die "short write\n"
 		if $r < length($buf);
 }
 
 sub recv_rpc {
-	return saferead(\*STDIN, unpack('L', saferead(\*STDIN, 4)));
+	my $in = $self->in;
+	return saferead($in, unpack('L', saferead($in, 4)));
 }
 
 sub protocol_version {

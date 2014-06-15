@@ -51,6 +51,7 @@ our @EXPORT = qw(saferead serialize_attrs parse_attrs
 	RSYNC_RPC_attribSet
 	RSYNC_RPC_protocol_version
 	RSYNC_RPC_checksumSeed
+	RSYNC_RPC_max
 );
 our @EXPORT_OK = (@EXPORT);
 
@@ -93,5 +94,6 @@ use constant RSYNC_RPC_csumEnd => 9;
 use constant RSYNC_RPC_attribSet => 10;
 use constant RSYNC_RPC_protocol_version => 11;
 use constant RSYNC_RPC_checksumSeed => 12;
+use constant RSYNC_RPC_max => RSYNC_RPC_checksumSeed;
 
 1;

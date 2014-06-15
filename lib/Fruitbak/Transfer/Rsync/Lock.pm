@@ -37,10 +37,11 @@ use Fcntl qw(:flock);
 use Class::Clarity -self;
 
 field lockfh;
+field shared => undef;
 
 sub new() {
 	my $self = super;
-	flock($self->lockfh, LOCK_EX) or die;
+	flock($self->lockfh, $self->shared ? LOCK_SH : LOCK_EX) or die;
 	return $self;
 }
 
