@@ -37,7 +37,9 @@ package Fruitbak;
 use Class::Clarity -self;
 
 use IO::Dir;
+use Scalar::Util qw(weaken);
 use File::Hashset;
+
 use Fruitbak::Util;
 use Fruitbak::Config;
 use Fruitbak::Pool;
@@ -119,6 +121,14 @@ for efficient access.
 
 field pool => sub { new Fruitbak::Pool(fbak => $self) };
 
+=item hosts_cache
+
+Private field that contains a cache of Host object that are still in use.
+
+=cut
+
+field hosts_cache => {};
+
 =back
 
 =head1 METHODS
@@ -156,12 +166,21 @@ sub hosts {
 =item get_host($hostname)
 
 Given the name of a host, returns a Fruitbak::Host object representing that
-host.
+host. If an object is already instantiated for this host, a reference to
+that object is returned instead.
 
 =cut
 
 sub get_host {
-	return new Fruitbak::Host(fbak => $self, name => @_);
+	my $name = shift;
+	my $cache = $self->hosts_cache;
+	my $host = $cache->{$name};
+	unless(defined $host) {
+		$host = new Fruitbak::Host(fbak => $self, name => $name);
+		$cache->{$name} = $host;
+		weaken($cache->{$name});
+	}
+	return $host;
 }
 
 =item host_exists($hostname)
