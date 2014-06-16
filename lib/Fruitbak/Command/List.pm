@@ -249,7 +249,7 @@ sub run {
 					strftime('%Y-%m-%d %H:%M:%S', localtime($backup->startTime)),
 					strftime('%Y-%m-%d %H:%M:%S', localtime($backup->endTime)),
 					($backup->endTime - $backup->startTime).'s',
-					$backup->type, $backup->level, $backup->status,
+					$backup->full ? 'full' : 'incr', $backup->level, $backup->status,
 				];
 			}
 		}
@@ -263,7 +263,7 @@ sub run {
 			if(@$backups) {
 				my $backup = $host->get_backup($backups->[-1]);
 				push @row, strftime('%Y-%m-%d %H:%M:%S', localtime($backup->startTime)),
-					$backup->type, $backup->level, $backup->status;
+					$backup->full ? 'full' : 'incr', $backup->level, $backup->status;
 			}
 			push @table, \@row;
 		}

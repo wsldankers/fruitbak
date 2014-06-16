@@ -131,7 +131,7 @@ sub setup_reffile {
 }
 
 sub attribGet {
-	return if $self->backup->type eq 'full';
+	return if $self->backup->full;
 	my $attrs = shift;
 	my $ref = $self->refshare;
 	return unless $ref;

@@ -23,7 +23,7 @@ when they are created.
 
 A Fruitbak object allows you to access the configuration and browse the
 Host objects of the installation. As with all Fruitbak classes, any errors
-will throw an error (using ‘die’). Use eval {} as required.
+will throw an exception (using ‘die’). Use eval {} as required.
 
 =head1 CONSTRUCTOR
 

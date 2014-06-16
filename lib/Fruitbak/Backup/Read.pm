@@ -59,7 +59,7 @@ field info => sub {
 };
 field status => sub { $self->info->{status} };
 field level => sub { $self->info->{level} };
-field type => sub { $self->level ? 'incr' : 'full' };
+field full => sub { !$self->level };
 field startTime => sub { $self->info->{startTime} };
 field endTime => sub { $self->info->{endTime} };
 

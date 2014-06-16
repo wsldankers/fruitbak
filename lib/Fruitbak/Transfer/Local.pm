@@ -111,7 +111,7 @@ sub wanted {
 		if(-f _) {
 			if(-s _) {
 				my $reffile = $self->reffile($relpath);
-				if($self->backup->type ne 'full'
+				if(!$self->backup->full
 						&& $reffile
 						&& $reffile->is_file
 						&& $reffile->size == $dentry->size

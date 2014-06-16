@@ -2,29 +2,26 @@
 
 =head1 NAME
 
-Fruitbak::Backup::Write - write a new backup to disk
+Fruitbak::Backup::Write - Fruitbak class to create a new backup
 
-=head1 AUTHOR
+=head1 SYNOPSIS
 
-Wessel Dankers <wsl@fruit.je>
+ my $fbak = new Fruitbak(confdir => '/etc/fruitbak');
+ my $host = $fbak->get_host('pikachu');
+ my $backup = $host->new_backup(full => 1);
+ $backup->run;
 
-=head1 COPYRIGHT
+=head1 DESCRIPTION
 
-Copyright (c) 2014  Wessel Dankers <wsl@fruit.je>
+Use this class to create new backups, by instantiating it and calling the
+run method.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+As with all Fruitbak classes, any errors will throw an exception (using
+‘die’). Use eval {} as required.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+=head1 CONSTRUCTOR
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+Never use 
 
 =cut
 
@@ -40,7 +37,7 @@ use Class::Clarity -self;
 
 field dir => sub { $self->host->dir . '/new' };
 field sharedir => sub { $self->dir . '/share' };
-field host; # (Fruitbak::Host) required for new
+field host;
 field number => sub {
 	my $backups = $self->host->backups;
 	return @$backups ? $backups->[-1] + 1 : 0;
@@ -57,8 +54,9 @@ field sharecfg => sub {
 };
 field shares => sub { [map { $_->{name} } @{$self->sharecfg}] };
 field status => 'failed';
-field type => sub { $self->level ? 'incr' : 'full' };
+field full => sub { $self->level_isset ? !self->level : !$self->refbackup };
 field level => sub {
+	return 0 if $self->full;
 	my $ref = $self->refbackup;
 	return $ref ? $ref->level + 1 : 0;
 };
@@ -75,7 +73,17 @@ field info => sub {
 field refbackup => sub {
 	my $host = $self->host;
 	my $backups = $host->backups;
-	my $number = $backups->[-1];
+	my $offset = -1;
+	if($self->level_isset) {
+		my $level = $self->level;
+		if($level && !$self->full) {
+			foreach my $b (@backups) {
+				my $l = $host->get_backup($b)->level;
+				last if $l < $level;
+			}
+		}
+	}
+	my $number = $backups->[$offset];
 	return undef unless defined $number;
 	return $host->get_backup($number);
 };
@@ -161,3 +169,27 @@ sub finish {
 	$self->unlock;
 	bless $self, 'Fruitbak::Backup::Read';
 }
+
+=head1 AUTHOR
+
+Wessel Dankers <wsl@fruit.je>
+
+=head1 COPYRIGHT
+
+Copyright (c) 2014  Wessel Dankers <wsl@fruit.je>
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut

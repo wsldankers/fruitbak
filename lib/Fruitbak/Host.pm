@@ -15,8 +15,8 @@ This class represents a single host in Fruitbak and provides access to its
 backups. You can obtain a Fruitbak::Host object through a Fruitbak
 instance.
 
-As with all Fruitbak classes, any errors will throw an error (using ‘die’).
-Use eval {} as required.
+As with all Fruitbak classes, any errors will throw an exception (using
+‘die’). Use eval {} as required.
 
 =head1 CONSTRUCTOR
 
