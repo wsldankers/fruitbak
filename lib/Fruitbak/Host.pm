@@ -70,15 +70,15 @@ sub new() {
 	return $self;
 }
 
-field hashes => sub {
+sub hashes {
 	my $hashes = $self->dir . '/hashes';
 	File::Hashset->merge($hashes, $self->fbak->pool->hashsize,
 		map { $self->get_backup($_)->hashes } @{$self->backups});
 	return File::Hashset->load($hashes);
-};
+}
 
 # return a sorted list of backups for this host
-field backups => sub {
+sub backups {
 	my $dir = $self->dir;
 	my $fh = new IO::Dir($dir)
 		or die "open($dir): $!\n";
@@ -88,7 +88,7 @@ field backups => sub {
 		grep { /^[0-9]+$/ }
 		$fh->read;
 	return \@backups;
-};
+}
 
 # given a number, return a Fruitbak::Backup::Read object
 sub get_backup {

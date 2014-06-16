@@ -2,7 +2,187 @@
 
 =head1 NAME
 
-Fruitbak - main class that ties everything together
+Fruitbak - Main class of the Fruitbak backup system
+
+=head1 SYNOPSIS
+
+ my $fbak = new Fruitbak(confdir => '/etc/fruitbak');
+
+=head1 DESCRIPTION
+
+Fruitbak is a disk-based backup system. This man page describes the
+programming interface of Fruitbak. For an introduction of the Fruitbak
+backup system, type ‘man 7 Fruitbak’. If you're looking for information
+on the command line frontend of Fruitbak, type ‘man 1 fruitbak’.
+
+This class is the entry point for all Fruitbak-related programming. Every
+program that wants to interact with Fruitbak should create an instance of
+this class first. Most other objects can either be created (directly or
+indirectly) through this class or require a handle to a Fruitbak object
+when they are created. 
+
+A Fruitbak object allows you to access the configuration and browse the
+Host objects of the installation. As with all Fruitbak classes, any errors
+will throw an error (using ‘die’). Use eval {} as required.
+
+=head1 CONSTRUCTOR
+
+The only required argument is ‘confdir’, which should be a directory
+containing Fruitbak configuration.
+
+=cut
+
+package Fruitbak;
+
+use Class::Clarity -self;
+
+use IO::Dir;
+use File::Hashset;
+use Fruitbak::Util;
+use Fruitbak::Config;
+use Fruitbak::Pool;
+
+=head1 FIELDS
+
+Fruitbak makes heavy use of Class::Clarity (the base class of this class).
+One of the features of Class::Clarity is ‘fields’: elements of the object
+hash with eponymous getters and setters. These fields can optionally have
+an initializer: a function that is called when no value is yet assigned to
+the hash element. For more information, see L<Class::Clarity>.
+
+=over
+
+=item field confdir
+
+The directory that contains the configuration for this Fruitbak
+installation. Should be set before calling any other methods of this class
+(usually passed to the constructor). Should not be changed after any other
+methods have been called.
+
+=cut
+
+field confdir;
+
+=item field rootdir
+
+The root directory of the Fruitbak installation, usually
+‘/var/lib/fruitbak’ or similar. This value is only used to generate
+defaults for other directories (such as hostdir, see below). If you do not
+set it explicitly, it will be retrieved from the configuration. If it's not
+in the configuration either, some operations may throw a fatal error.
+
+=cut
+
+field rootdir => sub { normalize_and_check_directory($self->cfg->rootdir) };
+
+=item field hostdir
+
+The directory containing the host data (the filesystem metadata). If it
+isn't set explicitly, it will be retrieved from the configuration and
+failing that, constructed from the ‘rootdir’ field. You should not change
+it after it has been initialized.
+
+=cut
+
+field hostdir => sub { normalize_and_check_directory($self->cfg->hostdir // $self->rootdir . '/host') };
+
+=item weakfield cfg
+
+A handle to the Fruitbak::Config object that represents the configuration
+for this Fruitbak installation. Do not set this field.
+
+Note that because it is a weak reference it will be newly loaded from disk
+every time it is accessed, unless the previous instance was still in use
+somewhere. If you require efficient access to the configuration, create
+your own copy of the handle and keep it around for as long as you need it.
+Be sure to drop the handle if you want Fruitbak to respond to configuration
+changes.
+
+ my $cfg = $fbak->cfg;
+ # query lots of stuff from the configuration
+ # do a lot of other stuff
+ undef $cfg;
+
+=cut
+
+weakfield cfg => sub { new Fruitbak::Config(fbak => $self) };
+
+=item weakfield pool
+
+A handle to the main Fruitbak::Pool object that represents the chunk
+storage. Do not set this field.
+
+Like the cfg field it is a weak reference. Keep your own reference around
+for efficient access.
+
+=cut
+
+field pool => sub { new Fruitbak::Pool(fbak => $self) };
+
+=back
+
+=head1 METHODS
+
+=over
+
+=item hosts
+
+Returns a sorted list of the names of all the hosts known to the system. It
+queries both the ‘host’ directory on the filesystem as well as the
+configuration. Does not take any arguments.
+
+=cut
+
+sub hosts {
+	my %hosts;
+
+	# first, read whatever hosts are defined in the configuration
+	@hosts{@{$self->cfg->hosts}} = ();
+
+	# second, the hosts that exist on the filesystem
+	my $hostdir = $self->hostdir;
+	my $fh = new IO::Dir($hostdir)
+		or die "open($hostdir): $!\n";
+	my @hosts =
+		sort
+		grep { Fruitbak::Host::is_valid_name($_) }
+		$fh->read;
+
+	# combine the two
+	@hosts{@hosts} = ();
+	return [keys %hosts];
+}
+
+=item get_host($hostname, ...)
+
+Given the name of a host, returns a Fruitbak::Host object representing that
+host. Any extra arguments will be passed on as-is to the constructor.
+
+ my $host = $fbak->get_host('pikachu', create_ok => 1);
+
+=cut
+
+sub get_host {
+	return new Fruitbak::Host(fbak => $self, name => @_);
+}
+
+=item hashes
+
+Generates and returns an up-to-date File::Hashset object representing the
+digests of all shares of all backups of all hosts known to Fruitbak (in
+other words: all used digests). See L<Fruitbak(7)> for more information
+about how digests are used in Fruitbak.
+
+=cut
+
+sub hashes {
+	my $hashes = $self->rootdir . '/hashes';
+	File::Hashset->merge($hashes, $self->pool->hashsize,
+		map { $self->get_host($_)->hashes } @{$self->hosts});
+	return File::Hashset->load($hashes);
+}
+
+=back
 
 =head1 AUTHOR
 
@@ -25,53 +205,3 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along
 with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-
-=cut
-
-package Fruitbak;
-
-use Class::Clarity -self;
-
-use IO::Dir;
-use File::Hashset;
-use Fruitbak::Util;
-use Fruitbak::Config;
-use Fruitbak::Pool;
-
-field confdir;
-field rootdir => sub { normalize_and_check_directory($self->cfg->rootdir) };
-field hostdir => sub { normalize_and_check_directory($self->cfg->hostdir // $self->rootdir . '/host') };
-
-weakfield cfg => sub { new Fruitbak::Config(fbak => $self) };
-field pool => sub { new Fruitbak::Pool(fbak => $self) };
-
-field hashes => sub {
-	my $hashes = $self->rootdir . '/hashes';
-	File::Hashset->merge($hashes, $self->pool->hashsize,
-		map { $self->get_host($_)->hashes } @{$self->hosts});
-	return File::Hashset->load($hashes);
-};
-
-field hosts => sub {
-	my %hosts;
-
-	# first, read whatever hosts are defined in the configuration
-	@hosts{@{$self->cfg->hosts}} = ();
-
-	# second, the hosts that exist on the filesystem
-	my $hostdir = $self->hostdir;
-	my $fh = new IO::Dir($hostdir)
-		or die "open($hostdir): $!\n";
-	my @hosts =
-		sort
-		grep { Fruitbak::Host::is_valid_name($_) }
-		$fh->read;
-
-	# combine the two
-	@hosts{@hosts} = ();
-	return [keys %hosts];
-};
-
-sub get_host {
-	return new Fruitbak::Host(fbak => $self, name => @_);
-}
