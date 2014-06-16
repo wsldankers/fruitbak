@@ -89,7 +89,7 @@ sub format_table {
 			while(my ($i, $col) = each @row) {
 				if(defined $align->[$i]) {
 					my $pad = ' 'x($widths[$i] - width($col));
-					my $padded = $col =~ s/^((?:.*\s)?)/$1$pad/ra;
+					my $padded = $col =~ s/^(?:.*\s)?\K/$pad/ra;
 					$res .= $padded . '  ';
 				} else {
 					$res .= $col . ' 'x($widths[$i] - width($col) + 2);
