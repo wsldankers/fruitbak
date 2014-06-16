@@ -141,6 +141,8 @@ Returns a sorted list of the names of all the hosts known to the system. It
 queries both the ‘host’ directory on the filesystem as well as the
 configuration. Does not take any arguments.
 
+The list is returned as an array reference.
+
 =cut
 
 sub hosts {
@@ -154,13 +156,12 @@ sub hosts {
 	my $fh = new IO::Dir($hostdir)
 		or die "open($hostdir): $!\n";
 	my @hosts =
-		sort
 		grep { Fruitbak::Host::is_valid_name($_) }
 		$fh->read;
 
 	# combine the two
 	@hosts{@hosts} = ();
-	return [keys %hosts];
+	return [sort keys %hosts];
 }
 
 =item get_host($hostname)

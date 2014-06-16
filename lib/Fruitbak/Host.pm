@@ -97,6 +97,27 @@ An internal cache for Fruitbak::Backup objects. Do not use.
 
 field backups_cache => {};
 
+=item field expiry
+
+The expiration policy for this host, as a Fruitbak::Host::Expiry object
+(or a subclass). Do not set. For internal use.
+
+=cut
+
+field expiry => sub {
+	my $cfg = $self->cfg->expiry //
+		['or' => any => [
+			['logarithmic'],
+			['and', all => [
+				['age', max => '1w'],
+				['not', in =>
+					['status', in => 'done']
+				],
+			]],
+		]];
+	return $self->instantiate_expiry($cfg);
+};
+
 =back
 
 =head1 FUNCTIONS
@@ -158,6 +179,8 @@ returns the backups that are already finished. This is just a list of the
 numbers, use the get_backup method below to get an actual object
 representing the backup.
 
+The list is returned as an array reference.
+
 =cut
 
 sub backups {
@@ -195,14 +218,42 @@ sub get_backup {
 	return $backup;
 }
 
+=item backup_exists($number)
+
+Given the number of an existing backup, return true or false depending on
+whether this backup exists for this host.
+
+=cut
+
 sub backup_exists {
+	my $number = shift;
+	return undef unless $number =~ /^\d+$/a;
+	$number = int($number);
+	my $dir = $self->dir;
+	return lstat("$dir/$number") ? 1 : 0;
 }
+
+=item new_backup(...)
+
+Returns a Fruitbak::Backup::Write object that you can use to start a new
+backup. Always use this method to create such an object, never create it
+yourself. Any arguments to this functions will be passed to the
+constructor of the Fruitbak::Backup::Write object.
+
+=cut
 
 sub new_backup {
 	my $dir = $self->dir;
 	mkdir($dir) or $!{EEXIST} or die "mkdir($dir): $!\n";
 	return new Fruitbak::Backup::Write(host => $self, @_);
 }
+
+=item remove_backup($number)
+
+Removes the specified backup from disk. Only the metadata is removed, use
+‘fruitbak gc’ to clean up the file data.
+
+=cut
 
 sub remove_backup {
 	my $number = int(shift);
@@ -211,24 +262,30 @@ sub remove_backup {
 	delete $self->backups_cache->{$number};
 }
 
+=item expired
+
+Returns the numbers of the backups that are considered to be expired by
+the expiration policy for this host. The list is returned as an array
+reference.
+
+=cut
+
 sub expired {
+	# taking a reference to all backups ensures that they stay cached in
+	# the backups_cache field.
 	my @backups = map { $self->get_backup($_) } @{$self->backups};
 	return $self->expiry->expired;
 }
 
-field expiry => sub {
-	my $cfg = $self->cfg->expiry //
-		['or' => any => [
-			['logarithmic'],
-			['and', all => [
-				['age', max => '1w'],
-				['not', in =>
-					['status', in => 'done']
-				],
-			]],
-		]];
-	return $self->instantiate_expiry($cfg);
-};
+=item instantiate_expiry($cfg)
+
+Given an expiration policy configuration (as it would appear in the
+configuration file) set up a policy object. Since this policy object may
+create further sub-objects (by recursively calling this function) the
+result may be a complex decision tree. For internal use by the
+Fruitbak::Host and Fruitbak::Host::Policy objects.
+
+=cut
 
 sub instantiate_expiry {
 	my $expirycfg = shift;
