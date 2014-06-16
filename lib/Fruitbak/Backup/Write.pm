@@ -77,7 +77,7 @@ field refbackup => sub {
 	if($self->level_isset) {
 		my $level = $self->level;
 		if($level && !$self->full) {
-			foreach my $b (@backups) {
+			foreach my $b (@$backups) {
 				my $l = $host->get_backup($b)->level;
 				last if $l < $level;
 			}

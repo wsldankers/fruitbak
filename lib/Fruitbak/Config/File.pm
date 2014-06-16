@@ -46,7 +46,7 @@ sub include_if_exists {
 	local $!;
 	unless(do $file) {
 		die "parsing $file: $@" if $@;
-		return if $! && $!{ERRNO};
+		return if $! && $!{ENOENT};
 		die "reading $file: $!\n" if $!;
 		die "error loading $file\n";
 	}

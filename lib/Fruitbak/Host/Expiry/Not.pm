@@ -43,6 +43,6 @@ sub expired {
 	my $all = $self->host->backups;
 	my %remaining; @remaining{@$all} = ();
 	my $e = $self->subpol->expired;
-	delete @remaining{$e};
+	delete @remaining{@$e};
 	return [sort { $a <=> $b } map { int($_) } keys %remaining];
 }
