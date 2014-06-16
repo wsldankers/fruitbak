@@ -2,29 +2,27 @@
 
 =head1 NAME
 
-Fruitbak::Host - class for backup related bookkeeping of each host
+Fruitbak::Host - Fruitbak class representing a single host and its backups
 
-=head1 AUTHOR
+=head1 SYNOPSIS
 
-Wessel Dankers <wsl@fruit.je>
+ my $fbak = new Fruitbak(confdir => '/etc/fruitbak');
+ my $host = $fbak->get_host('pikachu');
 
-=head1 COPYRIGHT
+=head1 DESCRIPTION
 
-Copyright (c) 2012,2014  Wessel Dankers <wsl@fruit.je>
+This class represents a single host in Fruitbak and provides access to its
+backups. You can obtain a Fruitbak::Host object through a Fruitbak
+instance.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+As with all Fruitbak classes, any errors will throw an error (using ‘die’).
+Use eval {} as required.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+=head1 CONSTRUCTOR
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+The required arguments are ‘fbak’ and ‘name’. However, you should not call
+the constructor directly but always use the get_host method of a Fruitbak
+instance.
 
 =cut
 
@@ -40,28 +38,111 @@ use Fruitbak::Backup::Write;
 
 use Class::Clarity -self;
 
-field fbak; # (Fruitbak::Lib) required for new
+=head1 FIELDS
+
+Fruitbak makes heavy use of Class::Clarity (the base class of this class).
+One of the features of Class::Clarity is ‘fields’: elements of the object
+hash with eponymous getters and setters. These fields can optionally have
+an initializer: a function that is called when no value is yet assigned to
+the hash element. For more information, see L<Class::Clarity>.
+
+=over
+
+=item field fbak
+
+The Fruitbak instance that created this Fruitbak::Host object. You should
+never change it.
+
+=cut
+
+field fbak;
+
+=item field name
+
+The name of this host. You should never change it. Note that this is just
+the name that Fruitbak uses for this host, it does not necessarily have to
+be a valid DNS entry.
+
+See is_valid_name (below) for what Fruitbak considers a valid name for a
+host.
+
+=cut
+
+field name;
+
+=item field dir
+
+The directory path where the metadata for this host and its backups
+resides. This directory may not exist yet if this host has never been
+backuped. You should never change this field.
+
+=cut
+
 field dir => sub { $self->fbak->hostdir . '/' . $self->name };
-field name; # (string) required for new
-field backups_cache => {};
+
+=item field cfg
+
+A Fruitbak::Config::Host object that represents the part of the Fruitbak
+configuration specific to this host. You should never change this field.
+
+=cut
+
 field cfg => sub { $self->fbak->cfg->get_host($self->name) };
+
+=item field backups_cache
+
+An internal cache for Fruitbak::Backup objects. Do not use.
+
+=cut
+
+field backups_cache => {};
+
+=back
+
+=head1 FUNCTIONS
+
+=over
+
+=item is_valid_name($name)
+
+Checks if a string is valid as name for a host in Fruitbak.
+
+=back
+
+=cut
 
 sub is_valid_name() {
 	return shift =~ /^[a-z0-9]+(?:-[[a-z0-9]+)*$/ia;
 }
 
+=head1 METHODS
+
+=over
+
+=item new
+
+Constructor for this class. See the CONSTRUCTOR section for details.
+
+=cut
+
 sub new() {
 	my $self = super;
 
 	my $name = $self->name;
-	die "'$name' is not a valid host name\n"
-		unless is_valid_name($name);
 
 	die "unknown host '$name'\n"
 		unless $self->fbak->host_exists($name);
 
 	return $self;
 }
+
+=item hashes
+
+Generates and returns an up-to-date File::Hashset object representing the
+digests of all shares of all backups of this host. See L<Fruitbak(7)> for
+more information about how digests are used in Fruitbak.
+
+=cut
 
 sub hashes {
 	my $hashes = $self->dir . '/hashes';
@@ -70,7 +151,15 @@ sub hashes {
 	return File::Hashset->load($hashes);
 }
 
-# return a sorted list of backups for this host
+=item backups
+
+Returns a sorted list of the numbers of the backups for this host. It only
+returns the backups that are already finished. This is just a list of the
+numbers, use the get_backup method below to get an actual object
+representing the backup.
+
+=cut
+
 sub backups {
 	my $dir = $self->dir;
 	my $fh = new IO::Dir($dir);
@@ -86,7 +175,14 @@ sub backups {
 	return \@backups;
 }
 
-# given a number, return a Fruitbak::Backup::Read object
+=item get_backup($number)
+
+Given the number of an existing backup, return a Fruitbak::Backup::Reader
+object that represents that backup. Throws an error if the backup doesn't
+exist.
+
+=cut
+
 sub get_backup {
 	my $number = int(shift);
 	my $cache = $self->backups_cache;
@@ -97,6 +193,9 @@ sub get_backup {
 		weaken($cache->{$number});
 	}
 	return $backup;
+}
+
+sub backup_exists {
 }
 
 sub new_backup {
@@ -153,3 +252,27 @@ sub instantiate_expiry {
 	}
 	return $class->new(host => $self, cfg => \%args);
 }
+
+=head1 AUTHOR
+
+Wessel Dankers <wsl@fruit.je>
+
+=head1 COPYRIGHT
+
+Copyright (c) 2012,2014  Wessel Dankers <wsl@fruit.je>
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
