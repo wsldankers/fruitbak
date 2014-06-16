@@ -58,6 +58,13 @@ sub get_host {
 	return new Fruitbak::Config::Host(fbak => $self->fbak, cfg => $self, name => @_);
 }
 
+sub host_exists {
+	my $name = shift;
+	return undef unless Fruitbak::Host::is_valid_name($name);
+	my $hostconfdir = $self->hostconfdir;
+	return lstat("$hostconfdir/$name.pl") ? 1 : 0;
+}
+
 sub DESTROY {} # don't try to autoload this
 
 sub AUTOLOAD {

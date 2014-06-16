@@ -153,17 +153,33 @@ sub hosts {
 	return [keys %hosts];
 }
 
-=item get_host($hostname, ...)
+=item get_host($hostname)
 
 Given the name of a host, returns a Fruitbak::Host object representing that
-host. Any extra arguments will be passed on as-is to the constructor.
-
- my $host = $fbak->get_host('pikachu', create_ok => 1);
+host.
 
 =cut
 
 sub get_host {
 	return new Fruitbak::Host(fbak => $self, name => @_);
+}
+
+=item host_exists($hostname)
+
+Checks if the host with the given name exists either in the configuration
+or in the hosts directory. Returns 2 if the host exists in the configuration,
+returns 1 if it just exists in the hosts directory. Returns 0 if the host
+wasn't found at all.
+
+=cut
+
+sub host_exists($hostname) {
+	my $name = shift;
+	return undef unless Fruitbak::Host::is_valid_name($name);
+	return 2 if $self->cfg->host_exists($name);
+	my $hostdir = $self->hostdir;
+	return 1 if lstat("$hostdir/$name");
+	return 0;
 }
 
 =item hashes

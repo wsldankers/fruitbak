@@ -43,7 +43,6 @@ use Class::Clarity -self;
 field fbak; # (Fruitbak::Lib) required for new
 field dir => sub { $self->fbak->hostdir . '/' . $self->name };
 field name; # (string) required for new
-field create_ok => undef; # (bool) whether the host can be created if it doesn't exist
 field backups_cache => {};
 field cfg => sub { $self->fbak->cfg->get_host($self->name) };
 
@@ -54,18 +53,12 @@ sub is_valid_name() {
 sub new() {
 	my $self = super;
 
-	my $name = $self->name // 'UNDEF';
+	my $name = $self->name;
 	die "'$name' is not a valid host name\n"
 		unless is_valid_name($name);
 
-	my $dir = $self->dir;
-	unless(-d $dir) {
-		if($self->create_ok) {
-			mkdir($dir) or die "mkdir($dir): $!\n";
-		} else {
-			die "'$dir' does not exist or is not a directory\n";
-		}
-	}
+	die "unknown host '$name'\n"
+		unless $self->fbak->host_exists($name);
 
 	return $self;
 }
@@ -80,8 +73,11 @@ sub hashes {
 # return a sorted list of backups for this host
 sub backups {
 	my $dir = $self->dir;
-	my $fh = new IO::Dir($dir)
-		or die "open($dir): $!\n";
+	my $fh = new IO::Dir($dir);
+	unless($fh) {
+		return [] if $!{ENOENT};
+		die "open($dir): $!\n";
+	}
 	my @backups =
 		sort { $a <=> $b }
 		map { int($_) }
@@ -104,6 +100,8 @@ sub get_backup {
 }
 
 sub new_backup {
+	my $dir = $self->dir;
+	mkdir($dir) or $!{EEXIST} or die "mkdir($dir): $!\n";
 	return new Fruitbak::Backup::Write(host => $self, @_);
 }
 
