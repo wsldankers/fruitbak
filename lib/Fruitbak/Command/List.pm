@@ -88,7 +88,9 @@ sub format_table {
 			my $last = pop @row;
 			while(my ($i, $col) = each @row) {
 				if(defined $align->[$i]) {
-					$res .= ' 'x($widths[$i] - width($col)) . $col . '  ';
+					my $pad = ' 'x($widths[$i] - width($col));
+					my $padded = $col =~ s/^((?:.*\s)?)/$1$pad/ra;
+					$res .= $padded . '  ';
 				} else {
 					$res .= $col . ' 'x($widths[$i] - width($col) + 2);
 				}
@@ -185,14 +187,18 @@ sub format_dentry {
 		($mode & 0001 ? ($mode & 01000 ? 't' : 'x') : ($mode & 01000 ? 'T' : '-')),
 	);
 
+	my $size = $dentry->is_device
+		? $dentry->rdev_major . ', ' . $dentry->rdev_minor
+		: $self->human_readable($dentry->size);
+
 	return [
 		$dentry->inode,
 		"$typechar$modechars",
 		$dentry->uid,
 		$dentry->gid,
-		$self->human_readable($dentry->size), 
+		$size,
 		strftime('%Y-%m-%d %H:%M:%S', localtime($dentry->mtime)),
-		$name
+		$name,
 	];
 }
 
