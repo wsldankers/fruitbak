@@ -107,6 +107,11 @@ sub resolve_share {
 	my $shares = $self->shares;
 	share: foreach my $name (@$shares) {
 		my $share = $self->get_share($name);
+		if(!defined $bestshare && $name eq $path) {
+			$bestshare = $share;
+			$bestbase = '';
+			$bestnum = -1;
+		}
 		my @share = split_path($share->path);
 		next if @share > @path;
 		next if defined $bestnum && @share <= $bestnum;
