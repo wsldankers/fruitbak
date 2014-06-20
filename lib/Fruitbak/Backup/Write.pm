@@ -49,7 +49,8 @@ the hash element. For more information, see L<Class::Clarity>.
 =item field host
 
 The host object that this backup belongs to. Should be set before calling
-any methods. Do not modify afterwards.
+any methods ($host->new_backup will take of that). Do not modify
+afterwards.
 
 =cut
 
@@ -223,8 +224,8 @@ field refhostbackup => sub {
 
 =item field startTime
 
-The starting time of this backup, in seconds since the unix epoch. Do not
-set. Does not get a value until the backup starts. Do not set.
+The starting time of this backup, in seconds since the unix epoch. Does not
+get a value until the backup starts. Do not set.
 
 =cut
 
@@ -232,8 +233,8 @@ field startTime;
 
 =item field endTime
 
-The ending time of this backup, in seconds since the unix epoch. Do not
-set. Does not get a value until the backup finishes. Do not set.
+The ending time of this backup, in seconds since the unix epoch. Does not
+get a value until the backup finishes. Do not set.
 
 =cut
 
