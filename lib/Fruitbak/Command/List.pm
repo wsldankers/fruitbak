@@ -2,29 +2,21 @@
 
 =head1 NAME
 
-Fruitbak::Command::Backup - implementation of CLI ls command
+Fruitbak::Command::List - implementation of Fruitbak CLI ls command
 
-=head1 AUTHOR
+=head1 SYNOPSIS
 
-Wessel Dankers <wsl@fruit.je>
+ my $fbak = new Fruitbak(confdir => '/etc/fruitbak');
+ my $cmd = new Fruitbak::Command::List(fbak => $fbak);
+ $cmd->run(@ARGV);
 
-=head1 COPYRIGHT
+=head1 DESCRIPTION
 
-Copyright (c) 2014  Wessel Dankers <wsl@fruit.je>
+This class is the implementation of the ‘ls’ (or ‘list’) command of the Fruitbak
+CLI tool.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+As with all Fruitbak classes, any errors will throw an exception (using
+‘die’). Use eval {} as required.
 
 =cut
 
@@ -33,11 +25,36 @@ package Fruitbak::Command::List;
 use autodie;
 use v5.14;
 
+use Fruitbak::Command -self;
+
 use POSIX qw(strftime);
 use Text::Tabs qw(expand);
+use IO::Handle;
 use Fruitbak::Util;
 
-use Fruitbak::Command -self;
+=head1 CONSTRUCTOR
+
+The only required argument is ‘fbak’.
+
+=cut
+
+# Register this command with Fruitbak::Command:
+BEGIN {
+	$Fruitbak::Command::commands{ls} = [__PACKAGE__, "List hosts and backups"];
+	$Fruitbak::Command::commands{list} = [__PACKAGE__];
+}
+
+=head1 FUNCTIONS
+
+=over
+
+=item width($string)
+
+Calculates the width of a string, taking into account all sorts of terminal
+and unicode vagaries. Does not (yet) deal with terminal escape codes.
+Returns an integer.
+
+=cut
 
 sub width() {
 	my $str = shift;
@@ -48,10 +65,17 @@ sub width() {
 	# be removed first.
 	$str =~ s/(?:\p{Me}|\p{Mn})+//g;      # combining characters
 	$str =~ s/(?:^|.)\010//gm;            # backspaces
-	$str =~ s/(?:\p{Ea=W}|\p{Ea=F})/xx/g; # cjk characters
+	$str =~ s/(?:\p{Ea=W}|\p{Ea=F})/xx/g; # doublewidth cjk characters
 	$str = expand($str);                  # tabs
 	return length($str);
 }
+
+=item escapechars($string)
+
+Escape control characters (and backslash) to either named or numeric
+backslash escapes. Returns the escaped string.
+
+=cut
 
 my %escapechars = (
 	"\t" => '\t',
@@ -68,6 +92,36 @@ sub escapechars() {
 	return $_[0] =~ s{\\}{\\\\}gra
 		=~ s{([\0-\037])}{$escapechars{$1} // sprintf('\%03o', ord($1))}gera;
 }
+
+=back
+
+=head1 METHODS
+
+=over
+
+=item format_table($rows, [$alignment])
+
+Takes a list of rows (each of which is a list of columns) and returns a
+string containing all rows and columns concatenated and properly aligned.
+Each column is separated using two spaces. Columns are left-aligned unless
+otherwise specified by the alignment parameter.
+
+The optional alignment arrayref can be used to indicate that some columns
+need to be right-aligned. It does not need to have the same length as the
+columns in the table. A defined value at position I<n> will right-align
+column I<n>, while an undefined value will make it use the default
+left-alignment.
+
+Right-aligned data with spaces in it is treated slightly differently:
+everything up to and including the last space is left-aligned and only the
+remainder is right-aligned. This feature is used, for example, when
+displaying major/minor numbers for devices.
+
+This function does not know how to deal with tab characters.
+
+Returns the completely formatted string.
+
+=cut
 
 sub format_table {
 	my $table = shift;
@@ -102,6 +156,14 @@ sub format_table {
 	return $res;
 }
 
+=item human_readable($number)
+
+Given a (possibly large) number, will transform it into a human-readable
+string. It appends SI units even though it uses base-2 math. Returns the
+formatted string.
+
+=back
+
 my @units = ('', qw(k M G T P E Z Y));
 sub human_readable {
 	use integer;
@@ -129,6 +191,31 @@ sub human_readable {
 	return "$num$sub$units[$index]";
 }
 
+=item relative_path($from, $to)
+
+Given two paths (typically that of a link and its target) returns the path
+that you would need to traverse if the hypothetical current working
+directory is the $from path's parent. Examples:
+
+=over
+
+=item relative_path(usr/share/man, usr/share/doc/man)
+
+Returns: ‘doc/man’: the parent of usr/share/man is usr/share, and to access
+usr/share/doc/man from usr/share you need to use ‘doc/man’.
+
+=item relative_path(usr/bin/gzip, usr/bin/gunzip)
+
+Returns: ‘gunzip’
+
+=item relative_path(usr/lib/libfoo.so, usr/lib64/libfoo.so)
+
+Returns: ‘../lib64/libfoo.so’
+
+=back
+
+=cut
+
 sub relative_path {
 	my ($from, $to) = @_;
 	my @from = split(/\//, $from);
@@ -143,6 +230,13 @@ sub relative_path {
 	}
 	return join('/', @to);
 }
+
+=item format_dentry($dentry)
+
+Given a Fruitbak::Dentry object, returns an arrayref with fields that,
+when concatenated, look a lot like the output of ‘ls -l’.
+
+=back
 
 sub format_dentry {
 	my $dentry = shift;
@@ -202,10 +296,13 @@ sub format_dentry {
 	];
 }
 
-BEGIN {
-	$Fruitbak::Command::commands{ls} = [__PACKAGE__, "List hosts and backups"];
-	$Fruitbak::Command::commands{'list'} = [__PACKAGE__];
-}
+=item run
+
+Parse the arguments to determine what needs to be listed (hosts, backups,
+shares, paths, etc), generate the listing and print it to stdout (or
+whatever the current filehandle is).
+
+=cut
 
 sub run {
 	my (undef, $hostname, $backupnum, $sharename, $path, $dummy) = @_;
@@ -269,8 +366,32 @@ sub run {
 		}
 	}
 
-	binmode STDOUT, ':utf8';
+	select->binmode(':utf8');
 	print $self->format_table(\@table, \@align);
 
 	return 0;
 }
+
+=head1 AUTHOR
+
+Wessel Dankers <wsl@fruit.je>
+
+=head1 COPYRIGHT
+
+Copyright (c) 2014  Wessel Dankers <wsl@fruit.je>
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
