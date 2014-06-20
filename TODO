@@ -41,6 +41,7 @@ After that:
  - web based backup browsing
  - queued pool storage
  - pool chunk blacklisting
+ - create a proper exception hierarchy
  - tutorials
 
 Later:
