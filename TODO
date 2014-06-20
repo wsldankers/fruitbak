@@ -15,17 +15,22 @@ Implemented:
  - compression
  - encryption
  - skip unchanged chunks
+ - skip pool chunks already in reference backup
  - garbage collection
  - backup expiry
  - pluggable expiry methods
+ - local backup method
+ - pool scrubbing
 
 Initial goals:
 
- - test suite
+ - shares: mountpoint < path < name
  - manpages
- - local backup/restore method
+ - test suite
+ - local restore method
  - logging (per-backup, per-share)
  - warning e-mails
+ - parallel backup job manager
  - includes/excludes
  - pre/post-commands (per-backup, per-share)
 
@@ -35,9 +40,7 @@ After that:
  - tar and smb transfer methods
  - web based backup browsing
  - queued pool storage
- - pool scrubbing
  - pool chunk blacklisting
- - skip pool chunks already in reference backup
  - tutorials
 
 Later:
