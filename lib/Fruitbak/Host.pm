@@ -310,6 +310,8 @@ sub instantiate_expiry {
 	return $class->new(host => $self, cfg => \%args);
 }
 
+=back
+
 =head1 AUTHOR
 
 Wessel Dankers <wsl@fruit.je>
