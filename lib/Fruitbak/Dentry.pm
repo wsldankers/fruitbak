@@ -121,3 +121,34 @@ sub is_socket { S_ISSOCK($self->mode) }
 sub clone {
 	return blessed($self)->new(map { ($_, $self->$_) } keys %$self);
 }
+
+my @types;
+@types[S_IFREG, S_IFDIR, S_IFLNK, S_IFCHR, S_IFBLK, S_IFIFO, S_IFSOCK] =
+	('file', 'directory', 'symlink', 'block device', 'character device', 'named pipe', 'unix domain socket');
+
+sub dump {
+	my $mode = $self->mode;
+	my $type = $types[$mode & S_IFMT] // sprintf("unknown type %d", $mode & S_IFMT);
+
+	my @mtime = localtime($self->mtime);
+
+	my $res = sprintf("%s:\n\ttype: %s\n\tsize: %d\n\tmode: %o\n\tuid: %d\n\tgid: %d\n\tmtime: %04d-%02d-%02d %02d:%02d:%02d\n",
+		$self->name,
+		$type,
+		$self->size,
+		$mode & 07777,
+		$self->uid,
+		$self->gid,
+		$mtime[5] + 1900, $mtime[4] + 1, $mtime[3], $mtime[2], $mtime[1], $mtime[0]);
+
+	$res .= "\tsymlink: ".$self->symlink."\n"
+		if $self->is_symlink;
+
+	$res .= "\thardlink: ".$self->hardlink."\n"
+		if $self->is_hardlink;
+
+	$res .= sprintf("\tdevice: %d, %d\n", $self->rdev_major, $self->rdev_minor)
+		if $self->is_device;
+
+	return $res;
+}

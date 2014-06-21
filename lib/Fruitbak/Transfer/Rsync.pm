@@ -122,20 +122,25 @@ sub setup_reffile {
 	$self->$reset;
 	if(my $refshare = $self->refshare) {
 		if(my $dentry = $refshare->get_entry($attrs->{name})) {
-			if($dentry->is_file) {
-				my $poolreader = $self->pool->reader(digests => $dentry->digests);
-				$self->$which($poolreader);
-			}
+			# File::RsyncP doesn't care if the entry exists but is another
+			# type. It will stubbornly ask for the data anyway. Simulate
+			# an empty file in that case.
+			my $digests = $dentry->is_file ? $dentry->digests : '';
+			my $poolreader = $self->pool->reader(digests => $digests);
+			$self->$which($poolreader);
 		}
 	}
 }
 
 sub attribGet {
-	return if $self->backup->full;
+	return undef if $self->backup->full;
 	my $attrs = shift;
 	my $ref = $self->refshare;
 	return unless $ref;
-	my $a = dentry2attrs($ref->get_entry($attrs->{name}));
+	my $dentry = $ref->get_entry($attrs->{name});
+	return undef unless $dentry && $dentry->is_file;
+	my $a = dentry2attrs($dentry);
+	$a->{name} = $attrs->{name};
 	$a->{hlink_self} = $attrs->{hlink_self}
 		if exists $attrs->{hlink_self};
 	return $a;
@@ -160,7 +165,6 @@ sub fileDeltaRxNext {
 	my $blocknum = shift;
 	my $curfile = $self->curfile;
 	if(defined $blocknum) {
-		return unless defined $blocknum;
 		my $deltafile = $self->deltafile;
 		my $blocksize = $self->curfile_blocksize;
 		my $data = $deltafile->pread($blocknum * $blocksize, $blocksize);
@@ -238,6 +242,11 @@ sub attribSet {
 	if($dentry->is_file && !$dentry->is_hardlink) {
 		if(my $refshare = $self->refshare) {
 			if(my $ref = $refshare->get_entry($attrs->{name})) {
+				unless($ref->is_file) {
+					# If the type of the file changes, File::RsyncP may
+					# behave strangely. Handle that.
+					return undef;
+				}
 				$dentry->size($ref->size);
 				$dentry->digests($ref->digests);
 			}
@@ -274,6 +283,7 @@ die "REMOVE BEFORE FLIGHT" if $path eq '/';
 			--times
 			--specials
 			--block-size=131072
+			--whole-file
 		));
 	local $@;
 	eval {

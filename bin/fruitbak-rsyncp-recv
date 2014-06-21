@@ -62,7 +62,7 @@ my $command = shift @ARGV;
 my $path = shift @ARGV;
 
 my $rs = new File::RsyncP({
-#	logLevel => 2,
+#	logLevel => 9001,
 	rsyncCmd => ['/bin/sh', '-ec', $command, 'sh'],
 	rsyncArgs => \@ARGV,
 	fio => $fio,

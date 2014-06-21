@@ -155,3 +155,13 @@ sub is_socket {
 sub clone {
 	return blessed($self)->new(map { ($_, $self->$_->clone) } keys %$self);
 }
+
+sub dump {
+	my $original = $self->original->dump;
+	my $target = $self->target->dump;
+
+	$original =~ s/^/\t/m;
+	$target =~ s/^/\t/m;
+
+	return "original:\n$original\ntarget:\n$target";
+}

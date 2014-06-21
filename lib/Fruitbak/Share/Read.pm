@@ -50,6 +50,7 @@ use Class::Clarity -self;
 field dir => sub { $self->backup->sharedir . '/' . mangle($self->name) };
 field hh => sub { new File::Hardhat($self->dir . '/metadata.hh') };
 field backup;
+field name;
 field fbak => sub { $self->backup->fbak };
 field info => sub {
 	my $dir = $self->dir;
@@ -61,6 +62,7 @@ field info => sub {
 	return decode_json($json);
 };
 field path => sub { $self->info->{path} };
+field mountpoint => sub { $self->info->{mountpoint} // $self->path };
 field startTime => sub { $self->info->{startTime} };
 field endTime => sub { $self->info->{endTime} };
 

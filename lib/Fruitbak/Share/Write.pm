@@ -20,7 +20,8 @@ use Fruitbak::Pool::Write;
 use Fruitbak::Transfer::Rsync;
 
 field name => sub { $self->cfg->{name} // die "share has no name" };
-field path => sub { $self->cfg->{path} // $self->name };
+field path => sub { $self->cfg->{path} // $self->cfg->{mountpoint} // $self->name };
+field mountpoint => sub { $self->cfg->{mountpoint} // $self->cfg->{path} // $self->name };
 field dir => sub { $self->backup->sharedir . '/' . mangle($self->name) };
 field fbak => sub { $self->backup->fbak };
 field backup;
@@ -37,6 +38,7 @@ field info => sub {
 	return {
 		name => $self->name,
 		path => $self->path,
+		mountpoint => $self->mountpoint,
 		startTime => $self->startTime,
 		endTime => $self->endTime,
 	};
@@ -59,11 +61,14 @@ sub add_entry {
 sub run {
 	local $ENV{share} = $self->name;
 	local $ENV{path} = $self->path;
+	local $ENV{mountpoint} = $self->mountpoint;
 	my $xfer = $self->transfer;
 	$self->startTime(time);
-	$xfer->recv_files;
+	eval { $xfer->recv_files };
+	my $err = $@;
 	$self->endTime(time);
 	$self->finish;
+	die $err if $err;
 }
 
 # finish the share and convert this object to a Fruitbak::Share::Read
