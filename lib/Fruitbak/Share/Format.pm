@@ -33,7 +33,6 @@ package Fruitbak::Share::Format;
 use strict;
 use warnings FATAL => 'all';
 
-use constant ATTRLEN => 28;
 use constant MAXNAMELEN => 65535;
 
 use Encode;
@@ -46,19 +45,20 @@ our @EXPORT = @EXPORT_OK;
 # serialize attributes
 sub attrformat {
 	my $dentry = shift;
-	return pack('QQLLLa*', map { $dentry->$_ } qw(size mtime mode uid gid extra));
+	return pack('L<L<Q<Q<L<L<a*', 0, map { $dentry->$_ } qw(mode size mtime_ns uid gid extra));
 }
 
 # parse attributes
 sub attrparse {
 	my %attrs;
-	@attrs{qw(size mtime mode uid gid extra)} = unpack('QQLLLa*', shift);
+	@attrs{qw(dummy mode size mtime_ns uid gid extra)} = unpack('L<L<Q<Q<L<L<a*', shift);
+	delete $attrs{dummy};
 	return new Fruitbak::Dentry(%attrs, @_);
 }
 
-# extract just the hashes
+# extract just the mode and hashes
 sub mode_and_hashes {
-	my (undef, undef, $mode, undef, undef, $extra) = unpack('QQLLLa*', $_[0]);
+	my (undef, $mode, undef, undef, undef, undef, $extra) = unpack('L<L<Q<Q<L<L<a*', $_[0]);
 	return $mode, $extra;
 }
 

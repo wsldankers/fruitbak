@@ -40,7 +40,7 @@ use constant R_HARDLINK => 0x40000000;
 field name;
 field mode;
 field size;
-field mtime;
+field mtime_ns;
 field uid;
 field gid;
 field extra => '';
@@ -62,6 +62,11 @@ sub storedsize {
 	return 0 if $self->is_hardlink;
 	return 0 unless $self->digests;
 	return $self->size;
+}
+
+sub mtime {
+	return $self->mtime_ns(int(1000000000 * shift)) if @_;
+	return $self->mtime_ns / 1000000000.0;
 }
 
 sub hardlink {

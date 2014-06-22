@@ -162,7 +162,7 @@ Given a (possibly large) number, will transform it into a human-readable
 string. It appends SI units even though it uses base-2 math. Returns the
 formatted string.
 
-=back
+=cut
 
 my @units = ('', qw(k M G T P E Z Y));
 sub human_readable {
@@ -236,7 +236,7 @@ sub relative_path {
 Given a Fruitbak::Dentry object, returns an arrayref with fields that,
 when concatenated, look a lot like the output of ‘ls -l’.
 
-=back
+=cut
 
 sub format_dentry {
 	my $dentry = shift;
