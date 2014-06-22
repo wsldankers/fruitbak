@@ -330,8 +330,9 @@ sub unlock {
 
 Runs the actual backup. To this end it sets some environment variable (for
 any shell commands that may run as part of the backup), records the start
-and end time and calls the finish method. If any of the shares failed, it
-sets the status field to ‘fail’;
+and end time, runs pre- and post-commands, runs the backups of all shares
+and calls the finish method. If any of the shares failed, it sets the
+status field to ‘fail’;
 
 =cut
 
@@ -339,12 +340,21 @@ sub run {
 	my $cfg = $self->cfg;
 	my $name = self->host->name;
 	local $ENV{name} = $name;
-	local $ENV{host} = $cfg->host // $name;
+	my $hostname = $cfg->host // $name;
+	local $ENV{host} = $hostname;
 	my $user = $cfg->user;
 	local $ENV{user} = $user if defined $user;
 	my $port = $cfg->port;
 	local $ENV{port} = $port if defined $port;
 	$self->startTime(time);
+	my $pre = $cfg->precommand;
+	if(defined $pre) {
+		if(ref $pre) {
+			$pre->($name, $hostname, $user, $port);
+		} elsif(my $status = system($pre)) {
+			die "pre-command for host '$name' exited with status $status\n";
+		}
+	}
 	my $shares = $self->sharecfg;
 	foreach my $cfg (@$shares) {
 		my $share = new Fruitbak::Share::Write(backup => $self, cfg => $cfg);
@@ -352,6 +362,14 @@ sub run {
 		unless(eval { $share->run; 1 }) {
 			warn $@;
 			$self->status('fail');
+		}
+	}
+	my $post = $cfg->precommand;
+	if(defined $post) {
+		if(ref $post) {
+			$post->($name, $hostname, $user, $port);
+		} elsif(my $status = system($post)) {
+			warn "post-command for host '$name' exited with status $status\n";
 		}
 	}
 	$self->endTime(time);

@@ -93,7 +93,7 @@ sub finish {
 }
 
 field transfer => sub {
-	my $cfg = $self->cfg->{transfer} // ['rsync'];
+	my $cfg = $self->cfg->{transfer} // $self->host->cfg->transfer // ['rsync'];
 	return $self->instantiate_transfer($cfg);
 };
 
