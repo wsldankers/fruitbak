@@ -32,7 +32,7 @@ package Fruitbak::Command::Backup;
 
 use Fruitbak::Command -self;
 
-use POSIX qw(_exit);
+use POSIX qw(:sys_wait_h _exit);
 
 BEGIN {
 	$Fruitbak::Command::commands{backup} = [__PACKAGE__, "Run a single backup"];
@@ -48,10 +48,11 @@ sub run {
 	my $lock = $fbak->lock(1);
 	my $fail = 0;
 
-	@hosts = @{$fbak->cfg->hosts} unless @hosts;
-	die "no hosts configured\n" unless @hosts;
+	@hostnames = @{$fbak->cfg->hosts} unless @hostnames;
+	die "no hosts configured\n" unless @hostnames;
 
-	if(@hosts == 1) {
+	if(@hostnames == 1) {
+		my $hostname = shift @hostnames;
 		die "'$hostname' is not a valid host name\n"
 			unless Fruitbak::Host::is_valid_name($hostname);
 		my $exists = $fbak->host_exists($hostname);
@@ -69,9 +70,9 @@ sub run {
 		my $maxjobs = int($cfg->maxjobs // 1);
 		$maxjobs = 1 if $maxjobs < 1;
 		my %jobs;
-		while(@hosts || $curjobs) {
-			while(@hosts && $curjobs < $maxjobs) {
-				my $hostname = shift @hosts;
+		while(@hostnames || %jobs) {
+			while(@hostnames && keys %jobs < $maxjobs) {
+				my $hostname = shift @hostnames;
 				eval {
 					die "'$hostname' is not a valid host name\n"
 						unless Fruitbak::Host::is_valid_name($hostname);
@@ -88,7 +89,6 @@ sub run {
 
 				my $pid = fork();
 				if($pid) {
-					$curjobs++;
 					$jobs{$pid} = $hostname;
 				} elsif(defined $pid) {
 					eval {
@@ -106,10 +106,27 @@ sub run {
 				} else {
 					$fail = 1;
 					warn "fork(): $!\n";
-					@hosts = ();
+					@hostnames = ();
 				}
 			}
-			waitpid ← hier
+			my $pid = waitpid(-1, 0);
+			die "waitpid returns -1 when there should still be running processes?!\n"
+				if $pid == -1;
+			if(exists $jobs{$pid}) {
+				my $hostname = delete $jobs{$pid};
+				if(WIFEXITED($?)) {
+					$fail = 1 if WEXITSTATUS($?);
+				} elsif(WIFSIGNALED($?)) {
+					$fail = 1;
+					my $sig = WTERMSIG($?);
+					warn sprintf("sub-process for '$hostname' killed with signal %d%s\n",
+						$sig & 127, ($sig & 128) ? ' (core dumped)' : '');
+				}
+			} elsif(WIFSIGNALED($?)) {
+				my $sig = WTERMSIG($?);
+				warn sprintf("sub-process killed with signal %d%s\n",
+					$sig & 127, ($sig & 128) ? ' (core dumped)' : '');
+			}
 		}
 	}
 
