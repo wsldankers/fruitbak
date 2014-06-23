@@ -19,9 +19,9 @@ use Fruitbak::Share::Format;
 use Fruitbak::Pool::Write;
 use Fruitbak::Transfer::Rsync;
 
-field name => sub { $self->cfg->{name} // die "share has no name" };
-field path => sub { $self->cfg->{path} // $self->cfg->{mountpoint} // $self->name };
-field mountpoint => sub { $self->cfg->{mountpoint} // $self->cfg->{path} // $self->name };
+field name => sub { $self->cfg->name // die "share has no name" };
+field path => sub { $self->cfg->path // $self->cfg->mountpoint // $self->name };
+field mountpoint => sub { $self->cfg->mountpoint // $self->cfg->path // $self->name };
 field dir => sub { $self->backup->sharedir . '/' . mangle($self->name) };
 field fbak => sub { $self->backup->fbak };
 field backup;
@@ -32,15 +32,19 @@ field refshare => sub {
     return undef unless $refbak;
     return $refbak->get_share($self->name); 
 };
+field error;
 field startTime;
 field endTime;
 field info => sub {
+	my @error = $self->error
+		if $self->error_isset;
 	return {
 		name => $self->name,
 		path => $self->path,
 		mountpoint => $self->mountpoint,
 		startTime => $self->startTime,
 		endTime => $self->endTime,
+		@error,
 	};
 };
 field hhm => sub {
@@ -62,13 +66,57 @@ sub run {
 	local $ENV{share} = $self->name;
 	local $ENV{path} = $self->path;
 	local $ENV{mountpoint} = $self->mountpoint;
-	my $xfer = $self->transfer;
 	$self->startTime(time);
+	$self->run_precommand;
+	my $xfer = $self->transfer;
 	eval { $xfer->recv_files };
 	my $err = $@;
+	$self->error($err) if $err;
+	$self->run_postcommand;
 	$self->endTime(time);
 	$self->finish;
 	die $err if $err;
+}
+
+=item run_precommand
+
+Runs any configured precommand. Will die if it fails. For internal use
+only.
+
+=cut
+
+sub run_precommand {
+	my $pre = $self->cfg->precommand;
+	if(ref $pre) {
+		$pre->($self);
+	} elsif(defined $pre) {
+		my $status = system($pre);
+		if($status) {
+			my $name = $self->host->name;
+			die "pre-command for host '$name' exited with status $status\n";
+		}
+	}
+}
+
+=item run_postcommand
+
+Runs any configured postcommand. Will warn if it fails. For internal use
+only.
+
+=cut
+
+sub run_postcommand {
+	my $post = $self->cfg->postcommand;
+	if(ref $post) {
+		eval { $post->($self) };
+		warn $@ if $@;
+	} elsif(defined $post) {
+		my $status = system($post);
+		if($status) {
+			my $name = $self->host->name;
+			warn "post-command for host '$name' exited with status $status\n";
+		}
+	}
 }
 
 # finish the share and convert this object to a Fruitbak::Share::Read
@@ -93,7 +141,7 @@ sub finish {
 }
 
 field transfer => sub {
-	my $cfg = $self->cfg->{transfer} // $self->host->cfg->transfer // ['rsync'];
+	my $cfg = $self->cfg->transfer // ['rsync'];
 	return $self->instantiate_transfer($cfg);
 };
 

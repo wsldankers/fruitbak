@@ -52,6 +52,7 @@ sub attrformat {
 sub attrparse {
 	my %attrs;
 	@attrs{qw(dummy mode size mtime_ns uid gid extra)} = unpack('L<L<Q<Q<L<L<a*', shift);
+	die "unknown format type $attrs{dummy}\n" if $attrs{dummy};
 	delete $attrs{dummy};
 	return new Fruitbak::Dentry(%attrs, @_);
 }

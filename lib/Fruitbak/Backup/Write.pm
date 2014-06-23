@@ -33,6 +33,7 @@ use JSON;
 use IO::File;
 
 use Fruitbak::Share::Write;
+use Fruitbak::Config::Share;
 
 use Class::Clarity -self;
 
@@ -105,22 +106,22 @@ field cfg => sub { $self->host->cfg };
 
 =item field sharecfg
 
-The configuration for the shares that will be backupped. It takes the
-value from the configuration and expands any plain strings to hash
-references. If a global transfer methods is found, this will be added to
-each hash as well. If no shares were defined at all, it defaults to the
-root (‘/’). See the documentation on configuring shares for more
-information. Returns an arrayref. Do not set.
+The configuration for the shares that will be backupped. It takes the value
+from the configuration and expands any plain strings to hash references. If
+a global share configuration is found, it is combined (but any per-share
+configuration takes precedence). If no shares were defined at all, it
+defaults to the root (‘/’). See the documentation on configuring shares for
+more information. Returns an arrayref. Do not set.
 
 =cut
 
 field sharecfg => sub {
 	my $shares = $self->cfg->shares // ['/'];
-	my $cfg = $self->host->cfg;
-	my $transfer = $cfg->transfer;
-	my @transfer = (transfer => $transfer)
-		if $transfer;
-	return [map { ref $_ ? $_ : { name => $_, @transfer } } @$shares];
+	my $share = $self->host->cfg->share // {};
+	return [map {
+		my $data = ref $_ ? { %$share, %$_ } : { %$share, name => $_ };
+		new Fruitbak::Config::Share(data => $data)
+	} @$shares];
 };
 
 =item field shares
@@ -377,7 +378,7 @@ sub run_precommand {
 	}
 }
 
-=item run_precommand
+=item run_postcommand
 
 Runs any configured postcommand. Will warn if it fails. For internal use
 only.
@@ -387,7 +388,8 @@ only.
 sub run_postcommand {
 	my $post = $self->cfg->postcommand;
 	if(ref $post) {
-		$post->($self);
+		eval { $post->($self) };
+		warn $@ if $@;
 	} elsif(defined $post) {
 		my $status = system($post);
 		if($status) {
@@ -397,7 +399,7 @@ sub run_postcommand {
 	}
 }
 
-=item run_precommand
+=item run_shares
 
 Runs the backups for each of the shares of this host. Will catch any fatal
 errors but sets failed if any shares failed. For internal use only.

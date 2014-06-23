@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Config::Global - class for reading and accessing global Fruitbak configuration
+Fruitbak::Config::Share - class for accessing per-share Fruitbak configuration
 
 =head1 AUTHOR
 
@@ -28,27 +28,18 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Config::Global;
+package Fruitbak::Config::Share;
 
 use Class::Clarity -self;
 
 use Scalar::Util qw(reftype blessed);
 
-use Fruitbak::Host;
-use Fruitbak::Config;
-use Fruitbak::Config::File;
+field data;
 
-field fbak;
-field cfg;
-field dir => sub { $self->cfg->dir };
-
-field data => sub {
-	my $dir = $self->dir;
-	my $file = 'global';
-	my $conf = eval "package Fruitbak::Config::File; local our %conf = (confdir => \$dir); include(\$file); return {%conf}";
-	die $@ if $@;
-	return $conf;
-};
+sub name {
+	return $self->get_value('name')
+		// die "share does not have a name\n";
+}
 
 sub get_value {
 	my $name = shift;

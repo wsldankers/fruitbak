@@ -43,6 +43,7 @@ sub include_if_exists {
 		unless defined $file;
 	# make relative paths absolute
 	$file =~ s{^(?!/)}{$conf{confdir}/}a;
+	$file .= '.pl';
 	local $!;
 	unless(do $file) {
 		die "parsing $file: $@" if $@;
@@ -60,11 +61,17 @@ sub include {
 		unless defined $file;
 	# make relative paths absolute
 	$file =~ s{^(?!/)}{$conf{confdir}/}a;
+	$file .= '.pl';
 	unless(do $file) {
 		die "parsing $file: $@" if $@;
 		die "reading $file: $!\n" if $!;
 		die "error loading $file\n";
 	}
+}
+
+sub delayed(&) {
+	my $sub = shift;
+	return bless $sub, 'Fruitbak::Config::Delayed';
 }
 
 1;

@@ -46,8 +46,8 @@ field name;
 field data => sub {
 	my $dir = $self->dir;
 	my $name = $self->name;
-	my $file = "host/$name.pl";
-	my $commonfile = 'common.pl';
+	my $file = "host/$name";
+	my $commonfile = 'common';
 	my $conf = eval "package Fruitbak::Config::File; local our %conf = (confdir => \$dir, name => \$name); include(\$commonfile); include_if_exists(\$file); return {%conf}";
 	die $@ if $@;
 	return $conf;
@@ -57,15 +57,14 @@ sub get_value {
 	my $name = shift;
 	my $data = $self->data;
 	my $value = $data->{$name};
-	my $type = reftype($value);
-	return $value unless defined $type && $type eq 'CODE';
 	my $blessed = blessed($value);
-	return $value if $blessed && $blessed eq 'Fruitbak::Config::Global::Resolved';
+	return $value unless $blessed && $blessed eq 'Fruitbak::Config::Delayed';
 	local %Fruitbak::Config::File::conf = %$data;
-	$value = $value->();
-	$type = reftype($value);
-	bless $value, 'Fruitbak::Config::Global::Resolved'
-		if defined $type && $type eq 'CODE';
+	for(;;) {
+		$value = $value->();
+		$blessed = blessed($value);
+		last unless $blessed && $blessed eq 'Fruitbak::Config::Delayed';
+	}
 	%$data = (%Fruitbak::Config::File::conf, $name => $value);
 	return $value;
 }
