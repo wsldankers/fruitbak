@@ -34,9 +34,9 @@ use autodie qw(syswrite);
 
 use File::RsyncP::Digest;
 use Fruitbak::Transfer::Rsync::RPC;
-use Fruitbak::Transfer::Rsync::Lock;
-use IO::File;
 use POSIX qw(PIPE_BUF);
+use Fcntl qw(:flock);
+use Guard;
 
 use Class::Clarity -self;
 
@@ -53,14 +53,19 @@ use constant version => 2;
 
 sub raiilock {
 	my $pid = $$;
-	return new Fruitbak::Transfer::Rsync::Lock(lockfh => $self->lockfh, shared => shift)
-		if $self->lockfh_isset && $self->lockpid == $pid;
+	my $shared = shift;
 	my $lockname = $self->lockname;
-	my $lockfh = new IO::File($lockname, '+<')
+	if($self->lockfh_isset && $self->lockpid == $pid) {
+		my $lockfh = $self->lockfh;
+		flock($lockfh, $shared ? LOCK_SH : LOCK_EX)
+			or die "flock($lockname): $!\n";
+		return guard { flock($lockfh, LOCK_UN) or die "flock($lockname): $!\n" };
+	}
+	open my $lockfh, '+<', $lockname
 		or die "can't open $lockname: $!\n";
 	$self->lockfh($lockfh);
 	$self->lockpid($pid);
-	return new Fruitbak::Transfer::Rsync::Lock(lockfh => $lockfh, shared => shift)
+	return guard { flock($lockfh, LOCK_UN) or die "flock($lockname): $!\n" };
 }
 
 sub dirs {}
