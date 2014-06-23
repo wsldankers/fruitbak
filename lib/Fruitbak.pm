@@ -39,6 +39,8 @@ use Class::Clarity -self;
 use IO::Dir;
 use Scalar::Util qw(weaken);
 use File::Hashset;
+use Fcntl qw(:flock);
+use Guard;
 
 use Fruitbak::Util;
 use Fruitbak::Config;
@@ -88,6 +90,31 @@ it after it has been initialized.
 
 field hostdir => sub { normalize_and_check_directory($self->cfg->hostdir // $self->rootdir . '/host') };
 
+=item field lockfile
+
+The path to the global lockfile. If it isn't set explicitly, it will be
+retrieved from the configuration and failing that, constructed from the
+‘rootdir’ field. You should not change it after it has been initialized.
+Use the lock method to acquire a lock.
+
+=cut
+
+field lockfile => sub { normalize_path($self->cfg->lockfile // $self->rootdir . '/lock') };
+
+=item field lockfh
+
+The filehandle of the opened lockfile. For internal use only. Use the lock
+method to acquire a lock.
+
+=cut
+
+field lockfh => sub {
+	my $filename = $self->lockfile;
+	open my $fh, '<', $filename
+		or die "open($filename): $!\n";
+	return $fh;
+};
+
 =item weakfield cfg
 
 A handle to the Fruitbak::Config object that represents the configuration
@@ -134,6 +161,38 @@ field hosts_cache => {};
 =head1 METHODS
 
 =over
+
+=item lock([$shared])
+
+Acquires a global lock. The lock will be exclusive or shared depending on
+the $shared parameter (the default is exclusive). If the lock can't be
+obtained, the method will die. The method will not wait for the lock to
+become available.
+
+Use a shared lock when creating or removing backups. Use an exclusive lock
+if you're performing operations that require the complete state to be
+consistent (like garbage collection). You do not need a lock at all if
+you're just browsing or restoring backups (though strange things may happen
+if you're reading a backup that is being removed, of course).
+
+=cut
+
+sub lock {
+	my $shared = shift;
+	my $fh = $self->lockfh;
+	if(flock($fh, ($shared ? LOCK_SH : LOCK_EX) | LOCK_NB)) {
+		return guard { flock($fh, LOCK_UN) };
+	}
+	if($!{EWOULDBLOCK}) {
+		if($shared) {
+			die "shared global lock not available: exclusive operation in progress\n";
+		} else {
+			die "exclusive global lock not available: another exclusive operation is already in progress\n";
+		}
+	}
+	my $filename = $self->lockfile;
+	die "flock($filename): $!\n";
+}
 
 =item hosts
 
@@ -216,6 +275,22 @@ sub hashes {
 	File::Hashset->merge($hashes, $self->pool->hashsize,
 		map { $self->get_host($_)->hashes } @{$self->hosts});
 	return File::Hashset->load($hashes);
+}
+
+=item clone
+
+Creates an independent clone that has the same configuration settings.
+
+=cut
+
+sub clone {
+	my $class = ref $self;
+	my $fbak = $class->new;
+	$fbak->confdir($self->confdir) if $self->confdir_isset;
+	$fbak->rootdir($self->rootdir) if $self->rootdir_isset;
+	$fbak->hostdir($self->hostdir) if $self->hostdir_isset;
+	$fbak->lockfile($self->lockfile) if $self->lockfile_isset;
+	return $fbak;
 }
 
 =back

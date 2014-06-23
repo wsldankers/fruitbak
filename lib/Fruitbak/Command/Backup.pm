@@ -32,26 +32,86 @@ package Fruitbak::Command::Backup;
 
 use Fruitbak::Command -self;
 
+use POSIX qw(_exit);
+
 BEGIN {
 	$Fruitbak::Command::commands{backup} = [__PACKAGE__, "Run a single backup"];
 	$Fruitbak::Command::commands{'bu'} = [__PACKAGE__];
 }
 
 sub run {
-	my (undef, $hostname) = @_;
-
-	die "usage: fruitbak backup <hostname>\n"
-		unless defined $hostname;
-
-	die "'$hostname' is not a valid host name\n"
-		unless Fruitbak::Host::is_valid_name($hostname);
+	my (undef, @hostnames) = @_;
 
 	my $fbak = $self->fbak;
+	my $cfg = $fbak->cfg;
 
-	my $host = $fbak->get_host($hostname);
+	my $lock = $fbak->lock(1);
+	my $fail = 0;
 
-	my $bu = $host->new_backup;
-	$bu->run;
+	@hosts = @{$fbak->cfg->hosts} unless @hosts;
+	die "no hosts configured\n" unless @hosts;
 
-	return 0;
+	if(@hosts == 1) {
+		die "'$hostname' is not a valid host name\n"
+			unless Fruitbak::Host::is_valid_name($hostname);
+		my $exists = $fbak->host_exists($hostname);
+		die "host '$hostname' is unknown\n"
+			unless $exists;
+		die "host '$hostname' is unconfigured\n"
+			unless $exists > 1;
+
+		my $host = $fbak->get_host($hostname);
+		my $bu = $host->new_backup;
+		$bu->run;
+	} else {
+		local $SIG{CHLD} = 'DEFAULT';
+		my $curjobs = 0;
+		my $maxjobs = int($cfg->maxjobs // 1);
+		$maxjobs = 1 if $maxjobs < 1;
+		my %jobs;
+		while(@hosts || $curjobs) {
+			while(@hosts && $curjobs < $maxjobs) {
+				my $hostname = shift @hosts;
+				eval {
+					die "'$hostname' is not a valid host name\n"
+						unless Fruitbak::Host::is_valid_name($hostname);
+					my $exists = $fbak->host_exists($hostname);
+					die "host '$hostname' is unknown\n"
+						unless $exists;
+					die "host '$hostname' is unconfigured\n"
+						unless $exists > 1;
+				};
+				if($@) {
+					warn $@;
+					next;
+				}
+
+				my $pid = fork();
+				if($pid) {
+					$curjobs++;
+					$jobs{$pid} = $hostname;
+				} elsif(defined $pid) {
+					eval {
+						my $fbak = $fbak->clone;
+						my $host = $fbak->get_host($hostname);
+						my $bu = $host->new_backup;
+						$bu->run;
+					};
+					if($@) {
+						warn $@;
+						_exit(1);
+					}
+					_exit(0);
+					die;
+				} else {
+					$fail = 1;
+					warn "fork(): $!\n";
+					@hosts = ();
+				}
+			}
+			waitpid ← hier
+		}
+	}
+
+	return $fail;
 }

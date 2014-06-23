@@ -71,5 +71,6 @@ sub run {
 our %conf;
 \$conf{rootdir} = "$escapeddir";
 EOT
+	$self->writefile("$dir/lock", '');
 	return 0;
 }

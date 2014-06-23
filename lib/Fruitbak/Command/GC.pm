@@ -49,6 +49,8 @@ sub run {
 
 	my $fbak = $self->fbak;
 
+	my $lock = $fbak->lock;
+
 	my $hosts = $fbak->hosts;
 	foreach my $name (@$hosts) {
 		my $host = $fbak->get_host($name);
