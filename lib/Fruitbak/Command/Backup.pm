@@ -51,24 +51,33 @@ sub run {
 	@hostnames = @{$fbak->cfg->hosts} unless @hostnames;
 	die "no hosts configured\n" unless @hostnames;
 
-	if(@hostnames == 1) {
-		my $hostname = shift @hostnames;
-		die "'$hostname' is not a valid host name\n"
-			unless Fruitbak::Host::is_valid_name($hostname);
-		my $exists = $fbak->host_exists($hostname);
-		die "host '$hostname' is unknown\n"
-			unless $exists;
-		die "host '$hostname' is unconfigured\n"
-			unless $exists > 1;
+	my $maxjobs = int($cfg->maxjobs // 1);
+	$maxjobs = 1 if $maxjobs < 1;
 
-		my $host = $fbak->get_host($hostname);
-		my $bu = $host->new_backup;
-		$bu->run;
+	if(@hostnames == 1 || $maxjobs == 1) {
+		while(@hostnames) {
+			eval {
+				my $hostname = shift @hostnames;
+				die "'$hostname' is not a valid host name\n"
+					unless Fruitbak::Host::is_valid_name($hostname);
+				my $exists = $fbak->host_exists($hostname);
+				die "host '$hostname' is unknown\n"
+					unless $exists;
+				die "host '$hostname' is unconfigured\n"
+					unless $exists > 1;
+
+				my $host = $fbak->get_host($hostname);
+				my $bu = $host->new_backup;
+				$bu->run;
+			};
+			if($@) {
+				$fail = 1;
+				warn $@;
+			}
+		}
 	} else {
 		local $SIG{CHLD} = 'DEFAULT';
 		my $curjobs = 0;
-		my $maxjobs = int($cfg->maxjobs // 1);
-		$maxjobs = 1 if $maxjobs < 1;
 		my %jobs;
 		while(@hostnames || %jobs) {
 			while(@hostnames && keys %jobs < $maxjobs) {
