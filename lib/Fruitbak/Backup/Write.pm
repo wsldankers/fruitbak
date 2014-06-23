@@ -132,15 +132,15 @@ not set.
 
 field shares => sub { [map { $_->{name} } @{$self->sharecfg}] };
 
-=item field status
+=item field failed
 
 Indicates the status of the backup, as it will be recorded when the backup
-is finished. Defaults to ‘done’ and is set to ‘fail’ if any of the shares
-failed during the backup. For internal use only.
+is finished. Defaults to false and is set to true if any of the shares
+failed during the backup. Do not set.
 
 =cut
 
-field status => 'done';
+field failed;
 
 =item field full
 
@@ -253,13 +253,15 @@ field info => sub {
 		if $ref;
 	my @refhost = (refhost => $ref->host->name)
 		if $ref && !$self->refhostbackup;
+	my @failed = (failed => $self->failed ? JSON::true : JSON::false)
+		if $self->failed_isset;
 	return {
-		status => $self->status,
 		level => $self->level,
 		startTime => $self->startTime,
 		endTime => $self->endTime,
 		@ref,
 		@refhost,
+		@failed,
 	};
 };
 
@@ -346,34 +348,72 @@ sub run {
 	local $ENV{user} = $user if defined $user;
 	my $port = $cfg->port;
 	local $ENV{port} = $port if defined $port;
+
 	$self->startTime(time);
-	my $pre = $cfg->precommand;
-	if(defined $pre) {
-		if(ref $pre) {
-			$pre->($name, $hostname, $user, $port);
-		} elsif(my $status = system($pre)) {
+	$self->run_precommand;
+	$self->run_shares;
+	$self->run_postcommand;
+	$self->endTime(time);
+	$self->finish;
+}
+
+=item run_precommand
+
+Runs any configured precommand. Will die if it fails. For internal use
+only.
+
+=cut
+
+sub run_precommand {
+	my $pre = $self->cfg->precommand;
+	if(ref $pre) {
+		$pre->($self);
+	} elsif(defined $pre) {
+		my $status = system($pre);
+		if($status) {
+			my $name = $self->host->name;
 			die "pre-command for host '$name' exited with status $status\n";
 		}
 	}
+}
+
+=item run_precommand
+
+Runs any configured postcommand. Will warn if it fails. For internal use
+only.
+
+=cut
+
+sub run_postcommand {
+	my $post = $self->cfg->postcommand;
+	if(ref $post) {
+		$post->($self);
+	} elsif(defined $post) {
+		my $status = system($post);
+		if($status) {
+			my $name = $self->host->name;
+			warn "post-command for host '$name' exited with status $status\n";
+		}
+	}
+}
+
+=item run_precommand
+
+Runs the backups for each of the shares of this host. Will catch any fatal
+errors but sets failed if any shares failed. For internal use only.
+
+=cut
+
+sub run_shares {
 	my $shares = $self->sharecfg;
 	foreach my $cfg (@$shares) {
 		my $share = new Fruitbak::Share::Write(backup => $self, cfg => $cfg);
 		local $@;
 		unless(eval { $share->run; 1 }) {
 			warn $@;
-			$self->status('fail');
+			$self->failed(1);
 		}
 	}
-	my $post = $cfg->precommand;
-	if(defined $post) {
-		if(ref $post) {
-			$post->($name, $hostname, $user, $port);
-		} elsif(my $status = system($post)) {
-			warn "post-command for host '$name' exited with status $status\n";
-		}
-	}
-	$self->endTime(time);
-	$self->finish;
 }
 
 =item finish

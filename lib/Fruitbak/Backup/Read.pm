@@ -115,15 +115,15 @@ field info => sub {
 	return decode_json($json);
 };
 
-=item field status
+=item field failed
 
-Indicates the status of the backup, as it will be recorded when the backup
-is finished. Defaults to ‘done’ and is set to ‘fail’ if any of the shares
-failed during the backup. Do not set.
+Indicates the status of the backup, as it was recorded when the backup
+finished. If this value is ‘true’, it means one of more of the shares
+failed fatally during the backup. Do not set.
 
 =cut
 
-field status => sub { $self->info->{status} };
+field failed => sub { $self->info->{failed} ? !undef : !!undef };
 
 =item field level
 

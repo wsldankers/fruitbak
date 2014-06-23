@@ -35,7 +35,7 @@ use Fruitbak::Host::Expiry -self;
 field keep => sub { int($self->cfg->{keep} // 1) };
 
 field subpol => sub {
-    my $of = $self->cfg->{of} // ['status', in => 'done'];
+    my $of = $self->cfg->{of} // ['not', in => ['failed']];
 	return $self->host->instantiate_expiry($of);
 };
 

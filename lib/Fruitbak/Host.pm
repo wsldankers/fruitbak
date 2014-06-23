@@ -106,13 +106,11 @@ The expiration policy for this host, as a Fruitbak::Host::Expiry object
 
 field expiry => sub {
 	my $cfg = $self->cfg->expiry //
-		['or' => any => [
+		['or', any => [
 			['logarithmic'],
 			['and', all => [
 				['age', max => '1w'],
-				['not', in =>
-					['status', in => 'done']
-				],
+				['failed'],
 			]],
 		]];
 	return $self->instantiate_expiry($cfg);

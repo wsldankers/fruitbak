@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Host::Expiry::Status - expiry policy that expires by status
+Fruitbak::Host::Expiry::Failed - expiry policy that expires failed backups
 
 =head1 AUTHOR
 
@@ -28,22 +28,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Host::Expiry::Status;
+package Fruitbak::Host::Expiry::Failed;
 
 use Fruitbak::Host::Expiry -self;
-
-field in => sub {
-	my $in = $self->cfg->{in};
-	die "no 'in' parameter configured for 'status' expiry policy\n"
-		unless defined $in;
-	$in = [$in] unless ref $in;
-	my %in; @in{@$in} = ();
-	return \%in;
-};
 
 sub expired {
 	my $host = $self->host;
 	my $backups = $host->backups;
-	my $in = $self->in;
-	return [grep { exists $in->{$host->get_backup($_)->status} } @$backups];
+	return [grep { $host->get_backup($_)->failed } @$backups];
 }
