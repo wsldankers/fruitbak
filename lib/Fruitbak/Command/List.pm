@@ -333,7 +333,18 @@ sub run {
 				}
 			} else {
 				my $shares = $backup->shares;
-				push @table, ["Share name"], map { [$_] } @$shares;
+				push @table, ["Share name", "Mount point", "Start", "End", "Duration", "Status"];
+				foreach my $sharename (@$shares) {
+					my $share = $backup->get_share($sharename);
+					push @table, [
+						$sharename,
+						$share->mountpoint,
+						strftime('%Y-%m-%d %H:%M:%S', localtime($share->startTime)),
+						strftime('%Y-%m-%d %H:%M:%S', localtime($share->endTime)),
+						($share->endTime - $share->startTime).'s',
+						$share->failed ? 'fail' : 'done',
+					];
+				}
 			}
 		} else {
 			my $backups = $host->backups;
