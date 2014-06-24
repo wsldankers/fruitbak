@@ -258,7 +258,7 @@ sub reply_rpc {
 	my $in = $self->rpc;
 	my $buf = pack('L', length($_[0])) . $_[0];
 	my $r = syswrite $in, $buf;
-	or die "write(): $!\n" unless defined $r;
+	die "write(): $!\n" unless defined $r;
 	confess("short write") if $r < length($buf);
 }
 
