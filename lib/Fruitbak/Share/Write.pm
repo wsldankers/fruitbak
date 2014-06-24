@@ -66,6 +66,17 @@ sub run {
 	local $ENV{share} = $self->name;
 	local $ENV{path} = $self->path;
 	local $ENV{mountpoint} = $self->mountpoint;
+
+	my $cfg = $self->cfg;
+	my $host = $cfg->host;
+	local $ENV{host} = $host if defined $host;
+	my $port = $cfg->port;
+	local $ENV{port} = $port if defined $port;
+	my $user = $cfg->user;
+	local $ENV{user} = $user if defined $user;
+	my $pass = $cfg->pass;
+	local $ENV{pass} = $pass if defined $pass;
+
 	$self->startTime(time);
 	$self->run_precommand;
 	my $xfer = $self->transfer;
