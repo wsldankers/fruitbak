@@ -2,31 +2,35 @@ cur
 new
 lock
 
-cache miss:
 fd = open cur/<hash>
-if enoent:
-	lock(lock, EX)
-	fd = open cur/<hash>
-	if enoent:
-		fd = open new/<hash>
-		r = lock(fd, EX|NB)
-		unlock(lock)
-		if r == fail
-			lock(fd, SH)
-			if fstat(fd).size == 0
+if faal
+	if enoent
+		# cache miss
+		scoped lock(lock, EX)
+		fd = open cur/<hash>
+		if faal
+			if enoent
+				fd = open new/<hash>
+				r = lock(fd, EX|NB)
+				unlock(lock)
+				if r == fail
+					lock(fd, SH)
+					if fstat(fd).size == 0
+						die
+				else
+					try
+						download(fd, <hash>)
+					catch
+						truncate(fd)
+						unlink(new/<hash>)
+						die
+					scoped lock(lock, EX)
+					unlock(fd)
+					rename(new/<hash>, cur/<hash>)
+			else
 				die
-		else
-			try
-				download(fd, <hash>)
-			catch
-				truncate(fd)
-				die
-			lock(lock, EX)
-			unlock(fd)
-			rename(new/<hash>, cur/<hash>)
-			unlock(lock)
 	else
-		unlock(lock)
+		die
 return fd
 
 cache manager:
