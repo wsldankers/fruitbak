@@ -10,7 +10,7 @@ use File::Find;
 do {
 	open my $fh, '>', 'MANIFEST'
 		or die "open(MANIFEST): $!\n";
-	find({ wanted => sub { print $fh "$_\n" or die "write(MANIFEST): $!\n" }, no_chdir => 1, follow => 0}, 'lib');
+	find({ wanted => sub { -f or return; print $fh "$_\n" or die "write(MANIFEST): $!\n" }, no_chdir => 1, follow => 0}, 'lib');
 	close $fh or die "close(MANIFEST): $!\n";
 };
 

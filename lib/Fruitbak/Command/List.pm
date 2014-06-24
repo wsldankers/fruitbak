@@ -301,6 +301,8 @@ Parse the arguments to determine what needs to be listed (hosts, backups,
 shares, paths, etc), generate the listing and print it to stdout (or
 whatever the current filehandle is).
 
+=back
+
 =cut
 
 sub run {

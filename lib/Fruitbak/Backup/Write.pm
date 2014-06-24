@@ -425,6 +425,8 @@ sub run_shares {
 Finalizes the backup and reblesses the object into the
 Fruitbak::Backup::Read class. For internal use only.
 
+=back
+
 =cut
 
 # FIXME: register this object with the host object it belongs to

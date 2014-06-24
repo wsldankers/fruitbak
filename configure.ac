@@ -1,7 +1,12 @@
 AC_INIT([fruitbak], [0.0])
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE([foreign subdir-objects])
 
 AC_CONFIG_SRCDIR(bin/fruitbak.pl)
+
+AC_SUBST([pkglocalstatedir], ['${localstatedir}/lib/${PACKAGE}'])
+AC_SUBST([pkgsysconfdir], ['${sysconfdir}/${PACKAGE}'])
+AC_SUBST([pkgdatadir], ['${datadir}/${PACKAGE}'])
+AC_SUBST([pkglibdir], ['${libdir}/${PACKAGE}'])
 
 AC_PROG_INSTALL
 

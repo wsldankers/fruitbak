@@ -1,7 +1,8 @@
 pkgsysconfdir = $(sysconfdir)/@PACKAGE@
+scriptdir = $(pkgdatadir)/bin
 
 bin_SCRIPTS = bin/fruitbak
-pkglibexecdir_SCRIPTS = bin/fruitbak-rsyncp-recv
+script_SCRIPTS = bin/fruitbak-rsyncp-recv
 man_MANS = $(bin_SCRIPTS:=.1)
 
 CLEANFILES = $(bin_SCRIPTS) $(bin_SCRIPTS:=.tmp) $(man_MANS)

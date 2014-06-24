@@ -89,6 +89,8 @@ sub run {
 	die $err if $err;
 }
 
+=over
+
 =item run_precommand
 
 Runs any configured precommand. Will die if it fails. For internal use
@@ -113,6 +115,8 @@ sub run_precommand {
 
 Runs any configured postcommand. Will warn if it fails. For internal use
 only.
+
+=back
 
 =cut
 
