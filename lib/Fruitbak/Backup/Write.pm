@@ -343,12 +343,14 @@ sub run {
 	my $cfg = $self->cfg;
 	my $name = self->host->name;
 	local $ENV{name} = $name;
-	my $hostname = $cfg->host // $name;
-	local $ENV{host} = $hostname;
-	my $user = $cfg->user;
-	local $ENV{user} = $user if defined $user;
+	local $ENV{host} = $cfg->host // $name;
+
 	my $port = $cfg->port;
 	local $ENV{port} = $port if defined $port;
+	my $user = $cfg->user;
+	local $ENV{user} = $user if defined $user;
+	my $pass = $cfg->pass;
+	local $ENV{pass} = $pass if defined $pass;
 
 	$self->startTime(time);
 	$self->run_precommand;
