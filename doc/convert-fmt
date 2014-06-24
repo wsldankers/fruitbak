@@ -1,0 +1,27 @@
+#! /usr/bin/perl
+
+use strict;
+use warnings FATAL => 'all';
+
+use File::Hardhat;
+use File::Hardhat::Maker;
+
+my $hh = new File::Hardhat($ARGV[0]);
+
+my $hhm = new File::Hardhat::Maker($ARGV[1]);
+
+my $c = $hh->find('');
+
+if(my ($key, $data) = $c->read) {
+	die "unexpected size\n" if length($data) < 28;
+	my ($size, $mtime, $mode, $uid, $gid, $extra) = unpack('QQLLLa*', $data);
+	$hhm->add($key, pack('L<L<Q<Q<L<L<a*', 0, $mode, $size, int($mtime * 1000000000), $uid, $gid, $extra));
+}
+
+while(my ($key, $data) = $c->fetch) {
+	die "unexpected size\n" if length($data) < 28;
+	my ($size, $mtime, $mode, $uid, $gid, $extra) = unpack('QQLLLa*', $data);
+	$hhm->add($key, pack('L<L<Q<Q<L<L<a*', 0, $mode, $size, int($mtime * 1000000000), $uid, $gid, $extra));
+}
+
+$hhm->finish;

@@ -27,12 +27,12 @@ Implemented:
 
 Initial goals:
 
+ - includes/excludes
  - manpages
  - test suite
- - local restore method
  - logging (per-backup, per-share)
  - warning e-mails
- - includes/excludes
+ - local restore method
 
 After that:
 

@@ -1,0 +1,56 @@
+#! /bin/sh
+
+export PERLLIB=$HOME/fruitbak/lib
+PATH=$HOME/fruitbak/bin:$PATH
+
+set -ex
+
+cd /media/wsl/MyBook
+
+hostdir=/media/wsl/MyBook/host
+
+mkdir -p conf/host
+
+cat >conf/host/rot.pl <<EOT
+our %conf;
+
+\$conf{host} = 'rot';
+\$conf{user} = 'root';
+
+\$conf{shares} = [
+$(for s in $(ssh root@rot "cd /bak/rot && echo *")
+do
+	echo "	{name => \"$s\", path => \"/bak/rot/$s\"},"
+done)
+];
+EOT
+
+fruitbak bu rot &
+pids=$!
+
+for h in $(ssh root@rot "cd /bak/vms && echo *")
+do
+	mkdir -p $hostdir/$h
+	cat >conf/host/$h.pl <<EOT
+our %conf;
+
+\$conf{host} = 'rot';
+\$conf{user} = 'root';
+
+\$conf{shares} = [
+$(for s in $(ssh root@rot "cd /bak/vms/$h && echo */*")
+do
+echo "	{name => \"$s\", path => \"/bak/vms/$h/$s\"},"
+done)
+];
+EOT
+	fruitbak bu $h &
+	pids="$pids $!"
+done
+
+for p in $pids
+do
+	wait $p
+done
+
+fruitbak gc
