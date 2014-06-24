@@ -21,18 +21,18 @@ Implemented:
  - pluggable expiry methods
  - local backup method
  - pool scrubbing
+ - shares: mountpoint < path < name
+ - parallel backup job manager
+ - pre/post-commands (per-backup, per-share)
 
 Initial goals:
 
- - shares: mountpoint < path < name
  - manpages
  - test suite
  - local restore method
  - logging (per-backup, per-share)
  - warning e-mails
- - parallel backup job manager
  - includes/excludes
- - pre/post-commands (per-backup, per-share)
 
 After that:
 
