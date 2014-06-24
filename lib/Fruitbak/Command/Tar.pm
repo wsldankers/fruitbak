@@ -30,22 +30,19 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Command::Tar;
 
-use autodie;
 no utf8;
+
+use Fruitbak::Command -self;
 
 use IO::Handle;
 use Fcntl qw(:mode);
-
-use Fruitbak::Command -self;
+use Symbol qw(qualify_to_ref);
 
 BEGIN {
 	$Fruitbak::Command::commands{tar} = [__PACKAGE__, "Write a tar file to stdout"];
 }
 
-field fh => sub {
-	my $fh = select;
-	return ref $fh ? $fh : eval "\*$fh";
-};
+field fh => sub { qualify_to_ref(select) };
 field curfile;
 
 sub format8 {
@@ -92,7 +89,8 @@ sub output_header {
 	substr($header, 148, 7, sprintf('%06o', $csum)."\0");
 
 	my $fh = $self->fh;
-	print $fh $header;
+	print $fh $header
+		or die "write(): $!\n";
 }
 
 my @filetypes;
@@ -125,13 +123,15 @@ sub output_dentry {
 		my $size = length($linkname) + 1;
 		$self->output_header('././@LongLink', 0644, 0, 0, $size, 0, 'K');
 		$fh //= $self->fh;
-		print $fh $linkname, "\0" x ((-$size & 511) + 1);
+		print $fh $linkname, "\0" x ((-$size & 511) + 1)
+			or die "write(): $!\n";
 	}
 	if(length($name) > 100) {
 		my $size = length($name) + 1;
 		$self->output_header('././@LongLink', 0644, 0, 0, $size, 0, 'L');
 		$fh //= $self->fh;
-		print $fh $name, "\0" x ((-$size & 511) + 1);
+		print $fh $name, "\0" x ((-$size & 511) + 1)
+			or die "write(): $!\n";
 	}
 
 	my @dev;
@@ -175,7 +175,8 @@ sub end_file {
 	$self->curfile_reset;
 	my $size = $curfile->storedsize;
 	my $fh = $self->fh;
-	print $fh "\0"x(-$size & 511);
+	print $fh "\0"x(-$size & 511)
+		or die "write(): $!\n";
 	return;
 }
 
@@ -192,7 +193,8 @@ sub finish {
 	confess("finish called when a file is still in progress")
 		if $self->curfile_isset;
 	my $fh = $self->fh;
-	print $fh "\0"x5120;
+	print $fh "\0"x5120
+		or die "write(): $!\n";
 }
 
 sub run {
@@ -252,7 +254,8 @@ sub run {
 
 			my $buf = $reader->read;
 			while($$buf ne '') {
-				print $fh $$buf;
+				print $fh $$buf
+					or die "write(): $!\n";
 				$buf = $reader->read;
 			}
 			$self->end_file;

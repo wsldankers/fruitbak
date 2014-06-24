@@ -32,8 +32,6 @@ package Fruitbak::Transfer::Rsync;
 
 use Class::Clarity -self;
 
-use autodie;
-
 use File::RsyncP::Digest;
 use IPC::Open2;
 use IO::Handle;
@@ -258,8 +256,10 @@ sub attribSet {
 
 sub reply_rpc {
 	my $in = $self->rpc;
-	print $in pack('L', length($_[0])), $_[0];
-	$in->flush or die "Unable to write to filehandle: $!\n";
+	my $buf = pack('L', length($_[0])) . $_[0];
+	my $r = syswrite $in, $buf;
+	or die "write(): $!\n" unless defined $r;
+	confess("short write") if $r < length($buf);
 }
 
 sub recv_files {

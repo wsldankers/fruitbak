@@ -32,8 +32,6 @@ package Fruitbak::Transfer::Local;
 
 use Class::Clarity -self;
 
-use autodie;
-
 use IO::Handle;
 use Fcntl qw(:mode);
 use File::Hashset;
@@ -63,7 +61,7 @@ field inodes => {};
 field path => sub { normalize_path($self->share->path) };
 field pathre => sub {
 	my $path = quotemeta($self->path);
-	return qr{^$path/};
+	return qr{^$path/}a;
 };
 
 sub reffile {
@@ -76,10 +74,13 @@ sub reffile {
 }
 
 sub wanted {
+	my @st = lstat($_);
+	unless(@st) {
+		warn "stat($_): $!\n";
+		return;
+	}
 	my $path = $self->path;
 	my $pathre = $self->pathre;
-	my $is_hardlink;
-	my @st = lstat($_);
 	my $relpath = $_;
 	unless($relpath =~ s{$pathre}{}a) {
 		if(-d _) {
@@ -96,6 +97,7 @@ sub wanted {
 		uid => $st[4],
 		gid => $st[5],
 	);
+	my $is_hardlink;
 	if(!-d _ && $st[3] > 1) {
 		# potentially a hardlink
 		my $inodes = $self->inodes;

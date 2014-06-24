@@ -30,8 +30,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Transfer::Rsync::IO;
 
-use autodie qw(syswrite);
-
 use File::RsyncP::Digest;
 use Fruitbak::Transfer::Rsync::RPC;
 use POSIX qw(PIPE_BUF);
@@ -75,6 +73,7 @@ sub send_rpc {
 	if(length($buf) > PIPE_BUF) {
 		my $lock = $self->raiilock;
 		my $r = syswrite($self->out, $buf);
+		die "write(): $!\n" unless defined $r;
 		# POSIX guarantees that no partial writes will occur
 		confess "short write"
 			if $r < length($buf);
@@ -85,6 +84,7 @@ sub send_rpc {
 		# it only has to be a shared one.
 		my $lock = $self->raiilock(1);
 		my $r = syswrite($self->out, $buf);
+		die "write(): $!\n" unless defined $r;
 		# POSIX guarantees that no partial writes will occur
 		confess "short write"
 			if $r < length($buf);
@@ -99,6 +99,7 @@ sub send_rpc_unlocked {
 		if utf8::is_utf8($_[1]);
 	my $buf = pack('LC', length($_[1]), $_[0]).$_[1];
 	my $r = syswrite($self->out, $buf);
+	die "write(): $!\n" unless defined $r;
 	# POSIX guarantees that no partial writes will occur
 	die "short write\n"
 		if $r < length($buf);

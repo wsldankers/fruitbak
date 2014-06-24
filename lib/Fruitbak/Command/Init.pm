@@ -30,13 +30,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Command::Init;
 
-use autodie;
+use Fruitbak::Command -self;
+
 use IO::File;
 use File::Path qw(make_path);
 use Cwd qw(getcwd);
 use Fruitbak::Util;
-
-use Fruitbak::Command -self;
 
 BEGIN {
 	$Fruitbak::Command::commands{init} = [__PACKAGE__, "Initialize a fruitbak environment"];

@@ -30,9 +30,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Share::Read;
 
-use strict;
-use warnings;
-use autodie;
+use Class::Clarity -self;
 
 use Fcntl qw(:mode);
 use IO::File;
@@ -44,8 +42,6 @@ use Fruitbak::Share::Format;
 use Fruitbak::Pool::Read;
 use Fruitbak::Dentry;
 use Fruitbak::Dentry::Hardlink;
-
-use Class::Clarity -self;
 
 field dir => sub { $self->backup->sharedir . '/' . mangle($self->name) };
 field hh => sub { new File::Hardhat($self->dir . '/metadata.hh') };
@@ -69,7 +65,8 @@ field endTime => sub { $self->info->{endTime} };
 field hashes => sub {
 	my $hashes = $self->dir . '/hashes';
 	unless(-e $hashes) {
-		open my $fh, '>:raw', "$hashes.new";
+		open my $fh, '>:raw', "$hashes.new"
+			or die "open($hashes.new): $!\n";
 		my $c = $self->hh->find('');
 		my $data = $c->read;
 		(undef, $data) = $c->fetch
@@ -78,7 +75,8 @@ field hashes => sub {
 			my ($mode, $hashes) = mode_and_hashes($data);
 
 			if(S_ISREG($mode) && !($mode & Fruitbak::Dentry::R_HARDLINK)) {
-				print $fh $hashes;
+				print $fh $hashes
+					or die "write($hashes.new): $!\n";
 			}
 
 			(undef, $data) = $c->fetch;

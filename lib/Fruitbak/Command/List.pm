@@ -22,7 +22,6 @@ As with all Fruitbak classes, any errors will throw an exception (using
 
 package Fruitbak::Command::List;
 
-use autodie;
 use v5.14;
 
 use Fruitbak::Command -self;
@@ -367,7 +366,8 @@ sub run {
 	}
 
 	select->binmode(':utf8');
-	print $self->format_table(\@table, \@align);
+	print $self->format_table(\@table, \@align)
+		or die "write(): $!\n";
 
 	return 0;
 }

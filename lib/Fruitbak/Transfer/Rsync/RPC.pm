@@ -32,10 +32,9 @@ package Fruitbak::Transfer::Rsync::RPC;
 
 use strict;
 use warnings FATAL => 'all';
-use autodie;
 
 use Exporter qw(import);
-use MIME::Base64;
+use Carp qw(confess);
 
 our @EXPORT = qw(saferead serialize_attrs parse_attrs
 	RSYNC_RPC_finish
@@ -62,8 +61,9 @@ sub saferead {
 	my $res = '';
 	
 	while($len < $num) {
-		sysread $fh, $res, $num - $len, $len
-			or Carp::confess("short read");
+		my $r = sysread $fh, $res, $num - $len, $len;
+		die "read(): $!\n" unless defined $r;
+		confess("short read") unless $r;
 		$len = length($res);
 	}
 	return $res;

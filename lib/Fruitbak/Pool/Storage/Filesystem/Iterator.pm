@@ -30,8 +30,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Pool::Storage::Filesystem::Iterator;
 
-use autodie;
-
 use Fruitbak::Pool::Iterator -self;
 
 use IO::Dir;

@@ -30,8 +30,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Command::Help;
 
-use autodie;
-
 use Fruitbak::Command -self;
 
 BEGIN {
@@ -44,7 +42,8 @@ sub run {
 	foreach my $cmd (sort keys %Fruitbak::Command::commands) {
 		my ($class, $help) = @{$Fruitbak::Command::commands{$cmd}};
 		next unless defined $help;
-		printf("%-10s  %s\n", $cmd, $help);
+		printf("%-10s  %s\n", $cmd, $help)
+			or die "write(): $!\n";
 	}
 	return 0;
 }

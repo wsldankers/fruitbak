@@ -30,8 +30,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Command::Cat;
 
-use autodie;
-
 use Fruitbak::Command -self;
 
 BEGIN {
@@ -65,7 +63,7 @@ sub run {
 		if -t \*STDOUT && $$buf =~ /\0/a;
 	binmode STDOUT;
 	while($$buf ne '') {
-		print $$buf;
+		print $$buf or die "write(): $!\n";
 		$buf = $reader->read;
 	}
 

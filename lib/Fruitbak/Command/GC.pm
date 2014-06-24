@@ -30,7 +30,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Command::GC;
 
-use autodie;
 no utf8;
 
 use Fruitbak::Command -self;

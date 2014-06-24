@@ -30,7 +30,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package Fruitbak::Command::Scrub;
 
-use autodie;
 no utf8;
 
 use Fruitbak::Command -self;
@@ -55,8 +54,10 @@ sub run {
 	while(my $digests = $iterator->fetch) {
 		foreach my $digest (@$digests) {
 			my $data = $pool->retrieve($digest);
-			print encode_base64($digest)
-				unless $hashalgo->($$data) eq $digest;
+			unless($hashalgo->($$data) eq $digest) {
+				print encode_base64($digest)
+					or die "write(): $!\n";
+			}
 		}
 	}
 
