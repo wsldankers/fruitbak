@@ -27,8 +27,8 @@ will throw an exception (using ‘die’). Use eval {} as required.
 
 =head1 CONSTRUCTOR
 
-The only required argument is ‘confdir’, which should be a directory
-containing Fruitbak configuration.
+You must pass at least a ‘rootdir’ or ‘confdir’ argument, or Fruitbak won't
+know where to start.
 
 =cut
 
@@ -59,13 +59,12 @@ the hash element. For more information, see L<Class::Clarity>.
 =item field confdir
 
 The directory that contains the configuration for this Fruitbak
-installation. Should be set before calling any other methods of this class
-(usually passed to the constructor). Should not be changed after any other
-methods have been called.
+installation. Usually passed to the constructor. Should not be changed
+after any other methods have been called.
 
 =cut
 
-field confdir;
+field confdir => sub { $self->rootdir . '/conf' };
 
 =item field rootdir
 
