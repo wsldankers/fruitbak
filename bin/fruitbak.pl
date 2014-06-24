@@ -9,8 +9,12 @@ our $pkgsysconfdir //= 'conf';
 use Fruitbak;
 use Fruitbak::Command;
 
-my $fbak = new Fruitbak(rootdir => $pkglocalstatedir, confdir => $pkgsysconfdir);
+my $fbak = exists $ENV{FRUITBAK}
+	? new Fruitbak(rootdir => $ENV{FRUITBAK})
+	: new Fruitbak(rootdir => $pkglocalstatedir, confdir => $pkgsysconfdir);
+
 my $cmd = new Fruitbak::Command(fbak => $fbak);
+
 exit $cmd->run(@ARGV);
 
 =pod
