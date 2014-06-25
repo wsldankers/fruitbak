@@ -345,7 +345,7 @@ sub run {
 						strftime('%Y-%m-%d %H:%M:%S', localtime($share->startTime)),
 						strftime('%Y-%m-%d %H:%M:%S', localtime($share->endTime)),
 						($share->endTime - $share->startTime).'s',
-						$share->failed ? 'fail' : 'done',
+						$share->error ? 'fail' : 'done',
 					];
 				}
 			}

@@ -61,6 +61,7 @@ field path => sub { $self->info->{path} };
 field mountpoint => sub { $self->info->{mountpoint} // $self->path };
 field startTime => sub { $self->info->{startTime} };
 field endTime => sub { $self->info->{endTime} };
+field error => sub { $self->info->{error} };
 
 field hashes => sub {
 	my $hashes = $self->dir . '/hashes';
