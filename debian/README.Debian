@@ -1,7 +1,7 @@
 fruitbak
-------
+--------
 
-Frontend for KVM (http://www.linux-kvm.org).
+Efficient disk-based backups with deduplication and compression.
 
 The debian packaging is maintained in git at https://git.fruit.je/fruitbak
 
