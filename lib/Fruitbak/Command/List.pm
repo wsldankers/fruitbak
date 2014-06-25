@@ -336,6 +336,7 @@ sub run {
 			} else {
 				my $shares = $backup->shares;
 				push @table, ["Share name", "Mount point", "Start", "End", "Duration", "Status"];
+				$align[4] = '';
 				foreach my $sharename (@$shares) {
 					my $share = $backup->get_share($sharename);
 					push @table, [
@@ -351,6 +352,7 @@ sub run {
 		} else {
 			my $backups = $host->backups;
 			push @table, ["Index", "Start", "End", "Duration", "Type", "Level", "Status"];
+			@align[3, 5] = ('') x 2;
 			foreach my $backupnum (@$backups) {
 				my $backup = $host->get_backup($backupnum);
 				push @table, [
@@ -364,6 +366,7 @@ sub run {
 		}
 	} else {
 		push @table, ["Host name", "Last backup", "Type", "Level", "Status"];
+		$align[3] = '';
 		my $hosts = $fbak->hosts;
 		foreach my $hostname (@$hosts) {
 			my @row = ($hostname);
