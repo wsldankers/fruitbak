@@ -40,8 +40,7 @@ use Fruitbak::Pool::Storage::Filesystem::Iterator;
 use Fruitbak::Pool::Storage -self;
 
 field dir => sub {
-	my $globalcfg = $self->fbak->cfg;
-	return normalize_and_check_directory($self->cfg->{dir} // $globalcfg->rootdir . '/pool');
+	return normalize_and_check_directory($self->cfg->{dir} // $self->fbak->rootdir . '/pool');
 };
 
 field do_fsync => sub { $self->cfg->{fsync} };
