@@ -5,6 +5,7 @@ set -e
 unset LANG
 export PERLLIB=lib
 PATH=bin:$PATH
+alias fruitbak='FRUITBAK=/var/tmp/fruitbak-test-backup fruitbak.pl'
 
 rm -rf /dev/shm/host /dev/shm/pool
 mkdir -p /dev/shm/host/pikachu /dev/shm/pool

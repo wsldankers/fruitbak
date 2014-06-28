@@ -57,8 +57,9 @@ sub get_value {
 	my $blessed = blessed($value);
 	return $value unless $blessed && $blessed eq 'Fruitbak::Config::Delayed';
 	local %Fruitbak::Config::File::conf = %$data;
+	delete $Fruitbak::Config::File::conf{$name};
 	for(;;) {
-		$value = $value->();
+		$value = $value->($self);
 		$blessed = blessed($value);
 		last unless $blessed && $blessed eq 'Fruitbak::Config::Delayed';
 	}

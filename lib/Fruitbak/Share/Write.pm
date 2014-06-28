@@ -24,6 +24,7 @@ field path => sub { $self->cfg->path // $self->cfg->mountpoint // $self->name };
 field mountpoint => sub { $self->cfg->mountpoint // $self->cfg->path // $self->name };
 field dir => sub { $self->backup->sharedir . '/' . mangle($self->name) };
 field fbak => sub { $self->backup->fbak };
+field host => sub { $self->backup->host };
 field backup;
 field cfg;
 field refbackup => sub { $self->backup->refbackup };
@@ -36,7 +37,7 @@ field error;
 field startTime;
 field endTime;
 field info => sub {
-	my @error = $self->error
+	my @error = (error => $self->error)
 		if $self->error_isset;
 	return {
 		name => $self->name,
@@ -105,8 +106,9 @@ sub run_precommand {
 	} elsif(defined $pre) {
 		my $status = system($pre);
 		if($status) {
-			my $name = $self->host->name;
-			die "pre-command for host '$name' exited with status $status\n";
+			my $name = $self->name;
+			my $host = $self->host->name;
+			die "pre-command for share '$name' of host '$host' exited with status $status\n";
 		}
 	}
 }
@@ -128,8 +130,9 @@ sub run_postcommand {
 	} elsif(defined $post) {
 		my $status = system($post);
 		if($status) {
-			my $name = $self->host->name;
-			warn "post-command for host '$name' exited with status $status\n";
+			my $name = $self->name;
+			my $host = $self->host->name;
+			warn "post-command for share '$name' of host '$host' exited with status $status\n";
 		}
 	}
 }
