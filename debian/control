@@ -7,7 +7,7 @@ Standards-Version: 3.9.1
 
 Package: fruitbak
 Architecture: all
-Depends: ${misc:Depends}, ${perl:Depends}, libclass-clarity-perl, libcrypt-openssl-random-perl, libcrypt-rijndael-perl, libdigest-sha-perl, libfile-hardhat-perl, libfile-hashset-perl, libfile-rsyncp-perl, libguard-perl, libjson-perl, libjson-xs-perl
+Depends: ${misc:Depends}, ${perl:Depends}, adduser, libclass-clarity-perl, libcrypt-openssl-random-perl, libcrypt-rijndael-perl, libdigest-sha-perl, libfile-hardhat-perl, libfile-hashset-perl, libfile-rsyncp-perl, libguard-perl, libjson-perl, libjson-xs-perl
 Description: Efficient disk-based backups
  Efficient disk-based backups. Features:
  .
