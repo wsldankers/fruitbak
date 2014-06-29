@@ -106,7 +106,7 @@ sub run_precommand {
 	if(ref $pre) {
 		$pre->($self);
 	} elsif(defined $pre) {
-		my $status = system($pre);
+		my $status = system(qw(/bin/sh -ec), $pre);
 		if($status) {
 			my $name = $self->name;
 			my $host = $self->host->name;
@@ -130,7 +130,7 @@ sub run_postcommand {
 		eval { $post->($self) };
 		warn $@ if $@;
 	} elsif(defined $post) {
-		my $status = system($post);
+		my $status = system(qw(/bin/sh -ec), $post);
 		if($status) {
 			my $name = $self->name;
 			my $host = $self->host->name;

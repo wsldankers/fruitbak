@@ -372,7 +372,7 @@ sub run_precommand {
 	if(ref $pre) {
 		$pre->($self);
 	} elsif(defined $pre) {
-		my $status = system($pre);
+		my $status = system(qw(/bin/sh -ec), $pre);
 		if($status) {
 			my $name = $self->host->name;
 			die "pre-command for host '$name' exited with status $status\n";
@@ -393,7 +393,7 @@ sub run_postcommand {
 		eval { $post->($self) };
 		warn $@ if $@;
 	} elsif(defined $post) {
-		my $status = system($post);
+		my $status = system(qw(/bin/sh -ec), $post);
 		if($status) {
 			my $name = $self->host->name;
 			warn "post-command for host '$name' exited with status $status\n";
