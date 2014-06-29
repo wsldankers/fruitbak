@@ -55,7 +55,7 @@ sub run {
 		my $host = $fbak->get_host($name);
 		my $expired = $host->expired($host);
 		foreach my $e (@$expired) {
-			warn "removing $name/$e\n";
+#			warn "removing $name/$e\n";
 			$host->remove_backup($e);
 		}
 	}
@@ -77,7 +77,7 @@ sub run {
 		}
 	}
 
-	warn "removed $removed out of $total pool files\n";
+#	warn "removed $removed out of $total pool files\n";
 
 	return 0;
 }
