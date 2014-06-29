@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Pool::Storage::Filesystem - store and retrieve chunks in files
+Fruitbak::Storage::Filesystem - store and retrieve chunks in files
 
 =head1 AUTHOR
 
@@ -28,16 +28,16 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Pool::Storage::Filesystem;
+package Fruitbak::Storage::Filesystem;
 
 use IO::File;
 use MIME::Base64;
 use File::Path qw(make_path);
 
 use Fruitbak::Util;
-use Fruitbak::Pool::Storage::Filesystem::Iterator;
+use Fruitbak::Storage::Filesystem::Iterator;
 
-use Fruitbak::Pool::Storage -self;
+use Fruitbak::Storage -self;
 
 field dir => sub {
 	return normalize_and_check_directory($self->cfg->{dir} // $self->fbak->rootdir . '/pool');
@@ -151,5 +151,5 @@ sub remove {
 }
 
 sub iterator {
-	return new Fruitbak::Pool::Storage::Filesystem::Iterator(storage => $self);
+	return new Fruitbak::Storage::Filesystem::Iterator(storage => $self);
 }

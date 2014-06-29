@@ -64,7 +64,7 @@ sub instantiate_storage {
 		eval "use $class ()";
 		die $@ if $@;
 	} elsif($name =~ /^\w+$/a) {
-		$class = "Fruitbak::Pool::Storage::\u$name";
+		$class = "Fruitbak::Storage::\u$name";
 		local $@;
 		eval "use $class ()";
 		die $@ if $@;

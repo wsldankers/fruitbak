@@ -224,6 +224,19 @@ sub get_share {
 	return $share;
 }
 
+=item share_exists($sharename)
+
+Given a name, returns a boolean indicating whether this share exists.
+
+=cut
+
+sub share_exists {
+	my $name = shift;
+	return 1 if $self->shares_cache->{$name};
+	my $sharedir = $self->sharedir;
+	return !!lstat($sharedir.'/'.mangle($name));
+}
+
 =item resolve_share($path)
 
 Given a path, will look for the share of this backup that has the longest

@@ -31,7 +31,9 @@ field refbackup => sub { $self->backup->refbackup };
 field refshare => sub {
     my $refbak = $self->refbackup;
     return undef unless $refbak;
-    return $refbak->get_share($self->name); 
+	my $name = $self->name;
+	return undef unless $refbak->share_exists($name);
+    return $refbak->get_share($name);
 };
 field error;
 field startTime;

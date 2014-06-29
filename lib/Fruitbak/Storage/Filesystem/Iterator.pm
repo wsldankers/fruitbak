@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Pool::Storage::Filesystem::Iterator - list fs pool contents
+Fruitbak::Storage::Filesystem::Iterator - list fs pool contents
 
 =head1 AUTHOR
 
@@ -28,7 +28,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Pool::Storage::Filesystem::Iterator;
+package Fruitbak::Storage::Filesystem::Iterator;
 
 use Fruitbak::Pool::Iterator -self;
 

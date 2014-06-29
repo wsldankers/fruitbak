@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Pool::Storage::Verify - check pool data as it is retrieved
+Fruitbak::Storage::Encrypt::Iterator - list encrypted pool contents
 
 =head1 AUTHOR
 
@@ -28,21 +28,18 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Pool::Storage::Verify;
+package Fruitbak::Storage::Encrypt::Iterator;
 
-use Fruitbak::Pool::Storage::Filter -self;
+use Fruitbak::Pool::Iterator -self;
 
+use IO::Dir;
 use MIME::Base64;
 
-field hashalgo => sub { $self->pool->hashalgo };
+field subiterator => sub { $self->storage->subpool->iterator };
 
-sub unapply {
-	my ($hash, $data) = @_;
-	my $calc = $self->hashalgo->($$data);
-	if($calc ne $hash) {
-		my $hash64 = encode_base64($hash);
-		my $calc64 = encode_base64($calc);
-		die "invalid checksum ($calc64) on chunk (expected $hash64)\n";
-	}
-	return $data;
+sub fetch {
+	my $hashes = $self->subiterator->fetch(@_);
+	return unless defined $hashes;
+	my $storage = $self->storage;
+	return [map { $storage->decrypt_hash($_) } @$hashes];
 }

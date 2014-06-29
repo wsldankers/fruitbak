@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Pool::Storage::Filter - base class for storage filters
+Fruitbak::Storage::Filter - base class for storage filters
 
 =head1 METHODS
 
@@ -39,9 +39,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Pool::Storage::Filter;
+package Fruitbak::Storage::Filter;
 
-use Fruitbak::Pool::Storage -self;
+use Fruitbak::Storage -self;
 
 field subpool => sub {
 	return $self->pool->instantiate_storage($self->cfg->{pool} // ['filesystem']);

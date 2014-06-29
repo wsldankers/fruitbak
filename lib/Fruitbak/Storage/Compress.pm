@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Pool::Storage::Encrypt::Iterator - list encrypted pool contents
+Fruitbak::Storage::Compress - allow for pooled data to be compressed
 
 =head1 AUTHOR
 
@@ -28,18 +28,25 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Pool::Storage::Encrypt::Iterator;
+package Fruitbak::Storage::Compress;
 
-use Fruitbak::Pool::Iterator -self;
+use IO::Compress::Gzip qw(gzip $GzipError);
+use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
 
-use IO::Dir;
-use MIME::Base64;
+use Fruitbak::Storage::Filter -self;
 
-field subiterator => sub { $self->storage->subpool->iterator };
+field level => sub { $self->cfg->{level} // 1 };
 
-sub fetch {
-	my $hashes = $self->subiterator->fetch(@_);
-	return unless defined $hashes;
-	my $storage = $self->storage;
-	return [map { $storage->decrypt_hash($_) } @$hashes];
+sub apply {
+	my ($hash, $data) = @_;
+	gzip($data, \my $res, -Level => $self->level)
+		or die "compression failed: $GzipError\n";
+	return \$res;
+}
+
+sub unapply {
+	my ($hash, $data) = @_;
+	gunzip($data, \my $res)
+		or die "decompression failed: $GunzipError\n";
+	return \$res;
 }

@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Pool::Storage::Compress - allow for pooled data to be compressed
+Fruitbak::Storage::Verify - check pool data as it is retrieved
 
 =head1 AUTHOR
 
@@ -28,25 +28,21 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Pool::Storage::Compress;
+package Fruitbak::Storage::Verify;
 
-use IO::Compress::Gzip qw(gzip $GzipError);
-use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
+use Fruitbak::Storage::Filter -self;
 
-use Fruitbak::Pool::Storage::Filter -self;
+use MIME::Base64;
 
-field level => sub { $self->cfg->{level} // 1 };
-
-sub apply {
-	my ($hash, $data) = @_;
-	gzip($data, \my $res, -Level => $self->level)
-		or die "compression failed: $GzipError\n";
-	return \$res;
-}
+field hashalgo => sub { $self->pool->hashalgo };
 
 sub unapply {
 	my ($hash, $data) = @_;
-	gunzip($data, \my $res)
-		or die "decompression failed: $GunzipError\n";
-	return \$res;
+	my $calc = $self->hashalgo->($$data);
+	if($calc ne $hash) {
+		my $hash64 = encode_base64($hash);
+		my $calc64 = encode_base64($calc);
+		die "invalid checksum ($calc64) on chunk (expected $hash64)\n";
+	}
+	return $data;
 }

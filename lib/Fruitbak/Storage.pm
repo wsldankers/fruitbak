@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Pool::Storage - store and retrieve chunks (abstract superclass)
+Fruitbak::Storage - store and retrieve chunks (abstract superclass)
 
 =head1 METHODS
 
@@ -56,7 +56,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Pool::Storage;
+package Fruitbak::Storage;
 
 use Class::Clarity -self;
 

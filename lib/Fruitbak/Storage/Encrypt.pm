@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Pool::Storage::Encrypt - allow for pooled data to be encrypted
+Fruitbak::Storage::Encrypt - allow for pooled data to be encrypted
 
 =head1 AUTHOR
 
@@ -28,9 +28,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Pool::Storage::Encrypt;
+package Fruitbak::Storage::Encrypt;
 
-use Fruitbak::Pool::Storage -self;
+use Fruitbak::Storage -self;
 
 use Crypt::Rijndael;
 use Crypt::OpenSSL::Random;
@@ -38,7 +38,7 @@ use Digest::SHA qw(hmac_sha512);
 use MIME::Base64;
 use IO::File;
 
-use Fruitbak::Pool::Storage::Encrypt::Iterator;
+use Fruitbak::Storage::Encrypt::Iterator;
 
 field hashsize => sub { $self->pool->hashsize };
 
@@ -165,7 +165,7 @@ sub remove {
 }
 
 sub iterator {
-	return new Fruitbak::Pool::Storage::Encrypt::Iterator(
+	return new Fruitbak::Storage::Encrypt::Iterator(
 		storage => $self,
 		subiterator => $self->subpool->iterator(@_),
 	);
