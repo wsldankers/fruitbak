@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Host::Expiry::All - expiry policy that expires everything
+Fruitbak::Expiry::None - expiry policy that expires nothing
 
 =head1 AUTHOR
 
@@ -28,10 +28,10 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Host::Expiry::All;
+package Fruitbak::Expiry::None;
 
-use Fruitbak::Host::Expiry -self;
+use Fruitbak::Expiry -self;
 
 sub expired {
-	return $self->host->backups;
+	return [];
 }

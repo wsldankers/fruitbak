@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Host::Expiry::Failed - expiry policy that expires failed backups
+Fruitbak::Expiry::Failed - expiry policy that expires failed backups
 
 =head1 AUTHOR
 
@@ -28,9 +28,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Host::Expiry::Failed;
+package Fruitbak::Expiry::Failed;
 
-use Fruitbak::Host::Expiry -self;
+use Fruitbak::Expiry -self;
 
 sub expired {
 	my $host = $self->host;

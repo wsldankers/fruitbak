@@ -99,7 +99,7 @@ field backups_cache => {};
 
 =item field expiry
 
-The expiration policy for this host, as a Fruitbak::Host::Expiry object
+The expiration policy for this host, as a Fruitbak::Expiry object
 (or a subclass). Do not set. For internal use.
 
 =cut
@@ -300,7 +300,7 @@ sub instantiate_expiry {
 		eval "use $class ()";
 		die $@ if $@;
 	} elsif($name =~ /^\w+$/a) {
-		$class = "Fruitbak::Host::Expiry::\u$name";
+		$class = "Fruitbak::Expiry::\u$name";
 		local $@;
 		eval "use $class ()";
 		die $@ if $@;

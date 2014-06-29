@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Host::Expiry::And - logical “and” operator for policies
+Fruitbak::Expiry - base class for expiry policies
 
 =head1 AUTHOR
 
@@ -28,28 +28,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Host::Expiry::And;
+package Fruitbak::Expiry;
 
-use Fruitbak::Host::Expiry -self;
+use Class::Clarity -self;
 
-field subpols => sub {
-	my $host = $self->host;
-	my $all = $self->cfg->{all};
-	die "no 'all' set configured for 'and' expiry policy\n"
-		unless defined $all;
-	return [map { $host->instantiate_expiry($_) } @$all];
-};
+weakfield fbak => sub { $self->host->fbak };
+weakfield host;
+field cfg;
 
-sub expired {
-	my $subpols = $self->subpols;
-	my $all = $self->host->backups;
-	my %all; @all{@$all} = ();
-	my %remaining; @remaining{@$all} = ();
-	foreach my $p (@$subpols) {
-		my $e = $p->expired;
-		my %inverse = %remaining;
-		delete @inverse{@$e};
-		delete @remaining{keys %inverse};
-	}
-	return [sort { $a <=> $b } map { int($_) } keys %remaining];
-}
+stub expired;

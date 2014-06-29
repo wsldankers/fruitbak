@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Host::Expiry::Not - logical “not” operator for policies
+Fruitbak::Expiry::Age - age-based expiry policy
 
 =head1 AUTHOR
 
@@ -28,21 +28,17 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Host::Expiry::Not;
+package Fruitbak::Expiry::Age;
 
-use Fruitbak::Host::Expiry -self;
+use Fruitbak::Expiry -self;
 
-field subpol => sub {
-    my $in = $self->cfg->{in};
-    die "no 'in' policy configured for 'not' expiry policy\n"
-        unless defined $in;
-	return $self->host->instantiate_expiry($in);
-};
+use Fruitbak::Util;
+
+field maxage => sub { parse_interval($self->cfg->{max} // die "no maxage configured\n") };
 
 sub expired {
-	my $all = $self->host->backups;
-	my %remaining; @remaining{@$all} = ();
-	my $e = $self->subpol->expired;
-	delete @remaining{@$e};
-	return [sort { $a <=> $b } map { int($_) } keys %remaining];
+	my $host = $self->host;
+	my $backups = $host->backups;
+	my $then = time - $self->maxage;
+	return [grep { $host->get_backup($_)->startTime < $then } @$backups];
 }

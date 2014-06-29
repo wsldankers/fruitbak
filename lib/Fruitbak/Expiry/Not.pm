@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Fruitbak::Host::Expiry - base class for expiry policies
+Fruitbak::Expiry::Not - logical “not” operator for policies
 
 =head1 AUTHOR
 
@@ -28,12 +28,21 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
-package Fruitbak::Host::Expiry;
+package Fruitbak::Expiry::Not;
 
-use Class::Clarity -self;
+use Fruitbak::Expiry -self;
 
-weakfield fbak => sub { $self->host->fbak };
-weakfield host;
-field cfg;
+field subpol => sub {
+    my $in = $self->cfg->{in};
+    die "no 'in' policy configured for 'not' expiry policy\n"
+        unless defined $in;
+	return $self->host->instantiate_expiry($in);
+};
 
-stub expired;
+sub expired {
+	my $all = $self->host->backups;
+	my %remaining; @remaining{@$all} = ();
+	my $e = $self->subpol->expired;
+	delete @remaining{@$e};
+	return [sort { $a <=> $b } map { int($_) } keys %remaining];
+}
