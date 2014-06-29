@@ -366,16 +366,17 @@ sub run {
 		}
 	} else {
 		push @table, ["Host name", "Last backup", "Index", "Type", "Level", "Status"];
-		$align[2, 4] = ('') x 2;
+		@align[2, 4] = ('') x 2;
 		my $hosts = $fbak->hosts;
 		foreach my $hostname (@$hosts) {
 			my @row = ($hostname);
 			my $host = $fbak->get_host($hostname);
 			my $backups = $host->backups;
 			if(@$backups) {
-				my $backup = $host->get_backup($backups->[-1]);
+				my $index = $backups->[-1];
+				my $backup = $host->get_backup($index);
 				push @row, strftime('%Y-%m-%d %H:%M:%S', localtime($backup->startTime)),
-					$backup->full ? 'full' : 'incr', $backup->level, $backup->failed ? 'fail' : 'done';
+					$index, $backup->full ? 'full' : 'incr', $backup->level, $backup->failed ? 'fail' : 'done';
 			}
 			push @table, \@row;
 		}
