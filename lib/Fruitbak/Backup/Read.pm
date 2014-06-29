@@ -172,8 +172,10 @@ in Fruitbak.
 field hashes => sub {
 	my $hashes = $self->dir . '/hashes';
 	unless(-e $hashes) {
-		File::Hashset->merge($hashes, $self->fbak->pool->hashsize,
+		File::Hashset->merge("$hashes.new", $self->fbak->pool->hashsize,
 			map { $self->get_share($_)->hashes } @{$self->shares});
+		rename("$hashes.new", $hashes)
+			or die "rename($hashes.new, $hashes): $!\n";
 	}
 	return File::Hashset->load($hashes);
 };

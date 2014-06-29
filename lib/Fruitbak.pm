@@ -271,8 +271,10 @@ about how digests are used in Fruitbak.
 
 sub hashes {
 	my $hashes = $self->rootdir . '/hashes';
-	File::Hashset->merge($hashes, $self->pool->hashsize,
+	File::Hashset->merge("$hashes.new", $self->pool->hashsize,
 		map { $self->get_host($_)->hashes } @{$self->hosts});
+	rename("$hashes.new", $hashes)
+		or die "rename($hashes.new, $hashes): $!\n";
 	return File::Hashset->load($hashes);
 }
 

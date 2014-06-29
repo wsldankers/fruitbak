@@ -365,8 +365,8 @@ sub run {
 			}
 		}
 	} else {
-		push @table, ["Host name", "Last backup", "Type", "Level", "Status"];
-		$align[3] = '';
+		push @table, ["Host name", "Last backup", "Index", "Type", "Level", "Status"];
+		$align[2, 4] = ('') x 2;
 		my $hosts = $fbak->hosts;
 		foreach my $hostname (@$hosts) {
 			my @row = ($hostname);
