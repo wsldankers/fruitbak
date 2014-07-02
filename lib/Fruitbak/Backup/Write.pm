@@ -429,7 +429,6 @@ Fruitbak::Backup::Read class. For internal use only.
 
 =cut
 
-# FIXME: register this object with the host object it belongs to
 sub finish {
 	my $number = $self->number;
 	my $host = $self->host;
@@ -451,6 +450,7 @@ sub finish {
 	$self->dir($dst);
 	$self->unlock;
 	bless $self, 'Fruitbak::Backup::Read';
+	$host->register_backup($self);
 }
 
 =head1 AUTHOR

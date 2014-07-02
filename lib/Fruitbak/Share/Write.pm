@@ -140,7 +140,6 @@ sub run_postcommand {
 }
 
 # finish the share and convert this object to a Fruitbak::Share::Read
-# FIXME: register this object with the backup object it belongs to
 sub finish {
 	my $hhm = $self->hhm;
 	$self->hhm_reset;

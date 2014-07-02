@@ -212,10 +212,26 @@ sub get_backup {
 	my $backup = $cache->{$number};
 	unless(defined $backup) {
 		$backup = new Fruitbak::Backup::Read(host => $self, number => $number);
-		$cache->{$number} = $backup;
-		weaken($cache->{$number});
+		$self->register_backup($backup);
 	}
 	return $backup;
+}
+
+=item register_backup($backup)
+
+Registers a backup with the cache, so that no two instances of a backup can
+exist at the same time. Only for internal use and from
+Fruitbak::Backup::Write objects when they register themselves after
+finishing.
+
+=cut
+
+sub register_backup {
+	my $backup = shift;
+	my $number = $backup->number;
+	my $cache = $self->backups_cache;
+	$cache->{$number} = $backup;
+	weaken($cache->{$number});
 }
 
 =item backup_exists($number)

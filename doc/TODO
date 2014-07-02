@@ -29,6 +29,9 @@ Initial goals:
 
  - includes/excludes
  - manpages
+ - fix class structure:
+   - only inherited classes should be in subdirs
+   - (Backup|Share)::(Read|Write) should be subclasses of (Backup|Share)
  - test suite
  - logging (per-backup, per-share)
  - warning e-mails
