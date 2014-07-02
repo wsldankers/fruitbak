@@ -4,6 +4,36 @@
 
 Fruitbak::Share::Write - Fruitbak class to write a share of a new backup
 
+=head1 SYNOPSIS
+
+ my $share = new Fruitbak::Share::Write(backup => $backup, cfg => $sharecfg);
+
+=head1 DESCRIPTION
+
+This class provides the methods and state to back up a share in a backup
+that is being created. It is used for the following purposes:
+
+=over
+
+=item * to orchestrate the running of the transfer method and any
+pre/postcommands;
+
+=item * to give the transfer method a way of storing file metadata;
+
+=item * to give the transfer method access to the right share of the
+reference backup;
+
+=back
+
+As with all Fruitbak classes, any errors will throw an exception (using
+‘die’). Use eval {} as required.
+
+=head1 CONSTRUCTOR
+
+The required arguments are ‘backup’ and ‘cfg’. However, you should
+never instantiate this class directly. It is created by
+Fruitbak::Backup::Write as part of the process of creating a new backup.
+
 =cut
 
 package Fruitbak::Share::Write;
@@ -19,15 +49,127 @@ use Fruitbak::Share::Format;
 use Fruitbak::Pool::Write;
 use Fruitbak::Transfer::Rsync;
 
-field name => sub { $self->cfg->name // die "share has no name" };
+
+=head1 FIELDS
+
+Fruitbak makes heavy use of Class::Clarity (the base class of this class).
+One of the features of Class::Clarity is ‘fields’: elements of the object
+hash with eponymous getters and setters. These fields can optionally have
+an initializer: a function that is called when no value is yet assigned to
+the hash element. For more information, see L<Class::Clarity>.
+
+=over
+
+=item field name
+
+The name of this share, as configured by the user. Do not set.
+
+=cut
+
+field name => sub {
+	my $name = $self->cfg->name;
+	return $name if defined $name;
+	my $host = $self->host->name;
+	die "share of host '$host' has no name\n";
+};
+
+=item field path
+
+The path (either local or remote) where the actual files of the share are
+located. May differ from mountpoint (below) if you've configured Fruitbak
+to create and mount a snapshot, for instance. This value is not remembered
+after the backup finishes.
+
+If no path is configured, the value for the mountpoint is used instead. If
+no mountpoint is configured either, the name of the share is taken to be
+the path.
+
+Do not set.
+
+=cut
+
 field path => sub { $self->cfg->path // $self->cfg->mountpoint // $self->name };
+
+=item field mountpoint
+
+The place where the backed up files can be found during normal operation
+of the host. This value is not used during the backup procedure but may be
+useful to find filesystems when browsing backups.
+
+If no mountpoint is configured, the configured value for the path is used
+instead. If no path is configured either, the name of the share is taken to
+be the mountpoint.
+
+Do not set.
+
+=cut
+
 field mountpoint => sub { $self->cfg->mountpoint // $self->cfg->path // $self->name };
+
+=item field dir
+
+The directory in which the metadata for this share will be written. Do not
+set.
+
+=cut
+
 field dir => sub { $self->backup->sharedir . '/' . mangle($self->name) };
+
+=item field fbak
+
+The Fruitbak object that is the root ancestor of this backup share. Do not
+set.
+
+=cut
+
 field fbak => sub { $self->backup->fbak };
+
+=item field host
+
+The Fruitbak::Host object to which this share belongs. Do not set.
+
+=cut
+
 field host => sub { $self->backup->host };
+
+=item field backup
+
+The Fruitbak::Backup::Write object to which this share belongs. Should be
+set during initialisation (by the Fruitbak::Backup::Write that creates
+this share). Do not change.
+
+=cut
+
 field backup;
+
+=item field cfg
+
+The Fruitbak::Config::Share object that this object uses to determine what
+it should backup where and how. Should be set during initialisation (by the
+Fruitbak::Backup::Write that creates this share). Do not change.
+
+=cut
+
 field cfg;
+
+=item field refbackup
+
+A Fruitbak::Backup::Read object that is used as a reference during the
+backup. In the case of an incremental backup, the transfer method should
+skip any files that have the same attributes (mtime, uid/gid, size, etc)
+as the corresponding file in this reference backup.
+
+But even full backups should use the digests in this share in order to skip
+chunks that are already in the pool.
+
+Do not set.
+
+=cut
+
 field refbackup => sub { $self->backup->refbackup };
+
+
+
 field refshare => sub {
     my $refbak = $self->refbackup;
     return undef unless $refbak;
