@@ -24,14 +24,14 @@ SHA256). This ensures that data is deduplicated. Files smaller than the
 configured chunk size are not split up. If a file is larger than the
 configured chunk size, it will have one or more chunks of exactly the
 chunk size and only the last part will be a smaller chunk (unless the
-file size happened to be an exact multiple of the chunk size).
+file size happened to be an exact multiple of the chunk size, of course).
 
 The actual chunk storage is handled by Fruitbak::Storage objects, which
 can be configured into a tree structure to provide features such as
 compression, encryption and access to cloud data.
 
 This class provides methods to store, retrieve and remove such chunks.
-For an easy way to split and reassemble file contents, see the
+For a convenient way to split and reassemble file contents, see the
 Fruitbak::Pool::Read and Fruitbak::Pool::Write classes.
 
 As with all Fruitbak classes, any errors will throw an exception (using
@@ -109,11 +109,35 @@ The size of the chunks in which files are split up.
 
 field chunksize => sub { $self->cfg->chunksize // 2097152 };
 
+=item field storage
+
+The root of the tree of Fruitbak::Storage objects that handles storing and
+retrieving chunks. For internal use only: do not access directly but always
+use the access method of the pool object.
+
+=back
+
+=cut
+
 field storage => sub {
 	my $cfg = $self->cfg;
 	my $storagecfg = $cfg->pool // ['filesystem'];
 	return $self->instantiate_storage($storagecfg);
 };
+
+=head1 METHODS
+
+=over
+
+=item instantiate_storage($storagecfg)
+
+Given a configuration arrayref, instantiate the corresponding
+Fruitbak::Storage object. This method is used by the pool object to
+instantiate its root object and by some storage objects to instantiate
+child nodes. Not for use in other contexts. Returns the instantiated
+storage object.
+
+=cut
 
 sub instantiate_storage {
 	my $storagecfg = shift;
@@ -138,37 +162,109 @@ sub instantiate_storage {
 	return $class->new(pool => $self, cfg => \%args);
 }
 
+=item store($hash, \$data)
+
+Given a hash and a reference to a scalar containing the data, stores the
+data. Does not return anything.
+
+=cut
+
 sub store {
 	$self->storage->store(@_);
 	return;
 }
 
+=item retrieve($hash)
+
+Given a hash, retrieves the corresponding data item. Returns a reference to
+a scalar containing the data, or undef if the requested chunk does not
+exist.
+
+=cut
+
 sub retrieve {
 	return $self->storage->retrieve(shift);
 }
 
+=item exists($hash)
+
+Returns a true value if a chunk exists with the specifief hash and false
+otherwise.
+
+=cut
+
 sub exists {
 	return $self->storage->exists(shift);
 }
+
+=item remove($hash)
+
+Removes the specified hash from the pool. It is not considered an error if
+the chunk didn't exist in the first place. Does not return anything.
+
+=cut
 
 sub remove {
 	$self->storage->remove(shift);
 	return;
 }
 
+=item iterator()
+
+Creates and returns an iterator for the pool. An iterator allows you to
+obtain a list of all hashes currently in the pool. See the
+Fruitbak::Storage::Iterator object for more information.
+
+=cut
+
 sub iterator {
 	return $self->storage->iterator(@_);
 }
+
+=item reader(digests => $digests)
+
+Given the concatenation of the hashes of a backed up file, returns a
+Fruitbak::Pool::Read object that can be used to access the data of that
+file.
+
+Any arguments to this method are passed to the constructor of
+Fruitbak::Pool::Read. See the Fruitbak::Pool::Read manpage for more
+details.
+
+=cut
 
 sub reader {
 	return new Fruitbak::Pool::Read(pool => $self, @_);
 }
 
+=item writer()
+
+Returns a Fruitbak::Pool::Write object, which you can use to write data to
+the pool. The writer will accumulate and split data as necessary to create
+chunks of the correct size and it will store these for you. When done, it
+will return the concatenation of all the hashes of the file and the total
+file size.
+
+Any arguments to this method are passed to the constructor of
+Fruitbak::Pool::Write. See the Fruitbak::Pool::Write manpage for more
+details.
+
+=cut
+
 sub writer {
 	return new Fruitbak::Pool::Write(pool => $self, @_);
 }
 
-# for debugging
+=item digestlist()
+
+Given a concatenated list of hashes, returns a text string with each line
+the Base64 representation of the corresponding hash in the input. For
+debugging purposes.
+
+=back
+
+=cut
+
 sub digestlist {
 	my $hashsize = $self->hashsize;
 	my @hashes = map { encode_base64($_, '')."\n" } unpack("(a$hashsize)*", shift);
