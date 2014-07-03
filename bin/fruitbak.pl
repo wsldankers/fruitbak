@@ -5,9 +5,13 @@ use warnings FATAL => 'all';
 
 our $pkglocalstatedir //= '.';
 our $pkgsysconfdir //= 'conf';
+our $pkgdatadir;
 
 use Fruitbak;
 use Fruitbak::Command;
+
+local $ENV{PATH} = "$pkgdatadir/bin:$PATH"
+	if defined $pkgdatadir;
 
 my $fbak = exists $ENV{FRUITBAK}
 	? new Fruitbak(rootdir => $ENV{FRUITBAK})
