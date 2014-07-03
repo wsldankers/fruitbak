@@ -25,7 +25,8 @@ for(;;) {
 
 print "#! $outvars{PERL}\n\nBEGIN {\n";
 
-while(my ($key, $val) = each %outvars) {
+foreach my $key (sort keys %outvars) {
+	my $val = $outvars{$key};
 	$val =~ s/[\\"\$\@]/\\$&/g;
 	print "\tour \$$key = \"$val\";\n";
 }
