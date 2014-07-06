@@ -10,7 +10,7 @@ our $pkgdatadir;
 use Fruitbak;
 use Fruitbak::Command;
 
-local $ENV{PATH} = "$pkgdatadir/bin:$PATH"
+local $ENV{PATH} = "$pkgdatadir/bin:$ENV{PATH}"
 	if defined $pkgdatadir;
 
 my $fbak = exists $ENV{FRUITBAK}
