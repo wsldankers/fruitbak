@@ -7,6 +7,9 @@ Fruitbak::Share::Write - Fruitbak class to write a share of a new backup
 =head1 SYNOPSIS
 
  my $share = new Fruitbak::Share::Write(backup => $backup, cfg => $sharecfg);
+ eval { $share->run };
+ warn $@ if $@;
+ $share->finish;
 
 =head1 DESCRIPTION
 
@@ -45,10 +48,10 @@ use Carp qw(confess);
 use JSON;
 use File::Hardhat::Maker;
 
+use Fruitbak::Dentry;
 use Fruitbak::Share::Format;
 use Fruitbak::Pool::Write;
 use Fruitbak::Transfer::Rsync;
-
 
 =head1 FIELDS
 
@@ -155,9 +158,18 @@ field cfg;
 =item field refbackup
 
 A Fruitbak::Backup::Read object that is used as a reference during the
+backup. See the refshare field for details. Do not set.
+
+=cut
+
+field refbackup => sub { $self->backup->refbackup };
+
+=item field refshare
+
+A Fruitbak::Share::Read object that is used as a reference during the
 backup. In the case of an incremental backup, the transfer method should
-skip any files that have the same attributes (mtime, uid/gid, size, etc)
-as the corresponding file in this reference backup.
+skip any files that have the same attributes (mtime, uid/gid, size, etc) as
+the corresponding file in this reference share.
 
 But even full backups should use the digests in this share in order to skip
 chunks that are already in the pool.
@@ -166,10 +178,6 @@ Do not set.
 
 =cut
 
-field refbackup => sub { $self->backup->refbackup };
-
-
-
 field refshare => sub {
     my $refbak = $self->refbackup;
     return undef unless $refbak;
@@ -177,9 +185,42 @@ field refshare => sub {
 	return undef unless $refbak->share_exists($name);
     return $refbak->get_share($name);
 };
+
+=item field error
+
+If a fatal error occurs during the backup, it is stored here so that it
+will be stored with the metadata for this share.
+
+=cut
+
 field error;
+
+=item startTime;
+
+The starting time of the share is stored here so it can be included in the
+metadata.
+
+=cut
+
 field startTime;
+
+=item endTime;
+
+The ending time of the share is stored here so it can be included in the
+metadata.
+
+=cut
+
 field endTime;
+
+=item field info
+
+This field gathers the various bits of information that need to be
+included in the metadata. Do not call until the backup is completely
+finished.
+
+=cut
+
 field info => sub {
 	my @error = (error => $self->error)
 		if $self->error_isset;
@@ -192,6 +233,15 @@ field info => sub {
 		@error,
 	};
 };
+
+=item field hhm
+
+This is the File::Hardhat::Maker object that will generate the hardhat file
+that contains the metadata for this share. For internal use only. Use
+add_entry if you wish to add entries from a transfer method.
+
+=cut
+
 field hhm => sub {
 	my $dir = $self->dir;
 
@@ -201,11 +251,42 @@ field hhm => sub {
 	return new File::Hardhat::Maker("$dir/metadata.hh");
 };
 
-# add a Fruitbak::Dentry to the database
+=item field transfer
+
+The Fruitbak::Transfer object that the user configured for this share. Do
+not set.
+
+=back
+
+=cut
+
+field transfer => sub {
+	my $cfg = $self->cfg->transfer // ['rsync'];
+	return $self->instantiate_transfer($cfg);
+};
+
+=head1 METHODS
+
+=over
+
+=item add_entry($dentry)
+
+Will add a Fruitbak::Dentry to the metadata of this share. Use this
+function when implementing a transfer method.
+
+=cut
+
 sub add_entry {
 	my $dentry = shift;
 	$self->hhm->add($dentry->name, attrformat($dentry));
 }
+
+=item run()
+
+Performs the actual backup of this share, by setting up the environment
+variables, running pre and postcommands and running the transfer.
+
+=cut
 
 sub run {
 	local $ENV{share} = $self->name;
@@ -234,11 +315,10 @@ sub run {
 	die $err if $err;
 }
 
-=over
-
 =item run_precommand
 
-Runs any configured precommand. Will die if it fails. For internal use
+Runs any configured precommand. Will die if the command fails. Assumes the
+necessary environment variables are already in place. For internal use
 only.
 
 =cut
@@ -259,10 +339,9 @@ sub run_precommand {
 
 =item run_postcommand
 
-Runs any configured postcommand. Will warn if it fails. For internal use
+Runs any configured postcommand. Will warn if the command fails. Assumes
+the necessary environment variables are already in place. For internal use
 only.
-
-=back
 
 =cut
 
@@ -281,11 +360,23 @@ sub run_postcommand {
 	}
 }
 
-# finish the share and convert this object to a Fruitbak::Share::Read
+=item finish()
+
+Finalize the share by closing the database and writing out the stats from
+the info field. When this function returns, the object is converted to the
+Fruitbak::Share::Read class.
+
+If this method fails it means the share data is in a bad way. The share
+directory needs to be removed from disk to prevent browsing and restore
+operations from reporting fatal database errors.
+
+=cut
+
 sub finish {
 	my $hhm = $self->hhm;
 	$self->hhm_reset;
-	$hhm->parents;
+	my $dentry = new Fruitbak::Dentry(mode => S_IFDIR | 0755, size => 0, mtime => 0, uid => 0, gid => 0);
+	$hhm->parents(attrformat($dentry));
 	$hhm->finish;
 
 	my $dir = $self->dir;
@@ -301,10 +392,13 @@ sub finish {
 	bless $self, 'Fruitbak::Share::Read';
 }
 
-field transfer => sub {
-	my $cfg = $self->cfg->transfer // ['rsync'];
-	return $self->instantiate_transfer($cfg);
-};
+=item instantiate_transfer($transfercfg)
+
+Given the bit of configuration that describes the transfer method, creates
+the corresponding object, which should be a subclass of Fruitbak::Transfer.
+For internal use only.
+
+=back
 
 sub instantiate_transfer {
 	my $transfercfg = shift;
