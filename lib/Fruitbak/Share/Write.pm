@@ -213,27 +213,6 @@ metadata.
 
 field endTime;
 
-=item field info
-
-This field gathers the various bits of information that need to be
-included in the metadata. Do not call until the backup is completely
-finished.
-
-=cut
-
-field info => sub {
-	my @error = (error => $self->error)
-		if $self->error_isset;
-	return {
-		name => $self->name,
-		path => $self->path,
-		mountpoint => $self->mountpoint,
-		startTime => $self->startTime,
-		endTime => $self->endTime,
-		@error,
-	};
-};
-
 =item field hhm
 
 This is the File::Hardhat::Maker object that will generate the hardhat file
@@ -360,6 +339,26 @@ sub run_postcommand {
 	}
 }
 
+=item info()
+
+Gathers the various bits of information that need to be included in the
+metadata. For internal use only.
+
+=cut
+
+sub info {
+	my @error = (error => $self->error)
+		if $self->error_isset;
+	return {
+		name => $self->name,
+		path => $self->path,
+		mountpoint => $self->mountpoint,
+		startTime => $self->startTime,
+		endTime => $self->endTime,
+		@error,
+	};
+}
+
 =item finish()
 
 Finalize the share by closing the database and writing out the stats from
@@ -399,6 +398,8 @@ the corresponding object, which should be a subclass of Fruitbak::Transfer.
 For internal use only.
 
 =back
+
+=cut
 
 sub instantiate_transfer {
 	my $transfercfg = shift;

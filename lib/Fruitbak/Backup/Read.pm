@@ -12,7 +12,8 @@ Fruitbak::Backup::Read - Fruitbak class to access a specific backup of a host
 
 =head1 DESCRIPTION
 
-Use this class to access existing backups.
+Use this class to access existing backups. You can query metadata, list
+shares and get handles to specific shares.
 
 As with all Fruitbak classes, any errors will throw an exception (using
 ‘die’). Use eval {} as required.
