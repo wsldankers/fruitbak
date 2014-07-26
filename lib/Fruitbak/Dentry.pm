@@ -2,29 +2,52 @@
 
 =head1 NAME
 
-Fruitbak::Dentry - bookkeeping for filesystem entries
+Fruitbak::Dentry - bookkeeping for filesystem entries inside Fruitbak
 
-=head1 AUTHOR
+=head1 SYNOPSIS
 
-Wessel Dankers <wsl@fruit.je>
+ my $dentry = new Fruitbak::Dentry(name => 'foo/bar', mode => ...);
 
-=head1 COPYRIGHT
+=head1 DESCRIPTION
 
-Copyright (c) 2014 Wessel Dankers <wsl@fruit.je>
+Objects of this type represent entries in a filesystem, including the name,
+metadata such as file size and last modification time, as well as file type
+specific information such as symlink destinations or block device major
+and minor numbers.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+These objects are used in Fruitbak to represent filesystem entries both
+when they are stored as part of the process of creating a backup, and when
+listing or retrieving files in an existing backup.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
+These objects are used in Fruitbak to represent filesystem entries both
+when they are stored as part of the process of creating a backup, and when
+retrieving files 
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+Specific to Fruitbak is the digests information: the list of digests of the
+data chunks that when concatenated form the contents of the file.
+
+Hardlinks in Fruitbak are handled in a way that is more similar to symlinks
+than the usual unix system of inode indirection. Hardlinks do not have
+target file type specific information (such as digest lists) themselves; to
+get that information you need to retrieve the entry using the name returned
+by the hardlink function.
+
+All metadata (such as size, file ownership, file type, etcetera) is stored
+with the hardlink as it was found on the filesystem, which means it is
+usually the same as the hardlink destination. It may differ if, for
+example, the file was modified between backing up the hardlink and its
+target.
+
+Please note that most unix implementations allow you to create hardlinks
+to not only plain files but also to block/character device nodes, named
+pipes, unix domain sockets and even to symlinks. Only hardlinks to
+directories are generally not possible.
+
+Some functions that return a Fruitbak::Dentry entry may return a
+Fruitbak::Dentry::Hardlink object instead, which is a convenience wrapper
+that behaves more like a hardlink would on a unix filesystem: functions to
+access the filetype specific data will return data from the hardlink target
+instead. See the Fruitbak::Dentry::Hardlink manpage for more detail.
 
 =cut
 
@@ -35,22 +58,139 @@ use Class::Clarity -self;
 use Fcntl qw(:mode);
 use Scalar::Util qw(blessed);
 
+=head1 CONSTRUCTOR
+
+No arguments are required by Fruitbak::Dentry itself: objects of this
+class simply hold the information they're given and don't do much other
+than providing access to it.
+
+=head1 CONSTANTS
+
+=over
+
+=item R_HARDLINK
+
+This bit is set in 
+
 use constant R_HARDLINK => 0x40000000;
 
+=head1 FIELDS
+
+Fruitbak makes heavy use of Class::Clarity (the base class of this class).
+One of the features of Class::Clarity is ‘fields’: elements of the object
+hash with eponymous getters and setters. These fields can optionally have
+an initializer: a function that is called when no value is yet assigned to
+the hash element. For more information, see L<Class::Clarity>.
+
+=over
+
+=item field name
+
+The filesystem path of this entry. 
+
+=cut
+
 field name;
+
+=item field mode
+
+The permission and file type bits. The meaning of each bit is the same as
+for the mode returned by stat().
+
+=cut
+
 field mode;
+
+=item field size
+
+The size as it was reported by the filesystem. Note that for regular files
+that could not be read, the size may be non-zero even though the digest
+list is empty. However, if there are digests, the size field is guaranteed
+(by the transfer method) to be equal to the bytes that were actually read
+from the filesystem and stored in the Fruitbak pool.
+
+=cut
+
 field size;
+
+=item field mtime_ns
+
+The last modification time, in nanoseconds since the unix epoch.
+
+=cut
+
 field mtime_ns;
+
+=item field uid
+
+The numeric user ID of the owner of this entry.
+
+=cut
+
 field uid;
+
+=item field gid
+
+The numeric group ID of the owner of this entry.
+
+=cut
+
 field gid;
+
+=item field extra
+
+The filetype specific data for this directory entry, in a binary form
+suitable for storing in the metadata database. Do not set.
+
 field extra => '';
+
+=item field inode
+
+The inode number for this entry, either the value as it was read from the
+original filesystem or the dummy inode number that Fruitbak (or rather,
+File::Hardhat) assigns to it when reading from the database. In the case
+of hardlinks, the inode numbers of the hardlink and its target are not
+guaranteed to be the same (or to differ, for that matter).
+
+=cut
+
 field inode;
 
+=back
+
+=head1 METHODS
+
+=over
+
+=item target()
+
+For compatibility with Fruitbak::Dentry::Hardlink objects. This method
+simply returns the object itself.
+
+=cut
+
 sub target { return $self }
+
+=item target()
+
+For compatibility with Fruitbak::Dentry::Hardlink objects. This method
+simply returns the object itself.
+
+=cut
+
 sub original { return $self }
 
+=item digests([$newvalue])
+
+Get or set the list of digests. The (optional) argument and return value are
+a simple scalar that the concatenation of the digests. Calling this
+function with an argument sets the digests, calling it without an argument
+retrieves them.
+
+=cut
+
 sub digests {
-	confess("trying to treat an unreferenced hardlink as a device")
+	confess("trying to treat an unreferenced hardlink as a regular file")
 		if $self->is_hardlink;
 	confess("attempt to access digests for something that is not a file")
 		unless $self->is_file;
@@ -157,3 +297,27 @@ sub dump {
 
 	return $res;
 }
+
+=head1 AUTHOR
+
+Wessel Dankers <wsl@fruit.je>
+
+=head1 COPYRIGHT
+
+Copyright (c) 2014,2015 Wessel Dankers <wsl@fruit.je>
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
