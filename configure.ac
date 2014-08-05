@@ -1,5 +1,5 @@
 AC_INIT([fruitbak], [0.0])
-AM_INIT_AUTOMAKE([foreign subdir-objects])
+AM_INIT_AUTOMAKE([foreign subdir-objects dist-xz])
 
 AC_CONFIG_SRCDIR(bin/fruitbak.pl)
 
