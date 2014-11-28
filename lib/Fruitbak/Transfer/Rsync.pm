@@ -2,29 +2,28 @@
 
 =head1 NAME
 
-Fruitbak::Transfer::Rsync - transfer files using rsync
+Fruitbak::Transfer::Rsync - Fruitbak class to transfer files using rsync
 
-=head1 AUTHOR
+=head1 SYNOPSIS
 
-Wessel Dankers <wsl@fruit.je>
+ my $rsync = new Fruitbak::Transfer::Rsync(share => $share, cfg => \%cfg);
+ $rsync->recv_files;
 
-=head1 COPYRIGHT
+=head1 DESCRIPTION
 
-Copyright (c) 2014  Wessel Dankers <wsl@fruit.je>
+This class uses the rsync protocol to transfer files from clients and store
+them in a Fruitbak::Share::Write object. It calls $share->add_entry for
+every file found.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+The rsync protocol is not implemented by this class. It interfaces with a
+separate program (fruitbak-rsyncp-recv) which in turn uses File::RsyncP to
+do the heavy lifting. To communicate with fruitbak-rsyncp-recv we use a
+simple binary RPC protocol.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+The reason for this split is two-fold: first, File::RsyncP expects to be
+able to use fork(), which wreaks havoc on any open file, socket and
+database handles. Second, it allows for parallelization of the rsync
+process and Fruitbak's own I/O.
 
 =cut
 
@@ -41,17 +40,96 @@ use File::Hashset;
 
 use Fruitbak::Transfer::Rsync::RPC;
 
+=head1 FIELDS
+
+Fruitbak makes heavy use of Class::Clarity (the base class of this class).
+One of the features of Class::Clarity is ‘fields’: elements of the object
+hash with eponymous getters and setters. These fields can optionally have
+an initializer: a function that is called when no value is yet assigned to
+the hash element. For more information, see L<Class::Clarity>.
+
+=over
+
+=item field fbak
+
+The Fruitbak object that is the root ancestor of this transfer method. Do
+not set.
+
+=cut
+
 weakfield fbak => sub { $self->host->fbak };
+
+=item pool
+
+The pool object that will be used to store and retrieve file data. Do not
+set.
+
 weakfield pool => sub { $self->fbak->pool };
+
+=cut
+
+=item host
+
+The host to which this newly created share belongs. Do not set.
+
+=cut
+
 weakfield host => sub { $self->backup->host };
+
+=item backup
+
+The backup to which this newly created share belongs. Do not set.
+
+=cut
+
 weakfield backup => sub { $self->share->backup };
+
+=item share
+
+The share that will receive the remote files.
+
+=cut
+
 weakfield share;
+
+=item cfg
+
+The configuration for this transfer method. Should be a hash with keys
+as described in the configuration manual. Any host-wide configuration
+variables should be pre-merged, that is, Fruitbak::Transfer::Rsync will
+only check this one hash for configuration parameters.
+
+=cut
+
 field cfg;
+
+=item command
+
+The command, as configured, to start the rsync server counterpart on the
+remote machine. This command is passed to the helper tool.
+
+=cut
+
 field command => sub {
 	$self->cfg->{command} //
 		q{exec ssh ${port+-p "$port"} ${user+-l "$user"} $host exec rsync "$@"}
 };
+
+=item refbackup
+
+The Fruitbak::Backup::Read object to which the refshare belongs.
+
+=cut
+
 field refbackup => sub { $self->share->refbackup };
+
+=item refshare
+
+A Fruitbak::Share::Read object that serves as a reference for the currently
+running backup. 
+
+=cut
+
 field refshare => sub { $self->share->refshare };
 field refhashes => sub {
 	my $refbackup = $self->refbackup;
@@ -367,3 +445,27 @@ die "REMOVE BEFORE FLIGHT" if $path eq '/';
 	}
 	return;
 }
+
+=head1 AUTHOR
+
+Wessel Dankers <wsl@fruit.je>
+
+=head1 COPYRIGHT
+
+Copyright (c) 2014  Wessel Dankers <wsl@fruit.je>
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
