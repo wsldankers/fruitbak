@@ -126,27 +126,156 @@ field refbackup => sub { $self->share->refbackup };
 =item refshare
 
 A Fruitbak::Share::Read object that serves as a reference for the currently
-running backup. 
+running backup. Do not set.
 
 =cut
 
 field refshare => sub { $self->share->refshare };
+
+=item refhashes
+
+A File::Hashset object that may be queried to see if hashes are already in
+the pool. Do not set.
+
+=cut
+
 field refhashes => sub {
 	my $refbackup = $self->refbackup;
 	return undef unless defined $refbackup;
 	return $refbackup->hashes;
 };
+
+=item hashsize
+
+The length of the hashes as stored in the pool. Do not set.
+
+=cut
+
 field hashsize => sub { $self->pool->hashsize };
+
+=item curfile
+
+When receiving files, this is a handle to the Fruitbak::Pool::Write object
+that will process the file contents for the file that is currently being
+received. For internal use only.
+
+=cut
+
 field curfile;
+
+=item curfile_attrs
+
+The attributes (as received from File::RsyncP) for the file currently being
+processed. When done receiving the file they will be stored as its metadata.
+
+=cut
+
 field curfile_attrs;
+
+=item curfile_blocksize
+
+The rsync blocksize for the file that is currently being received. We keep
+this information because we may need to feed it to File::RsyncP::Digest if
+we're doing differential transmissions.
+
+=cut
+
 field curfile_blocksize;
+
+=item deltafile
+
+When doing differential transmissions of files, this is the
+Fruitbak::Pool::Read object that we use as the basis for bits that rsync
+has determined are unmodified and can be copied without transferring them
+over the network.
+
+This must be the same data that was used to generate checksums from, but
+because rsync is parallellized to a large degree, csumfile (see below) may
+already point to the next file that is being processed.
+
+=cut
+
 field deltafile;
+
+=item csumfile
+
+When doing differential transmissions of files, this is the
+Fruitbak::Pool::Read object that we use when File::RsyncP requests
+checksums for a file.
+
+This must be the same data that will be used later on to fill in parts that
+were determined to already be available, but because rsync is parallellized
+to a large degree, deltafile (see above) may still point to a previous file
+when we're already generating checksums for the next.
+
+=cut
+
 field csumfile;
+
+=item protocol_version
+
+The rsync protocol version, needed for File::RsyncP::Digest if
+we're doing differential transmissions.
+
+=cut
+
 field protocol_version;
+
+=item checksumSeed
+
+The seed for rsync's checksum algorithm, needed for File::RsyncP::Digest if
+we're doing differential transmissions.
+
+=cut
+
 field checksumSeed;
+
+=item digest
+
+The File::RsyncP::Digest object that we will use for generating block
+digests when we're doing differential transmissions. Since it does not
+(need to) keep state for this usage, we keep the same instance around for
+the entire lifetime of this Fruitbak::Transfer::Rsync object.
+
+=cut
+
 field digest => sub { new File::RsyncP::Digest($self->protocol_version) };
+
+=item csumDigest
+
+The File::RsyncP::Digest object that we will use for generating whole-file
+MD4 digests when we're doing differential transmissions. To this end it
+needs to keep the MD4 state, so this field only has a value when we're
+actually calculating MD4 digests for a file, and we destroy it when we're
+done with it.
+
+=cut
+
 field csumDigest => sub { new File::RsyncP::Digest($self->protocol_version) };
+
+=item rpc
+
+The internal filehandle that we use to communicate with the File::RsyncP
+wrapper.
+
+=cut
+
 field rpc;
+
+=back
+
+=head1 FUNCTIONS
+
+=over
+
+=item attrs2dentry($attrs, ...)
+
+Converts an attributes hash (in the format that File::RsyncP uses) to a
+Fruitbak::Dentry object. The first argument should be a File::RsyncP
+attributes hash, any subsequent arguments will be passed as-is to the
+Fruitbak::Dentry constructor.
+
+=cut
 
 sub attrs2dentry() {
 	my $attrs = shift;
@@ -172,6 +301,13 @@ sub attrs2dentry() {
 	return $dentry;
 }
 
+=item dentry2attrs($dentry)
+
+Converts a Fruitbak::Dentry object to an attributes hash in the format that
+File::RsyncP uses.
+
+=cut
+
 sub dentry2attrs() {
 	my $dentry = shift;
 	return undef unless defined $dentry;
@@ -192,6 +328,20 @@ sub dentry2attrs() {
 	return \%attrs;
 }
 
+=back
+
+=head1 METHODS
+
+=over
+
+=item setup_reffile($which)
+
+This is the method that is used to set up csumfile and deltafile (see
+above). The which argument is a simple string that is either "csumfile" or
+"deltafile". If the file does not exist, it unsets the requested field.
+
+=cut
+
 sub setup_reffile {
 	my ($attrs, $which) = @_;
 	my $reset = $which.'_reset';
@@ -208,6 +358,15 @@ sub setup_reffile {
 	}
 }
 
+=item attribGet($attrs)
+
+This File::RsyncP callback retrieves file attributes from the reference
+backup, given the attributes as they were detected on the remote filesystem
+by rsync, so that File::RsyncP can compare them to see if the file needs
+transferring.
+
+=cut
+
 sub attribGet {
 	return undef if $self->backup->full;
 	my $attrs = shift;
@@ -217,10 +376,19 @@ sub attribGet {
 	return undef unless $dentry && $dentry->is_file;
 	my $a = dentry2attrs($dentry);
 	$a->{name} = $attrs->{name};
+	# rsync's model of hardlinks is a bit weird, kludge around that
 	$a->{hlink_self} = $attrs->{hlink_self}
 		if exists $attrs->{hlink_self};
 	return $a;
 }
+
+=item fileDeltaRxStart($attrs, $numblocks, $blocksize, $lastblocksize)
+
+Invocation of this File::RsyncP callback indicates that rsync wants to
+transfer file data. We record the information we get through the arguments
+and use the opportunity to set up the curfile and deltafile fields.
+
+=cut
 
 sub fileDeltaRxStart {
 	my ($attrs, $numblocks, $blocksize, $lastblocksize) = @_;
@@ -237,6 +405,14 @@ sub fileDeltaRxStart {
 	$self->curfile_blocksize($blocksize);
 }
 
+=item fileDeltaRxNext($blocknum, $data)
+
+This File::RsyncP callback is called whenever rsync has new available data
+or has detected that we can reuse some data from the previous version of
+this file (deltafile).
+
+=cut
+
 sub fileDeltaRxNext {
 	my $blocknum = shift;
 	my $curfile = $self->curfile;
@@ -251,6 +427,14 @@ sub fileDeltaRxNext {
 	return 0;
 }
 
+=item fileDeltaRxDone($hashes, $size)
+
+This File::RsyncP callback is called when rsync is finished transferring
+the file data. This is where we store the Fruitbak digests and regular
+metadata.
+
+=cut
+
 sub fileDeltaRxDone {
 	my ($hashes, $size) = $self->curfile->close;
 	my $dentry = attrs2dentry($self->curfile_attrs, digests => $hashes, size => $size);
@@ -258,6 +442,16 @@ sub fileDeltaRxDone {
 	$self->curfile_reset;
 	return undef;
 }
+
+=item csumStart($attrs, $needMD4, $blockSize, $phase)
+
+This is the File::RsyncP callback that it calls when it has found a file on
+the remote end that we have in our reference backup. File::RsyncP calling
+this indicates that it will ask us for checksums of this file. We record
+the information we get through the arguments and use the opportunity to set
+up the csumfile field.
+
+=cut
 
 sub csumStart {
     my ($attrs, $needMD4, $blockSize, $phase) = @_;
@@ -274,6 +468,13 @@ sub csumStart {
 
 	return $blockSize;
 }
+
+=item csumGet($num, $csumLen, $blockSize)
+
+This is the File::RsyncP callback that it calls when it wants more
+rsync-style checksums on the current file.
+
+=cut
 
 sub csumGet {
 	confess("csumGet called without a csum_file\n")
@@ -292,14 +493,21 @@ sub csumGet {
 	return $self->digest->blockDigest($$data, $blockSize, $csumLen, $self->checksumSeed);
 }
 
+=item csumEnd()
+
+This File::RsyncP callback indicates that File::RsyncP has all the
+checksums that it needs for this file. Cleans up csumfile and csumDigest;
+returns the MD4 checksum if it was requested in csumStart.
+
+=cut
+
 sub csumEnd {
 	confess("csumEnd called without a csum_file\n")
 		unless $self->csumfile_isset;
-	my $csumfile = $self->csumfile;
-	$self->csumfile_reset;
+	my $csumfile = $self->csumfile_reset;
 	if($self->csumDigest_isset) {
 		# read the rest of the file for the MD4 digest
-		my $csumDigest = $self->csumDigest;
+		my $csumDigest = $self->csumDigest_reset;
 		for(;;) {
 			my $data = $csumfile->read;
 			last if $data eq '';
@@ -310,6 +518,16 @@ sub csumEnd {
 	return undef;
 }
 
+=item attribSet($attrs, $placeHolder)
+
+This File::RsyncP callback is called when rsync has detected either a
+non-file entry or an existing file that has similar enough attributes that
+it doesn't warrant file content transfer. It is our cue to add the
+entry to the backup. In the case of the existing file, we "copy" the
+file contents by reusing the digest list.
+
+=cut
+
 sub attribSet {
 	my ($attrs, $placeHolder) = @_;
 
@@ -319,8 +537,9 @@ sub attribSet {
 		if(my $refshare = $self->refshare) {
 			if(my $ref = $refshare->get_entry($attrs->{name})) {
 				unless($ref->is_file) {
-					# If the type of the file changes, File::RsyncP may
-					# behave strangely. Handle that.
+					# If the type of the file changes, File::RsyncP
+					# sometimes behaves strangely. Handle that case
+					# by simply ignoring it.
 					return undef;
 				}
 				$dentry->size($ref->size);
@@ -332,6 +551,13 @@ sub attribSet {
 	return undef;
 }
 
+=item reply_rpc($data)
+
+Send RPC data to our File::RsyncP wrapper child process and check for any
+error conditions.
+
+=cut
+
 sub reply_rpc {
 	my $in = $self->rpc;
 	my $buf = pack('L', length($_[0])) . $_[0];
@@ -340,9 +566,18 @@ sub reply_rpc {
 	confess("short write") if $r < length($buf);
 }
 
+=item recv_files()
+
+Implementation of the entry point for transfer methods. It forks off the
+File::RsyncP wrapper child process and implements the RPC protocol.
+
+=cut
+
 sub recv_files {
 	local $SIG{PIPE} = 'IGNORE';
 	my $path = $self->share->path;
+# calling fruitbak on a share with path / is probably a bug
+# as long as exclusions aren't implemented yet.
 die "REMOVE BEFORE FLIGHT" if $path eq '/';
 	$path =~ s{(?:/+\.?)?$}{/.}a;
 	my $pid = open2(my $out, my $in,
