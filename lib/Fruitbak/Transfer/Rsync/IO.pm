@@ -4,27 +4,49 @@
 
 Fruitbak::Transfer::Rsync::IO - mediate between Fruitbak and File::RsyncP
 
-=head1 AUTHOR
+=head1 SYNOPSIS
 
-Wessel Dankers <wsl@fruit.je>
+ my $lock = new File::Temp(EXLOCK => 0);
 
-=head1 COPYRIGHT
+ my $fio = new Fruitbak::Transfer::Rsync::IO(
+ 	in => $in,
+ 	out => $out,
+ 	lockfh => $lock,
+ 	lockpid => $$,
+ );
 
-Copyright (c) 2014,2015 Wessel Dankers <wsl@fruit.je>
+ my $rs = new File::RsyncP({fio => $fio});
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+=head1 DESCRIPTION
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
+This class implements the File::RsyncP::FileIO by marshalling all calls
+over RPC. Each time a method is invoked, an RPC call is sent out over the
+"out" filehandle. If the call requires a response, it is read from the "in"
+filehandle. On the other end should be a class like
+Fruitbak::Transfer::Rsync that responds to the RPC calls.
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+File::RsyncP forks the process, causing multiple clones of an
+Fruitbak::Transfer::Rsync::IO object to spring into existence. This is, in
+fact, one of the main reasons to run this code in a seperate process with
+an RPC tether.
+
+The important consequences of forking for our RPC channel is that multiple
+processes may be reading from and writing to the channel at the same time.
+That means we have to maintain a lock. Because it is well-defined across
+forks, flock()-based locking was selected for this job.
+
+We assume that the input and output file handles are POSIX pipes. This
+means writes of up to PIPE_BUF bytes are atomic. We can exploit that
+feature to maximize parallellism by using both shared and exclusive locks.
+
+Exclusive locks are needed when the write is non-atomic, and/or the RPC
+call requires a reply. When the write is atomic and no reply is required,
+we can obtain a shared lock. This will excluded the processes that are
+sending complicated calls while all processes that send simple calls can
+process those in parallel.
+
+The wire protocol is described in more detail in
+Fruitbak::Transfer::Rsync::RPC.
 
 =cut
 
@@ -38,11 +60,72 @@ use Guard;
 
 use Class::Clarity -self;
 
+=head1 FIELDS
+
+Fruitbak makes heavy use of Class::Clarity (the base class of this class).
+One of the features of Class::Clarity is ‘fields’: elements of the object
+hash with eponymous getters and setters. These fields can optionally have
+an initializer: a function that is called when no value is yet assigned to
+the hash element. For more information, see L<Class::Clarity>.
+
+=over
+
+=item needMD4
+
+Set during csumStart, this fields indicates whether an MD4 checksum was
+requested by File::RsyncP for this checksum run. Iff this field is set
+(either false or true), a csum run is in progress.
+
+=cut
+
 field needMD4;
+
+=item blockSize
+
+Used by File::RsyncP to store the blockSize of the current transfer.
+
+=cut
+
 field blockSize;
+
+=item preserve_hard_links
+
+Used by File::RsyncP to store whether hardlinks will be preserved.
+
+=cut
+
 field preserve_hard_links;
-field lockname => sub { $self->lockfh->filename };
+
+=item lockfh
+
+The filehandle of a file that will be used for locking. It must still exist
+on the filesystem (in other words, it must not be deleted).
+Should usually be an instance of File::Temp (with EXLOCK set to false).
+This file should persist during the rsync transfer run, so keep it around
+in a seperate variable while File::RsyncP is running. Do not change after
+initialization.
+
+=cut
+
 field lockfh;
+
+=item lockname
+
+The filename of the lockfile. If not explicitly set, will be determined by
+calling lockfh->filename. File::Temp objects support this method. Do not
+change after initialization.
+
+=cut
+
+field lockname => sub { $self->lockfh->filename };
+
+=item lockpid
+
+The pid of the process that initially opened the lockfile. Should usually
+simply be $$.
+
+=cut
+
 field lockpid => 0;
 field in;
 field out;
@@ -211,3 +294,27 @@ sub statsGet {{}}
 sub finish {
 	$self->send_rpc(RSYNC_RPC_finish, '');
 }
+
+=head1 AUTHOR
+
+Wessel Dankers <wsl@fruit.je>
+
+=head1 COPYRIGHT
+
+Copyright (c) 2014,2015 Wessel Dankers <wsl@fruit.je>
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut

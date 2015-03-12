@@ -56,7 +56,6 @@ open(STDOUT, '>&', \*STDERR)
 my $fio = new Fruitbak::Transfer::Rsync::IO(
 	in => $in,
 	out => $out,
-	lockname => $lock->filename,
 	lockfh => $lock,
 	lockpid => $$,
 );
