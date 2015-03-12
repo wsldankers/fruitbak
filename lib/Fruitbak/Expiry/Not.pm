@@ -33,9 +33,9 @@ package Fruitbak::Expiry::Not;
 use Fruitbak::Expiry -self;
 
 field subpol => sub {
-    my $in = $self->cfg->{in};
-    die "no 'in' policy configured for 'not' expiry policy\n"
-        unless defined $in;
+	my $in = $self->cfg->{in};
+	die "no 'in' policy configured for 'not' expiry policy\n"
+		unless defined $in;
 	return $self->host->instantiate_expiry($in);
 };
 

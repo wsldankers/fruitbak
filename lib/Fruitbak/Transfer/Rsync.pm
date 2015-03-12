@@ -454,7 +454,7 @@ up the csumfile field.
 =cut
 
 sub csumStart {
-    my ($attrs, $needMD4, $blockSize, $phase) = @_;
+	my ($attrs, $needMD4, $blockSize, $phase) = @_;
 
 	$self->csumEnd if $self->csumfile_isset;
 

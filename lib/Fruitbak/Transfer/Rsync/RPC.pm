@@ -11,7 +11,7 @@ Fruitbak::Transfer::Rsync::RPC - mediate between Fruitbak and File::RsyncP
  	last;
  } elsif($cmd == RSYNC_RPC_attribGet) {
  	my $attrs = my_handle_attribGet(parse_attrs($data));
-    print $fh serialize_attrs($attrs);
+ 	print $fh serialize_attrs($attrs);
  } elseif(...) {
  	...
  }

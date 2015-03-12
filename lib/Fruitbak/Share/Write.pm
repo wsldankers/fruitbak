@@ -179,11 +179,11 @@ Do not set.
 =cut
 
 field refshare => sub {
-    my $refbak = $self->refbackup;
-    return undef unless $refbak;
+	my $refbak = $self->refbackup;
+	return undef unless $refbak;
 	my $name = $self->name;
 	return undef unless $refbak->share_exists($name);
-    return $refbak->get_share($name);
+	return $refbak->get_share($name);
 };
 
 =item field error

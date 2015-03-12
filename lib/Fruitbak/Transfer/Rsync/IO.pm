@@ -10,7 +10,7 @@ Wessel Dankers <wsl@fruit.je>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2014  Wessel Dankers <wsl@fruit.je>
+Copyright (c) 2014,2015 Wessel Dankers <wsl@fruit.je>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -164,7 +164,7 @@ sub fileDeltaRxDone {
 }
 
 sub csumStart {
-    my ($attrs, $needMD4, $blockSize, $phase) = @_;
+	my ($attrs, $needMD4, $blockSize, $phase) = @_;
 	$self->needMD4($needMD4);
 	$self->send_rpc(RSYNC_RPC_csumStart, pack('LCC', $blockSize, $needMD4 ? 1 : 0, $phase).serialize_attrs($attrs));
 	return $blockSize;

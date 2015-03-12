@@ -48,18 +48,18 @@ field do_fsync => sub { $self->cfg->{fsync} };
 field chunksize => sub { $self->pool->chunksize };
 
 sub digest2path {
-    my $digest = shift;
+	my $digest = shift;
 
 	my $b64 = encode_base64($digest, '');
 	$b64 =~ tr{/}{_};
 	$b64 =~ s{=+$}{}a;
 	$b64 =~ s{^(..)}{}a;
 
-    return "$1/$b64";
+	return "$1/$b64";
 }
 
 sub path2digest {
-    my $path = shift;
+	my $path = shift;
 	$path =~ tr{_/}{/}d;
 	return decode_base64($path);
 }
