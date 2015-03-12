@@ -44,12 +44,12 @@ After that:
  - web based backup browsing
  - queued pool storage
  - pool chunk blacklisting
- - create a proper exception hierarchy
+ - proper exception hierarchy
  - tutorials
 
 Later:
 
- - rsync30 transfer method
+ - rsync3 transfer method
  - pluggable metadata storage
  - archiving
  - xattrs/acls
