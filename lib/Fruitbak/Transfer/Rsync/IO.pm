@@ -166,7 +166,7 @@ sub fileDeltaRxDone {
 sub csumStart {
     my ($attrs, $needMD4, $blockSize, $phase) = @_;
 	$self->needMD4($needMD4);
-	$self->send_rpc(RSYNC_RPC_csumStart, pack('CLC', $needMD4 ? 1 : 0, $blockSize, $phase).serialize_attrs($attrs));
+	$self->send_rpc(RSYNC_RPC_csumStart, pack('LCC', $blockSize, $needMD4 ? 1 : 0, $phase).serialize_attrs($attrs));
 	return $blockSize;
 }
 
@@ -174,7 +174,7 @@ sub csumGet {
 	my ($num, $csumLen, $blockSize) = @_;
 	return unless $self->needMD4_isset;
 	my $lock = $self->raiilock;
-	$self->send_rpc_unlocked(RSYNC_RPC_csumGet, pack('QLL', $num, $csumLen, $blockSize));
+	$self->send_rpc_unlocked(RSYNC_RPC_csumGet, pack('QLC', $num, $blockSize, $csumLen));
 	return $self->recv_rpc;
 }
 

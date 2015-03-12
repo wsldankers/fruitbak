@@ -616,7 +616,7 @@ die "REMOVE BEFORE FLIGHT" if $path eq '/';
 				$self->checksumSeed(unpack('L', $data));
 			} elsif($cmd == RSYNC_RPC_attribGet) {
 				my $attrs = $self->attribGet(parse_attrs($data));
-				$self->reply_rpc(serialize_attrs($attrs) // '');
+				$self->reply_rpc(serialize_attrs($attrs));
 			} elsif($cmd == RSYNC_RPC_fileDeltaRxStart) {
 				my ($numblocks, $blocksize, $lastblocksize) = unpack('QLL', $data);
 				my $attrs = parse_attrs(substr($data, 16));
@@ -628,11 +628,11 @@ die "REMOVE BEFORE FLIGHT" if $path eq '/';
 			} elsif($cmd == RSYNC_RPC_fileDeltaRxDone) {
 				$self->fileDeltaRxDone;
 			} elsif($cmd == RSYNC_RPC_csumStart) {
-				my ($needMD4, $blockSize, $phase) = unpack('CLC', $data);
+				my ($blockSize, $needMD4, $phase) = unpack('LCC', $data);
 				my $attrs = parse_attrs(substr($data, 6));
 				$self->csumStart($attrs, $needMD4, $blockSize, $phase);
 			} elsif($cmd == RSYNC_RPC_csumGet) {
-				my ($num, $csumLen, $blockSize) = unpack('QLL', $data);
+				my ($num, $blockSize, $csumLen) = unpack('QLC', $data);
 				$self->reply_rpc($self->csumGet($num, $csumLen, $blockSize));
 			} elsif($cmd == RSYNC_RPC_csumEnd_digest) {
 				$self->reply_rpc($self->csumEnd);
@@ -687,7 +687,7 @@ Wessel Dankers <wsl@fruit.je>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2014  Wessel Dankers <wsl@fruit.je>
+Copyright (c) 2014,2015 Wessel Dankers <wsl@fruit.je>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
