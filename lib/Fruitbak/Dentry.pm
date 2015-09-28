@@ -70,7 +70,14 @@ than providing access to it.
 
 =item R_HARDLINK
 
-This bit is set in 
+This bit is set in mode fields to indicate that this is a hardlink.
+In contrary to real UNIX filesystems, there is no filename-to-inode
+indirection, hardlinks are handled just like symlinks. Fruitbak can
+get away with this simplification because its databases are write-once.
+
+=back
+
+=cut
 
 use constant R_HARDLINK => 0x40000000;
 

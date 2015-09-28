@@ -32,7 +32,14 @@ package Fruitbak::Command;
 
 use Class::Clarity -self;
 
+use Scalar::Util qw(reftype);
+use Getopt::Long;
+
 use Fruitbak;
+
+# classes may register commands here as they are loaded:
+our %commands;
+
 use Fruitbak::Command::Backup;
 use Fruitbak::Command::Cat;
 use Fruitbak::Command::GC;
@@ -42,14 +49,51 @@ use Fruitbak::Command::List;
 use Fruitbak::Command::Scrub;
 use Fruitbak::Command::Tar;
 
-# classes may register commands here as they are loaded:
-our %commands;
-
 field fbak;
 
+sub options {
+	return [
+		"h|help|usage\0Display usage information for this command"
+	]
+}
+
+sub opt_h {
+	my @options = @{$self->options};
+	my @table;
+	while(@options) {
+		my $spec = shift @options;
+		shift @options if reftype($options[0]);
+		$spec =~ s/\0(.*)$//;
+		my $help = $1 // '';
+		$spec =~ s/([!+:=]).*$//;
+		my $args = $1 // '';
+		my @names = split(/\|/, $spec);
+		my ($long) = (grep(sub { length($_) > 1 }, @names), grep(sub { length($_) <= 1 }, @names));
+
+		my @specs;
+		foreach(@names) {
+			my $spec;
+			if(length($_) > 1) {
+				$spec = "--$_";
+				$spec .= "=..." if $args eq '=';
+				$spec .= "[=...]" if $args eq ':';
+				$spec .= " (--no-$long)" if $args eq '!';
+			} else {
+				$spec = "-$_";
+				$spec .= " ..." if $args eq '=';
+				$spec .= " [...]" if $args eq ':';
+				$spec .= " (--no-$long)" if $args eq '!';
+			}
+			push @specs, $spec;
+		}
+
+		push @table, [join(', ', @specs), $help];
+	}
+
+	die Fruitbak::Command::List->format_table(\@table);
+}
+
 sub run {
-	my $exitcode = 0;
-#	local $SIG{__WARN__} = sub { $exitcode = 1; warn @_ };
 	local $SIG{__DIE__} = sub {
 		local $_ = shift;
 		die $_ if ref $_;
@@ -72,5 +116,20 @@ sub run {
 
 	my $cmd = $class->new(fbak => $self->fbak);
 
-	return $cmd->run(@_) || $exitcode;
+	my @options = @{$self->options};
+	my @longopts;
+	while(@options) {
+		my $spec = shift @options;
+		$spec =~ s/\0.*$//;
+		my $dest;
+		if(reftype($options[0])) {
+			$dest = shift @options;
+		} else {
+			my ($name) = split /\W+/, $spec;
+			my $sub = "opt_$name";
+			$dest = sub { $cmd->$sub(@_) };
+		}
+		push @longopts, $spec, $dest;
+	}
+	return !GetOptions(@longopts) || $cmd->run(@_);
 }

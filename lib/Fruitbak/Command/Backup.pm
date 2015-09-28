@@ -10,7 +10,7 @@ Wessel Dankers <wsl@fruit.je>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2014 Wessel Dankers <wsl@fruit.je>
+Copyright (c) 2014,2015 Wessel Dankers <wsl@fruit.je>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@ use POSIX qw(:sys_wait_h _exit);
 
 BEGIN {
 	$Fruitbak::Command::commands{backup} = [__PACKAGE__, "Run a single backup"];
-	$Fruitbak::Command::commands{'bu'} = [__PACKAGE__];
+	$Fruitbak::Command::commands{bu} = [__PACKAGE__];
 }
 
 sub run {
