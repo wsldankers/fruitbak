@@ -191,23 +191,7 @@ change after calling any methods.
 
 =cut
 
-field refbackup => sub {
-	my $host = $self->host;
-	my $backups = $host->backups;
-	my $offset = -1;
-	if($self->level_isset) {
-		my $level = $self->level;
-		if($level && !$self->full) {
-			foreach my $b (@$backups) {
-				my $l = $host->get_backup($b)->level;
-				last if $l < $level;
-			}
-		}
-	}
-	my $number = $backups->[$offset];
-	return undef unless defined $number;
-	return $host->get_backup($number);
-};
+field refbackup => sub { $self->host->get_backup };
 
 =item field refhostbackup
 
