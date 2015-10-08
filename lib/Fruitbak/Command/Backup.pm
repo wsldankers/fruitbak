@@ -32,15 +32,39 @@ package Fruitbak::Command::Backup;
 
 use Fruitbak::Command -self;
 
+use Time::HiRes qw(time);
 use POSIX qw(:sys_wait_h _exit);
+use Fruitbak::Util qw(parse_interval);
 
 BEGIN {
 	$Fruitbak::Command::commands{backup} = [__PACKAGE__, "Run a single backup"];
 	$Fruitbak::Command::commands{bu} = [__PACKAGE__];
 }
 
+sub options {
+	return [
+		@{super()},
+		["f|full:s", undef, "Run a full backup (optionally)"],
+	];
+}
+
+# true if defined (but may be 0!)
+field full => undef;
+
+sub opt_f {
+	my $full = shift;
+	if($full eq '') {
+		$self->full(0);
+	} else {
+		die "while parsing --full='$full': $@"
+			unless eval { $self->full(parse_interval($full)); 1 };
+	}
+}
+
 sub run {
 	my (undef, @hostnames) = @_;
+
+	my $full = $self->full;
 
 	my $fbak = $self->fbak;
 	my $cfg = $fbak->cfg;
@@ -103,6 +127,15 @@ sub run {
 					eval {
 						my $fbak = $fbak->clone;
 						my $host = $fbak->get_host($hostname);
+						if(my $last = $host->get_backup) {
+							if(defined $full) {
+								$full = $last->startTime < time() - $full;
+							} else {
+								$full = 0;
+							}
+						} else {
+							$full = 1;
+						}
 						my $bu = $host->new_backup;
 						$bu->run;
 					};

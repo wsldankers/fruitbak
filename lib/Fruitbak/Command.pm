@@ -10,7 +10,7 @@ Wessel Dankers <wsl@fruit.je>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2014 Wessel Dankers <wsl@fruit.je>
+Copyright (c) 2014,2015 Wessel Dankers <wsl@fruit.je>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@ package Fruitbak::Command;
 use Class::Clarity -self;
 
 use Scalar::Util qw(reftype);
-use Getopt::Long;
+use Getopt::Long qw(GetOptionsFromArray);
 
 use Fruitbak;
 
@@ -53,18 +53,15 @@ field fbak;
 
 sub options {
 	return [
-		"h|help|usage\0Display usage information for this command"
+		['h|help|usage', undef, "Display usage information for this command"],
 	]
 }
 
 sub opt_h {
-	my @options = @{$self->options};
+	my $options = $self->options;
 	my @table;
-	while(@options) {
-		my $spec = shift @options;
-		shift @options if reftype($options[0]);
-		$spec =~ s/\0(.*)$//;
-		my $help = $1 // '';
+	foreach my $option (@$options) {
+		my ($spec, undef, $desc) = @$option;
 		$spec =~ s/([!+:=]).*$//;
 		my $args = $1 // '';
 		my @names = split(/\|/, $spec);
@@ -87,7 +84,7 @@ sub opt_h {
 			push @specs, $spec;
 		}
 
-		push @table, [join(', ', @specs), $help];
+		push @table, [join(', ', @specs), $desc];
 	}
 
 	die Fruitbak::Command::List->format_table(\@table);
@@ -116,20 +113,18 @@ sub run {
 
 	my $cmd = $class->new(fbak => $self->fbak);
 
-	my @options = @{$self->options};
+	my $options = $cmd->options;
 	my @longopts;
-	while(@options) {
-		my $spec = shift @options;
-		$spec =~ s/\0.*$//;
-		my $dest;
-		if(reftype($options[0])) {
-			$dest = shift @options;
-		} else {
-			my ($name) = split /\W+/, $spec;
-			my $sub = "opt_$name";
-			$dest = sub { $cmd->$sub(@_) };
+	foreach my $option (@$options) {
+		my ($spec, $dest, $desc) = @$option;
+		unless(reftype($dest)) {
+			my $method = $dest // do {
+				my ($name) = split /\W+/, $spec;
+				"opt_$name"
+			};
+			$dest = sub { my $val = pop; $cmd->$method($val, @_) };
 		}
 		push @longopts, $spec, $dest;
 	}
-	return !GetOptions(@longopts) || $cmd->run(@_);
+	return !GetOptionsFromArray(\@_, @longopts) || $cmd->run(@_);
 }

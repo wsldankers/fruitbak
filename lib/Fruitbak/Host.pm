@@ -198,16 +198,26 @@ sub backups {
 	return \@backups;
 }
 
-=item get_backup($number)
+=item get_backup([$number])
 
 Given the number of an existing backup, return a Fruitbak::Backup::Reader
 object that represents that backup. Throws an error if the backup doesn't
 exist.
 
+If $number is missing or undef, returns the last backup for that host (or
+undef if no backups have been made for this host yet).
+
 =cut
 
 sub get_backup {
-	my $number = int(shift);
+	my $number = shift;
+	if(defined $number) {
+		$number = int($number);
+	} else {
+		my $backups = $self->backups;
+		return undef unless @$backups;
+		$number = $backups->[-1];
+	}
 	my $cache = $self->backups_cache;
 	my $backup = $cache->{$number};
 	unless(defined $backup) {

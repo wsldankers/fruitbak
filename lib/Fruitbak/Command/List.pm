@@ -371,12 +371,9 @@ sub run {
 		foreach my $hostname (@$hosts) {
 			my @row = ($hostname);
 			my $host = $fbak->get_host($hostname);
-			my $backups = $host->backups;
-			if(@$backups) {
-				my $index = $backups->[-1];
-				my $backup = $host->get_backup($index);
+			if(my $backup = $host->get_backup) {
 				push @row, strftime('%Y-%m-%d %H:%M:%S', localtime($backup->startTime)),
-					$index, $backup->full ? 'full' : 'incr', $backup->level, $backup->failed ? 'fail' : 'done';
+					$backup->number, $backup->full ? 'full' : 'incr', $backup->level, $backup->failed ? 'fail' : 'done';
 			}
 			push @table, \@row;
 		}
