@@ -149,6 +149,8 @@ field gid;
 The filetype specific data for this directory entry, in a binary form
 suitable for storing in the metadata database. Do not set.
 
+=cut
+
 field extra => '';
 
 =item field inode

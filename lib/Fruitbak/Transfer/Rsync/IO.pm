@@ -117,9 +117,10 @@ $$).
 =cut
 
 field lockfh => sub {
-	open my $lockfh, '+<', $self->lockname
+	my $lockname = $self->lockname;
+	open my $lockfh, '+<', $lockname
 		or die "can't open $lockname: $!\n";
-	$self->lockpid($pid);
+	$self->lockpid($$);
 	return $lockfh;
 };
 
