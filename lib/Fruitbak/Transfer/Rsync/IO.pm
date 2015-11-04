@@ -163,7 +163,7 @@ field out;
 
 =back
 
-=head METHODS
+=head1 METHODS
 
 =over
 
@@ -351,6 +351,8 @@ sub statsGet {{}}
 sub finish {
 	$self->send_rpc(RSYNC_RPC_finish, '');
 }
+
+=back
 
 =head1 AUTHOR
 

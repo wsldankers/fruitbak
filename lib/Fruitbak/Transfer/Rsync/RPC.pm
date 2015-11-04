@@ -236,6 +236,8 @@ use constant RSYNC_RPC_max => RSYNC_RPC_checksumSeed;
 
 1;
 
+=back
+
 =head1 AUTHOR
 
 Wessel Dankers <wsl@fruit.je>

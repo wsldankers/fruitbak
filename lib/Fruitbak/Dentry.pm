@@ -305,6 +305,8 @@ sub dump {
 	return $res;
 }
 
+=back
+
 =head1 AUTHOR
 
 Wessel Dankers <wsl@fruit.je>

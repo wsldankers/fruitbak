@@ -681,6 +681,8 @@ die "REMOVE BEFORE FLIGHT" if $path eq '/';
 	return;
 }
 
+=back
+
 =head1 AUTHOR
 
 Wessel Dankers <wsl@fruit.je>
