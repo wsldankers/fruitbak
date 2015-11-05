@@ -125,4 +125,6 @@ local\ +\d{4}-\d{2}-\d{2}\ \d{2}:\d{2}:\d{2}\ +2\ +full\ +0\ +done\n
 rsync\ +\d{4}-\d{2}-\d{2}\ \d{2}:\d{2}:\d{2}\ +2\ +full\ +0\ +done\n
 )\z}xa);
 
+is(run(qw(fruitbak cat local 0 / file.txt)), "Hello world!\n");
+
 done_testing();
