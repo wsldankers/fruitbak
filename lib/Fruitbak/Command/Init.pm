@@ -61,7 +61,7 @@ sub run {
 		$dir = getcwd()."/$dir"
 			unless $dir =~ m{^/};
 	} else {
-		$dir = getcwd();
+		$dir = $self->fbak->rootdir;
 	}
 	make_path($dir, "$dir/conf/host", "$dir/host", "$dir/pool", "$dir/cpool");
 	$dir = normalize_and_check_directory($dir);

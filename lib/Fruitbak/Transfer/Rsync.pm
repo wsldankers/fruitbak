@@ -64,9 +64,9 @@ weakfield fbak => sub { $self->host->fbak };
 The pool object that will be used to store and retrieve file data. Do not
 set.
 
-weakfield pool => sub { $self->fbak->pool };
-
 =cut
+
+weakfield pool => sub { $self->fbak->pool };
 
 =item host
 
@@ -578,7 +578,7 @@ sub recv_files {
 	my $path = $self->share->path;
 # calling fruitbak on a share with path / is probably a bug
 # as long as exclusions aren't implemented yet.
-die "REMOVE BEFORE FLIGHT" if $path eq '/';
+confess("REMOVE BEFORE FLIGHT") if $path eq '/';
 	$path =~ s{(?:/+\.?)?$}{/.}a;
 	my $pid = open2(my $out, my $in,
 		'fruitbak-rsyncp-recv',

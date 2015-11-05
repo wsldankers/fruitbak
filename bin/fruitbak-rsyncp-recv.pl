@@ -58,6 +58,7 @@ my $fio = new Fruitbak::Transfer::Rsync::IO(
 	out => $out,
 	lockfh => $lock,
 	lockpid => $$,
+	lockname => $lock->filename,
 );
 
 my $command = shift @ARGV;

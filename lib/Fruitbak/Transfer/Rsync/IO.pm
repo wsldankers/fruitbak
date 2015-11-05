@@ -186,7 +186,7 @@ current one, the lockfile is reopened.
 
 sub guardlock {
 	my $shared = shift;
-	$self->lockfh_unset if $self->lockpid != $$;
+	$self->lockfh_reset if $self->lockpid != $$;
 	my $lockfh = $self->lockfh;
 	unless(flock($lockfh, $shared ? LOCK_SH : LOCK_EX)) {
 		my $lockname = $self->lockname;

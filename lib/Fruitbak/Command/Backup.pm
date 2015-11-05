@@ -61,6 +61,24 @@ sub opt_f {
 	}
 }
 
+sub do_one_host {
+	my ($hostname, $full) = @_;
+
+	my $fbak = $self->fbak;
+	my $host = $fbak->get_host($hostname);
+	if(my $last = $host->get_backup) {
+		if(defined $full) {
+			$full = $last->startTime < time() - $full;
+		} else {
+			$full = 0;
+		}
+	} else {
+		$full = 1;
+	}
+	my $bu = $host->new_backup(full => $full);
+	return $bu->run;
+}
+
 sub run {
 	my (undef, @hostnames) = @_;
 
@@ -90,9 +108,7 @@ sub run {
 				die "host '$hostname' is unconfigured\n"
 					unless $exists > 1;
 
-				my $host = $fbak->get_host($hostname);
-				my $bu = $host->new_backup;
-				$bu->run;
+				$self->do_one_host($hostname, $full);
 			};
 			if($@) {
 				$fail = 1;
@@ -124,21 +140,8 @@ sub run {
 				if($pid) {
 					$jobs{$pid} = $hostname;
 				} elsif(defined $pid) {
-					eval {
-						my $fbak = $fbak->clone;
-						my $host = $fbak->get_host($hostname);
-						if(my $last = $host->get_backup) {
-							if(defined $full) {
-								$full = $last->startTime < time() - $full;
-							} else {
-								$full = 0;
-							}
-						} else {
-							$full = 1;
-						}
-						my $bu = $host->new_backup;
-						$bu->run;
-					};
+					$self->fbak($fbak->clone);
+					eval { $self->do_one_host($hostname, $full) };
 					if($@) {
 						warn $@;
 						_exit(1);
