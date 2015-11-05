@@ -103,6 +103,7 @@ EOT
 
 mkdir_or_die("$testdir/source");
 writefile("$testdir/source/file.txt", "Hello world!\n");
+utime(1234567890, 1234567890, "$testdir/source/file.txt");
 
 is(run(qw(fruitbak bu)), '');
 like(run(qw(fruitbak ls)), qr{^(?:
@@ -126,5 +127,14 @@ rsync\ +\d{4}-\d{2}-\d{2}\ \d{2}:\d{2}:\d{2}\ +2\ +full\ +0\ +done\n
 )\z}xa);
 
 is(run(qw(fruitbak cat local 0 / file.txt)), "Hello world!\n");
+is(run(qw(fruitbak ls local 0 /), ''), "1  -rw-rw-r--  1000  1000  13  2009-02-14 00:31:30  file.txt\n");
+
+writefile("$testdir/source/file.txt", "Hello world?\n");
+utime(1234567890, 1234567890, "$testdir/source/file.txt");
+
+is(run(qw(fruitbak bu --full)), ''); # should issue a warning
+is(run(qw(fruitbak cat local 0 / file.txt)), "Hello world!\n");
+is(run(qw(fruitbak cat local 3 / file.txt)), "Hello world?\n");
+is(run(qw(fruitbak ls local 3 /), ''), "1  -rw-rw-r--  1000  1000  13  2009-02-14 00:31:30  file.txt\n");
 
 done_testing();

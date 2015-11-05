@@ -1,49 +1,47 @@
 #! /usr/bin/perl
 
-# disabled for now
-use Test::More;
-ok(1);
-done_testing();
-
-__END__
-
 use strict;
 use warnings FATAL => 'all';
 
-$SIG{__DIE__} = sub {
-	local $_ = join('', @_);
-#	if(s/^.*\K at \S+ line \d+\.?\n\z//) {
-		local $Carp::CarpLevel = 1;
-		confess($_);
-#	} else {
-#		die $_;
-#	}
-};
-
 use Test::More;
+use File::Temp;
+use File::Path qw(remove_tree);
+use Fcntl qw(:mode);
+use Cwd;
+
 use Data::Dumper;
 use Carp qw(confess);
-use MIME::Base64;
-use Fcntl qw(:mode);
+
+$SIG{__DIE__} = sub {
+	unless(ref $_[0]) {
+		local $_ = join('', @_);
+		if(s/^.*\K at .*? line \d+(?:, .*? line \d+)?\.?\n\z//a) {
+			local $Carp::CarpLevel = 1;
+			confess($_);
+		}
+	}
+	die @_;
+};
 
 BEGIN { use_ok('Fruitbak') or BAIL_OUT('need Fruitbak to run') }
 BEGIN { use_ok('Fruitbak::Backup::Write') or BAIL_OUT('need Fruitbak::Backup::Write to run') }
 BEGIN { use_ok('Fruitbak::Share::Write') or BAIL_OUT('need Fruitbak::Share::Write to run') }
 BEGIN { use_ok('Fruitbak::Dentry') or BAIL_OUT('need Fruitbak::Dentry to run') }
 
-my $testdir = '/tmp/fruitbak-test-backup';
-sub cleantestdir {
-	local $ENV{testdir} = $testdir;
-	system('rm -rf -- "$testdir"');
-}
 sub mkdir_or_die {
 	local $_;
 	mkdir $_ or die "mkdir($_): $!\n"
 		foreach @_;
 }
-cleantestdir();
-#END { cleantestdir() }
-mkdir_or_die($testdir, "$testdir/host", "$testdir/conf", "$testdir/conf/host", "$testdir/pool", "$testdir/cpool");
+
+my $cwd = getcwd();
+my $testdir = File::Temp->newdir;
+
+#my $testdir = '/tmp/fruitbak-test-backup';
+#mkdir_or_die($testdir);
+#remove_tree($testdir, {keep_root => 1});
+
+mkdir_or_die("$testdir/host", "$testdir/conf", "$testdir/conf/host", "$testdir/pool", "$testdir/cpool");
 
 sub writefile {
 	my ($name, $contents) = @_;
@@ -55,13 +53,10 @@ sub writefile {
 		or die "write($name): $!\n";
 }
 
-writefile("$testdir/conf/global.pl", <<EOT);
-our %conf;
-\$conf{rootdir} = '$testdir';
-\$conf{concurrent_jobs} = 42;
-EOT
+writefile("$testdir/conf/global.pl", 1);
+writefile("$testdir/conf/host/test.pl", 1);
 
-my $fbak = new_ok('Fruitbak', [confdir => "$testdir/conf"])
+my $fbak = new_ok('Fruitbak', [rootdir => $testdir])
 	or BAIL_OUT('need a Fruitbak object to run');
 
 my $ho = $fbak->get_host('test', create_ok => 1);
@@ -69,9 +64,11 @@ my $ho = $fbak->get_host('test', create_ok => 1);
 my $refdata = 'herpderp!'x7e6;
 
 do {
-	my $bu = new_ok('Fruitbak::Backup::Write', [host => $ho, number => 0])
+	my $bu = $ho->new_backup(startTime => 0, endTime => 1)
 		or BAIL_OUT('need a Fruitbak::Backup::Write object to run');
-	my $shw = new_ok('Fruitbak::Share::Write', [backup => $bu, name => '/'])
+	my $shc = new_ok('Fruitbak::Config::Share', [data => {name => '/'}])
+		or BAIL_OUT('need a Fruitbak::Config::Share object to run');
+	my $shw = new_ok('Fruitbak::Share::Write', [backup => $bu, cfg => $shc, startTime => 0, endTime => 1])
 		or BAIL_OUT('need a Fruitbak::Share::Write object to run');
 
 	$shw->add_entry(new Fruitbak::Dentry(
@@ -105,7 +102,7 @@ do {
 	));
 
 	my $file = $fbak->pool->writer;
-	$file->write($refdata);
+	$file->write(\$refdata);
 	my ($hashes, $size) = $file->close;
 
 	$shw->add_entry(new Fruitbak::Dentry(
@@ -131,11 +128,11 @@ do {
 	my $share = $bak->get_share('/');
 	is($share, $bak->get_share('/'), "retrieving the same share twice yields the same object");
 
-	is_deeply($share->ls('foo'), ['foo/bar']);
-	is(eval { $share->get_entry('hardlink')->symlink }, undef);
-	is($share->get_entry('hardlink', 1)->symlink, 'derp');
+	is_deeply([$share->ls('foo')], ['foo/bar']);
+#	is(eval { $share->get_entry('hardlink')->symlink }, undef);
+#	is($share->get_entry('hardlink', 1)->symlink, 'derp');
 	is($share->get_entry('hardlink')->hardlink, 'linktarget');
-	is($share->get_entry('hardlink', 1)->hardlink, undef);
+#	is($share->get_entry('hardlink', 1)->hardlink, undef);
 
 	ok($share->hh->exists('foo'), "share contains foo");
 	my $entry = $share->get_entry('foo/bar');
@@ -149,8 +146,8 @@ do {
 
 	my $pr = $fbak->pool->reader(digests => $entry->extra);
 	my $testdata = $pr->read(length($refdata) + 1);
-	is(length($testdata), length($refdata), "length of read back data equals original")
-		and is($testdata, $refdata, "read back data equals original");
+	is(length($$testdata), length($refdata), "length of read back data equals original")
+		and is($$testdata, $refdata, "read back data equals original");
 };
 
 done_testing();
