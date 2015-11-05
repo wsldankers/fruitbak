@@ -2,12 +2,32 @@ Source: fruitbak
 Section: admin
 Priority: extra
 Maintainer: Wessel Dankers <wsl@fruit.je>
-Build-Depends: cdbs (>= 0.4.73~), debhelper (>= 7), perl-modules, libmodule-build-perl
+Build-Depends: cdbs (>= 0.4.73~), debhelper (>= 7), perl-modules, libmodule-build-perl,
+	libclass-clarity-perl,
+	libcrypt-openssl-random-perl,
+	libcrypt-rijndael-perl,
+	libdigest-sha-perl,
+	libfile-hardhat-perl,
+	libfile-hashset-perl,
+	libfile-rsyncp-perl,
+	libguard-perl,
+	libjson-perl,
+	libjson-xs-perl
 Standards-Version: 3.9.1
 
 Package: fruitbak
 Architecture: all
-Depends: ${misc:Depends}, ${perl:Depends}, adduser, libclass-clarity-perl, libcrypt-openssl-random-perl, libcrypt-rijndael-perl, libdigest-sha-perl, libfile-hardhat-perl, libfile-hashset-perl, libfile-rsyncp-perl, libguard-perl, libjson-perl, libjson-xs-perl
+Depends: ${misc:Depends}, ${perl:Depends}, adduser,
+	libclass-clarity-perl,
+	libcrypt-openssl-random-perl,
+	libcrypt-rijndael-perl,
+	libdigest-sha-perl,
+	libfile-hardhat-perl,
+	libfile-hashset-perl,
+	libfile-rsyncp-perl,
+	libguard-perl,
+	libjson-perl,
+	libjson-xs-perl
 Description: Efficient disk-based backups
  Efficient disk-based backups. Features:
  .
