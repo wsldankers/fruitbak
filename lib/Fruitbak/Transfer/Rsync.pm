@@ -112,7 +112,7 @@ remote machine. This command is passed to the helper tool.
 
 field command => sub {
 	$self->cfg->{command} //
-		q{exec ssh ${port+-p "$port"} ${user+-l "$user"} $host exec rsync "$@"}
+		q{exec ssh ${port+-p "$port"} ${user+-l "$user"} -- "$host" exec rsync "$@"}
 };
 
 =item refbackup
@@ -357,6 +357,29 @@ sub setup_reffile {
 		}
 	}
 }
+
+=item filter_options
+
+Returns a list of File::RsyncP compatible --include/--exclude options based
+on the generic host exclusions, the generic per-share exclusions and the
+rsync-specific per-share exclusions. Will die() if an unsupported filter type
+is requested.
+
+=cut
+
+field filter_options => sub {
+	my @options;
+	my @generic = (
+		@{$self->host->cfg->exclude // []},
+		@{$self->share->cfg->exclude // []}
+	);
+	foreach my $generic (@generic) {
+		# skip if irrelevant for this share
+		# adjust filter root to the base of the transfer
+		push @options, $generic;
+	}
+	my $filter = $self->cfg->filter // [];
+};
 
 =item attribGet($attrs)
 
