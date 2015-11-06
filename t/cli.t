@@ -27,6 +27,8 @@ my $testdir = File::Temp->newdir;
 #remove_tree($testdir, {keep_root => 1});
 
 $ENV{FRUITBAK} = $testdir;
+$ENV{TZ} = 'UTC';
+delete @ENV{grep { /^(?:LANG|LC_)/ } keys %ENV};
 
 mkdir_or_die("$testdir/bin");
 foreach my $exe (<bin/*.pl>) {
@@ -127,7 +129,7 @@ rsync\ +\d{4}-\d{2}-\d{2}\ \d{2}:\d{2}:\d{2}\ +2\ +full\ +0\ +done\n
 )\z}xa);
 
 is(run(qw(fruitbak cat local 0 / file.txt)), "Hello world!\n");
-is(run(qw(fruitbak ls local 0 /), ''), "1  -rw-rw-r--  1000  1000  13  2009-02-14 00:31:30  file.txt\n");
+like(run(qw(fruitbak ls local 0 /), ''), qr{^1  -rw-rw-r--  \d+  \d+  13  2009-02-13 23:31:30  file.txt\n\z}a);
 
 writefile("$testdir/source/file.txt", "Hello world?\n");
 utime(1234567890, 1234567890, "$testdir/source/file.txt");
@@ -135,6 +137,6 @@ utime(1234567890, 1234567890, "$testdir/source/file.txt");
 is(run(qw(fruitbak bu --full)), ''); # should issue a warning
 is(run(qw(fruitbak cat local 0 / file.txt)), "Hello world!\n");
 is(run(qw(fruitbak cat local 3 / file.txt)), "Hello world?\n");
-is(run(qw(fruitbak ls local 3 /), ''), "1  -rw-rw-r--  1000  1000  13  2009-02-14 00:31:30  file.txt\n");
+like(run(qw(fruitbak ls local 3 /), ''), qr{^1  -rw-rw-r--  \d+  \d+  13  2009-02-13 23:31:30  file.txt\n\z}a);
 
 done_testing();
