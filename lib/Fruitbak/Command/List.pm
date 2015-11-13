@@ -158,15 +158,16 @@ sub format_table {
 =item human_readable($number)
 
 Given a (possibly large) number, will transform it into a human-readable
-string. It appends SI units even though it uses base-2 math. Returns the
-formatted string.
+string. It appends (base-10) SI units even though it uses base-2 math.
+Returns the formatted string.
 
 =cut
 
 my @units = ('', qw(k M G T P E Z Y));
 sub human_readable {
 	use integer;
-	my $num = shift;
+	my $num = int(shift);
+	return $num if $num < 10000;
 	my $rest;
 	my $index = 0;
 	while($num >= 1000) {
