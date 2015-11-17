@@ -363,30 +363,23 @@ sub setup_reffile {
 
 Returns a list of File::RsyncP compatible --include/--exclude options based
 on the generic host exclusions, the generic per-share exclusions and the
-rsync-specific per-share exclusions. Will die() if an unsupported filter type
-is requested.
+rsync-specific per-share exclusions.
+Will die() if an unsupported filter type is requested.
 
 =cut
 
 field filter_options => sub {
 	my @options;
-	my $share = $self->share;
-	my @generic = (
-		@{$self->host->cfg->exclude // []},
-		@{$share->cfg->exclude // []}
-	);
-	my $mp = normalize_path($share->mountpoint);
-	foreach my $generic (@generic) {
-		my $norm = normalize_path($generic);
-		if($norm =~ m{^/}) {
-			# remove mountpoint prefix, skip if irrelevant for this share
-			next unless $norm =~ s{^\Q$mp\E(?:/|\z)}{};
-		}
-		$norm =~ s/([][*])/\\$1/ga;
-		push @options, "--exclude=/$norm";
+	my $generic = $self->share->exclude;
+	foreach(@$generic) {
+		my $copy = $_;
+		$copy =~ s/([][*])/\\$1/ga;
+		push @options, "--exclude=/$copy";
 	}
 	my $filter = $self->cfg->{filter} // [];
-	push @options, grep { /^--(?:include|exclude)=/ } @$filter;
+	die "no rsync-specific filters supported yet\n"
+		if @$filter;
+#	push @options, grep { /^[+-] / } @$filter;
 	return \@options;
 };
 

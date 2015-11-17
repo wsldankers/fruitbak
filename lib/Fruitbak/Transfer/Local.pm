@@ -64,6 +64,12 @@ field pathre => sub {
 	return qr{^$path/}a;
 };
 
+field filter => sub {
+	my $generic = $self->share->exclude;
+	my $or = join('|', map { quotemeta($_) } @$generic);
+	return qr{^(?:$or)(?:/|\z)}a;
+};
+
 sub reffile {
 	my $name = shift;
 	if(my $refshare = $self->refshare) {
@@ -79,15 +85,19 @@ sub wanted {
 		warn "stat($_): $!\n";
 		return;
 	}
-	my $path = $self->path;
-	my $pathre = $self->pathre;
 	my $relpath = $_;
+	my $pathre = $self->pathre;
 	unless($relpath =~ s{$pathre}{}a) {
 		if(-d _) {
 			$relpath = '.';
 		} else {
-			$relpath = $path =~ s{^.*/}{}ar;
+			$relpath = $self->path =~ s{^.*/}{}ar;
 		}
+	}
+	my $filter = $self->filter;
+	if($relpath =~ $filter) {
+		$File::Find::prune = 1;
+		return;
 	}
 	my $dentry = new Fruitbak::Dentry(
 		name => $relpath,

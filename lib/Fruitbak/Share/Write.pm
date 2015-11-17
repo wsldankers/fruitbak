@@ -52,6 +52,7 @@ use Fruitbak::Dentry;
 use Fruitbak::Share::Format;
 use Fruitbak::Pool::Write;
 use Fruitbak::Transfer::Rsync;
+use Fruitbak::Util qw(normalize_path);
 
 =head1 FIELDS
 
@@ -242,6 +243,32 @@ not set.
 field transfer => sub {
 	my $cfg = $self->cfg->transfer // ['rsync'];
 	return $self->instantiate_transfer($cfg);
+};
+
+=item field exclude
+
+The list of both host-specific and share-specific excludes that apply to
+this share, converted to relative paths (i.e., the mountpoint prefix
+removed). Returns an arrayref of strings.
+
+=cut
+
+field exclude => sub {
+    my @exclude;
+    my @generic = (
+        @{$self->host->cfg->exclude // []},
+        @{$self->cfg->exclude // []}
+    );
+    my $mp = normalize_path($self->mountpoint);
+    foreach my $generic (@generic) {
+        my $norm = normalize_path($generic);
+        if($norm =~ m{^/}) {
+            # remove mountpoint prefix, skip if irrelevant for this share
+            next unless $norm =~ s{^\Q$mp\E(?:/|\z)}{};
+        }
+        push @exclude, $norm;
+    }
+    return \@exclude;
 };
 
 =head1 METHODS
