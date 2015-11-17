@@ -43,12 +43,10 @@ sub normalize_path {
 	local $_ = shift;
 	return undef unless defined;
 	s{//+}{/}ga;
-	s{/\K\.$}{}a;
-	s{.\K/$}{}a;
-	s{^\./}{}a;
-	s{/\./}{/}ga;
-	# again, because it may overlap:
-	s{/\./}{/}ga;
+	s{/\K(?:\./)+}{}ga;
+	s{/\K\.\z}{}a;
+	s{.\K/\z}{}a;
+	s{^(?:\./)+}{}a;
 	return $_;
 }
 
