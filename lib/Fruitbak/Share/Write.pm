@@ -256,7 +256,7 @@ removed). Returns an arrayref of strings.
 field exclude => sub {
     my @exclude;
     my @generic = (
-        @{$self->host->cfg->exclude // []},
+        @{$self->host->cfg->exclude // [qw(/proc /sys /dev /run /tmp /var/tmp /devfs)]},
         @{$self->cfg->exclude // []}
     );
     my $mp = normalize_path($self->mountpoint);
