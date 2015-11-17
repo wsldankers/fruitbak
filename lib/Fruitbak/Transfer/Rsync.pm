@@ -37,6 +37,7 @@ use IO::Handle;
 use POSIX qw(:sys_wait_h);
 use Fcntl qw(:mode);
 use File::Hashset;
+use Fruitbak::Util qw(normalize_path);
 
 use Fruitbak::Transfer::Rsync::RPC;
 
@@ -369,16 +370,24 @@ is requested.
 
 field filter_options => sub {
 	my @options;
+	my $share = $self->share;
 	my @generic = (
 		@{$self->host->cfg->exclude // []},
-		@{$self->share->cfg->exclude // []}
+		@{$share->cfg->exclude // []}
 	);
+	my $mp = normalize_path($share->mountpoint);
 	foreach my $generic (@generic) {
-		# skip if irrelevant for this share
-		# adjust filter root to the base of the transfer
-		push @options, $generic;
+		my $norm = normalize_path($generic);
+		if($norm =~ m{^/}) {
+			# remove mountpoint prefix, skip if irrelevant for this share
+			next unless $norm =~ s{^\Q$mp\E(?:/|\z)}{};
+		}
+		$norm =~ s/([][*])/\\$1/ga;
+		push @options, "/$norm";
 	}
-	my $filter = $self->cfg->filter // [];
+	my $filter = $self->cfg->{filter} // [];
+	push @options, grep { /^--(?:include|exclude)=/ } @$filter;
+	return \@options;
 };
 
 =item attribGet($attrs)
@@ -599,14 +608,12 @@ File::RsyncP wrapper child process and implements the RPC protocol.
 sub recv_files {
 	local $SIG{PIPE} = 'IGNORE';
 	my $path = $self->share->path;
-# calling fruitbak on a share with path / is probably a bug
-# as long as exclusions aren't implemented yet.
-confess("REMOVE BEFORE FLIGHT") if $path eq '/';
 	$path =~ s{(?:/+\.?)?$}{/.}a;
 	my $pid = open2(my $out, my $in,
 		'fruitbak-rsyncp-recv',
 		$self->command,
 		$path,
+		@{$self->filter_options},
 		qw(
 			--numeric-ids
 			--perms
