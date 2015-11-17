@@ -383,7 +383,7 @@ field filter_options => sub {
 			next unless $norm =~ s{^\Q$mp\E(?:/|\z)}{};
 		}
 		$norm =~ s/([][*])/\\$1/ga;
-		push @options, "/$norm";
+		push @options, "--exclude=/$norm";
 	}
 	my $filter = $self->cfg->{filter} // [];
 	push @options, grep { /^--(?:include|exclude)=/ } @$filter;
