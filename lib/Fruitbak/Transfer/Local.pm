@@ -67,7 +67,8 @@ field pathre => sub {
 field filter => sub {
 	my $generic = $self->share->exclude;
 	my $or = join('|', map { quotemeta($_ eq '' ? '.' : $_) } @$generic);
-	return qr{^(?:$or)(?:/|\z)}a;
+	my $path = quotemeta($self->path);
+	return qr{^$path/(?:$or)(?:/|\z)}a;
 };
 
 sub reffile {
@@ -77,6 +78,11 @@ sub reffile {
 	}
 
 	return undef;
+}
+
+sub preprocess {
+	my $filter = $self->filter;
+	return grep { "$File::Find::dir/$_" !~ $filter } @_;
 }
 
 sub wanted {
@@ -93,11 +99,6 @@ sub wanted {
 		} else {
 			$relpath = $self->path =~ s{^.*/}{}ar;
 		}
-	}
-	my $filter = $self->filter;
-	if($relpath =~ $filter) {
-		$File::Find::prune = 1;
-		return;
 	}
 	my $dentry = new Fruitbak::Dentry(
 		name => $relpath,
@@ -176,5 +177,5 @@ sub wanted {
 }
 
 sub recv_files {
-	find({ wanted => sub { $self->wanted(@_) }, no_chdir => 1, follow => 0}, $self->share->path);
+	find({ wanted => sub { $self->wanted(@_) }, preprocess => sub { $self->preprocess(@_) }, no_chdir => 1, follow => 0}, $self->share->path);
 }
