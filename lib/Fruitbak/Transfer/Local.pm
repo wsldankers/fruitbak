@@ -66,7 +66,7 @@ field pathre => sub {
 
 field filter => sub {
 	my $generic = $self->share->exclude;
-	my $or = join('|', map { quotemeta($_) } @$generic);
+	my $or = join('|', map { quotemeta($_ eq '' ? '.' : $_) } @$generic);
 	return qr{^(?:$or)(?:/|\z)}a;
 };
 
