@@ -80,11 +80,6 @@ sub reffile {
 	return undef;
 }
 
-sub preprocess {
-	my $filter = $self->filter;
-	return grep { "$File::Find::dir/$_" !~ $filter } @_;
-}
-
 sub wanted {
 	my @st = lstat($_);
 	unless(@st) {
@@ -177,5 +172,11 @@ sub wanted {
 }
 
 sub recv_files {
-	find({ wanted => sub { $self->wanted(@_) }, preprocess => sub { $self->preprocess(@_) }, no_chdir => 1, follow => 0}, $self->share->path);
+	my $filter = $self->filter;
+	find({
+		follow => 0,
+		no_chdir => 1,
+		preprocess => sub { grep { "$File::Find::dir/$_" !~ $filter } @_ },
+		wanted => sub { $self->wanted(@_) },
+	}, $self->share->path);
 }
