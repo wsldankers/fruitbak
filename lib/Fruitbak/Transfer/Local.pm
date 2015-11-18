@@ -66,7 +66,8 @@ field pathre => sub {
 
 field filter => sub {
 	my $generic = $self->share->exclude;
-	my $or = join('|', map { quotemeta($_ eq '' ? '.' : $_) } @$generic);
+	return qr{^} if grep { $_ eq '' || $_ eq '.' } @$generic;
+	my $or = join('|', map { quotemeta($_) } @$generic);
 	my $path = quotemeta($self->path);
 	return qr{^$path/(?:$or)(?:/|\z)}a;
 };
