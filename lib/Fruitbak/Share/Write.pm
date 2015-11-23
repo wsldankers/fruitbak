@@ -52,7 +52,7 @@ use Fruitbak::Dentry;
 use Fruitbak::Share::Format;
 use Fruitbak::Pool::Write;
 use Fruitbak::Transfer::Rsync;
-use Fruitbak::Util qw(normalize_path);
+use File::Hardhat qw(hardhat_normalize);
 
 =head1 FIELDS
 
@@ -259,11 +259,11 @@ field exclude => sub {
         @{$self->host->cfg->exclude // [qw(/proc /sys /dev /run /tmp /var/tmp /devfs)]},
         @{$self->cfg->exclude // []}
     );
-    my $mp = normalize_path($self->mountpoint);
+    my $mp = hardhat_normalize($self->mountpoint);
     foreach my $generic (@generic) {
-        my $norm = normalize_path($generic);
-        if($norm =~ m{^/}) {
-            # remove mountpoint prefix, skip if irrelevant for this share
+        my $norm = hardhat_normalize($generic);
+        if($mp ne '' && $generic =~ m{^/}) {
+            # remove mountpoint prefix, or skip if irrelevant for this share
             next unless $norm =~ s{^\Q$mp\E(?:/|\z)}{};
         }
         push @exclude, $norm;
