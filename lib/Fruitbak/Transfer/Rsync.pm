@@ -501,7 +501,7 @@ rsync-style checksums on the current file.
 =cut
 
 sub csumGet {
-	confess("csumGet called without a csum_file\n")
+	confess("csumGet called without a csumfile\n")
 		unless $self->csumfile_isset;
 
 	my ($num, $csumLen, $blockSize) = @_;
