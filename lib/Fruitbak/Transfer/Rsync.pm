@@ -37,7 +37,6 @@ use IO::Handle;
 use POSIX qw(:sys_wait_h);
 use Fcntl qw(:mode);
 use File::Hashset;
-use Fruitbak::Util qw(normalize_path);
 
 use Fruitbak::Transfer::Rsync::RPC;
 

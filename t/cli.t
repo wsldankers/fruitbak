@@ -53,17 +53,17 @@ sub run {
 	my $output = do { local $/; <$out> } // '';
 	$output =~ s/[^\n]\K\z/\n/a;
 	waitpid($pid, 0) or die "waitpid($pid): $!\n";
-    if(WIFEXITED($?)) {
-        my $status = WEXITSTATUS($?);
-        return sprintf("%s%s exited with status %d\n", $output, $prog, $status)
-            if $status;
-    } elsif(WIFSIGNALED($?)) {
-        my $sig = WTERMSIG($?);
-        return sprintf("%s%s killed with signal %d%s\n", $output, $prog, $sig & 127, ($sig & 128) ? ' (core dumped)' : '');
-    } elsif(WIFSTOPPED($?)) {
-        my $sig = WSTOPSIG($?);
-        return sprintf("%s%s stopped with signal %d\n", $output, $prog, $sig);
-    }
+	if(WIFEXITED($?)) {
+		my $status = WEXITSTATUS($?);
+		return sprintf("%s%s exited with status %d\n", $output, $prog, $status)
+			if $status;
+	} elsif(WIFSIGNALED($?)) {
+		my $sig = WTERMSIG($?);
+		return sprintf("%s%s killed with signal %d%s\n", $output, $prog, $sig & 127, ($sig & 128) ? ' (core dumped)' : '');
+	} elsif(WIFSTOPPED($?)) {
+		my $sig = WSTOPSIG($?);
+		return sprintf("%s%s stopped with signal %d\n", $output, $prog, $sig);
+	}
 	return $output;
 }
 
@@ -143,10 +143,10 @@ rsync\ +\d{4}-\d{2}-\d{2}\ \d{2}:\d{2}:\d{2}\ +2\ +full\ +0\ +done\n
 )\z}xa);
 
 is(run(qw(fruitbak cat local 0 var incl1/file.txt)), "Hello world!\n");
-like(run(qw(fruitbak ls local 0 var incl1)), qr{^\d+  -rw-rw-r--  \d+  \d+  13  2009-02-13 23:31:30  file.txt\n\z}a);
+like(run(qw(fruitbak ls local 0 var incl1)), qr{^\d+  +drwxrwxr-x  +\d+  +\d+  +\d+  +...................  +\.\n\d+  +-rw-rw-r--  +\d+  +\d+  +13  +2009-02-13 23:31:30  +file.txt\n\z}a);
 
-like(run(qw(fruitbak ls local 0 var), ''), qr{^\d+  drwxrwxr-x  \d+  \d+  \d+  ...................  incl1\n\z}a);
-like(run(qw(fruitbak ls rsync 0 var), ''), qr{^\d+  drwxrwxr-x  \d+  \d+  \d+  ...................  incl1\n\z}a);
+like(run(qw(fruitbak ls local 0 var), ''), qr{^\d+  +drwxrwxr-x  +\d+  +\d+  +\d+  +...................  +\.\n\d+  +drwxrwxr-x  +\d+  +\d+  +\d+  +...................  +incl1\n\z}a);
+like(run(qw(fruitbak ls rsync 0 var), ''), qr{^\d+  +drwxrwxr-x  +\d+  +\d+  +\d+  +...................  +\.\n\d+  +drwxrwxr-x  +\d+  +\d+  +\d+  +...................  +incl1\n\z}a);
 
 writefile("$testdir/source/incl1/file.txt", "Hello world?\n");
 utime(1234567890, 1234567890, "$testdir/source/incl1/file.txt");
@@ -155,6 +155,6 @@ is(run(qw(fruitbak bu)), '');
 is(run(qw(fruitbak cat local 3 var incl1/file.txt)), "Hello world!\n");
 is(run(qw(fruitbak bu --full)), ''); # should issue a warning
 is(run(qw(fruitbak cat local 4 var incl1/file.txt)), "Hello world?\n");
-like(run(qw(fruitbak ls local 4 var incl1)), qr{^\d+  -rw-rw-r--  \d+  \d+  13  2009-02-13 23:31:30  file.txt\n\z}a);
+like(run(qw(fruitbak ls local 4 var incl1)), qr{^\d+  +drwxrwxr-x  +\d+  +\d+  +\d+  +...................  +\.\n\d+  +-rw-rw-r--  +\d+  +\d+  +13  +2009-02-13 23:31:30  +file.txt\n\z}a);
 
 done_testing();

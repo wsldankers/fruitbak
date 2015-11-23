@@ -239,7 +239,7 @@ when concatenated, look a lot like the output of ‘ls -l’.
 =cut
 
 sub format_dentry {
-	my $dentry = shift;
+	my ($dentry, $is_parent) = @_;
 	my @row;
 
 	my $target = $dentry->target;
@@ -255,7 +255,7 @@ sub format_dentry {
 		: $dentry->is_file ? '-'
 		: '?';
 
-	my $name = $dentry->name;
+	my $name = $is_parent && $typechar eq 'd' ? "." : $dentry->name;
 	utf8_testandset_inplace($name);
 	$name = '.' if $name eq '';
 	$name =~ s{^.*/}{}a;
@@ -331,6 +331,9 @@ sub run {
 				}
 				#push @table, ["mode", "inum", "uid", "gid", "size", "mtime"];
 				my $cursor = $share->ls($path);
+				my $dentry = $cursor->read
+					// die "$path: No such file or directory\n";
+				push @table, $self->format_dentry($dentry, 1);
 				while(my $dentry = $cursor->fetch) {
 					push @table, $self->format_dentry($dentry);
 				}
