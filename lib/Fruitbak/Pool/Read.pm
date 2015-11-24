@@ -111,9 +111,10 @@ sub getchunk {
 
 	my $digests = $self->digests;
 	unless($chunknum < length($$digests) / $hashsize) {
+		my $chunkbuf = \'';
+		$self->curchunkbuf($chunkbuf);
 		$self->curchunknum($chunknum);
-		$self->curchunkbuf(\'');
-		return \'';
+		return $chunkbuf;
 	}
 
 	$self->curchunknum_reset;
