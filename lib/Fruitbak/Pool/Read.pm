@@ -62,26 +62,21 @@ sub pread {
 	my ($off, $len) = @_;
 
 	my $chunksize = $self->chunksize;
-	my $startchunk = do { use integer; $off / $chunksize };
-	my $endchunk = do { use integer; ($off + $len - 1) / $chunksize };
-	my $coff = $off % $chunksize;
+	my $chunknum = do { use integer; $off / $chunksize };
+	my $chunkoff = $off % $chunksize;
 
-	my $chunk = $self->getchunk($startchunk);
+	my $chunk = $self->getchunk($chunknum);
 	my $chunklen = length($$chunk);
-	return \'' unless $coff < $chunklen;
-	return $chunk if $coff == 0 && $len == $chunklen;
-	my $res = substr($$chunk, $coff, $len);
+	return \'' unless $chunkoff < $chunklen;
+	return $chunk if $chunkoff == 0 && $len == $chunklen;
+	my $res = substr($$chunk, $chunkoff, $len);
+	my $reslen = length($res);
 
-	for(my $i = $startchunk + 1; $i <= $endchunk; $i++) {
-		last if length($res) == $len;
-		$chunk = $self->getchunk($i);
+	while($reslen < $len) {
+		$chunk = $self->getchunk(++$chunknum);
 		$chunklen = length($$chunk);
-		my $appendlen = ($off + $len) % $chunksize;
-		if($i == $endchunk && $appendlen != $chunklen) {
-			$res .= substr($$chunk, 0, $appendlen);
-		} else {
-			$res .= $$chunk;
-		}
+		$res .= substr($$chunk, 0, $len - $reslen);
+		$reslen = length($res);
 		last if $chunklen < $chunksize;
 	}
 

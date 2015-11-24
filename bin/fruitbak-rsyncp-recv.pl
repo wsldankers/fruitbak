@@ -71,9 +71,6 @@ my $rs = new File::RsyncP({
 	fio => $fio,
 });
 
-die "REMOVE BEFORE FLIGHT"
-	if $path eq '/';
-
 eval {
 	$rs->remoteStart(1, $path);
 	$rs->go('/DUMMY');
