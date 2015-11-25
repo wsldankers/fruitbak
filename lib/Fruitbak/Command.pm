@@ -118,10 +118,8 @@ sub run {
 	foreach my $option (@$options) {
 		my ($spec, $dest, $desc) = @$option;
 		unless(reftype($dest)) {
-			my $method = $dest // do {
-				my ($name) = split /\W+/, $spec;
-				"opt_$name"
-			};
+			my $method = $dest
+				// do { my ($name) = split /\W/, $spec; "opt_$name" };
 			$dest = sub { my $val = pop; $cmd->$method($val, @_) };
 		}
 		push @longopts, $spec, $dest;

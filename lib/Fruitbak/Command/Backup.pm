@@ -62,10 +62,11 @@ sub opt_f {
 }
 
 sub do_one_host {
-	my ($hostname, $full) = @_;
+	my ($hostname, $full, $auto) = @_;
 
 	my $fbak = $self->fbak;
 	my $host = $fbak->get_host($hostname);
+	return unless $host->cfg->auto // 1;
 	if(my $last = $host->get_backup) {
 		if(defined $full) {
 			$full = $last->startTime < time() - $full;
@@ -90,6 +91,8 @@ sub run {
 	my $lock = $fbak->lock(1);
 	my $fail = 0;
 
+	my $auto = !@hostnames;
+
 	@hostnames = @{$fbak->cfg->hosts} unless @hostnames;
 	die "no hosts configured\n" unless @hostnames;
 
@@ -108,7 +111,7 @@ sub run {
 				die "host '$hostname' is unconfigured\n"
 					unless $exists > 1;
 
-				$self->do_one_host($hostname, $full);
+				$self->do_one_host($hostname, $full, $auto);
 			};
 			if($@) {
 				$fail = 1;
@@ -141,7 +144,7 @@ sub run {
 					$jobs{$pid} = $hostname;
 				} elsif(defined $pid) {
 					$self->fbak($fbak->clone);
-					eval { $self->do_one_host($hostname, $full) };
+					eval { $self->do_one_host($hostname, $full, $auto) };
 					if($@) {
 						warn $@;
 						_exit(1);

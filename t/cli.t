@@ -19,6 +19,8 @@ sub mkdir_or_die {
 		foreach @_;
 }
 
+umask(002);
+
 my $cwd = getcwd();
 my $testdir = File::Temp->newdir;
 
