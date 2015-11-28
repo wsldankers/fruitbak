@@ -3,6 +3,8 @@
 use strict;
 use warnings FATAL => 'all';
 
+die "do not run fruitbak as root\n" unless $>;
+
 our $pkglocalstatedir //= '.';
 our $pkgsysconfdir //= 'conf';
 our $pkgdatadir;
