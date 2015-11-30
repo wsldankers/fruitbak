@@ -109,6 +109,7 @@ representing that hash.
 sub serialize_attrs {
 	my $attrs = shift;
 	return '' unless defined $attrs;
+	# (J/a)* might be an alternative
 	return pack('(Z*)*', %$attrs);
 }
 
