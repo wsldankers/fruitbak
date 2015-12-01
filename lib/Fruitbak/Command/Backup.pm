@@ -66,7 +66,7 @@ sub do_one_host {
 
 	my $fbak = $self->fbak;
 	my $host = $fbak->get_host($hostname);
-	return unless $host->cfg->auto // 1;
+	return if $auto && !($host->cfg->auto // 1);
 	if(my $last = $host->get_backup) {
 		if(defined $full) {
 			$full = $last->startTime < time() - $full;
