@@ -236,8 +236,6 @@ field hhm => sub {
 The Fruitbak::Transfer object that the user configured for this share. Do
 not set.
 
-=back
-
 =cut
 
 field transfer => sub {
@@ -250,6 +248,8 @@ field transfer => sub {
 The list of both host-specific and share-specific excludes that apply to
 this share, converted to relative paths (i.e., the mountpoint prefix
 removed). Returns an arrayref of strings.
+
+=back
 
 =cut
 
