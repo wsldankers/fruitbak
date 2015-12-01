@@ -3,8 +3,6 @@
 use strict;
 use warnings FATAL => 'all';
 
-die "do not run fruitbak as root\n" unless $>;
-
 our $pkglocalstatedir //= '.';
 our $pkgsysconfdir //= 'conf';
 our $pkgdatadir;
@@ -21,7 +19,7 @@ my $fbak = exists $ENV{FRUITBAK}
 
 my $cmd = new Fruitbak::Command(fbak => $fbak);
 
-exit $cmd->run(@ARGV);
+exit $cmd->go(@ARGV);
 
 =pod
 

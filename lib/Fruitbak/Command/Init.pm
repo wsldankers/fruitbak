@@ -55,8 +55,9 @@ sub writefile {
 		or die "write($name): $!\n";
 }
 
-sub run {
+sub run_early {
 	my (undef, $dir) = @_;
+
 	if(defined $dir) {
 		$dir = getcwd()."/$dir"
 			unless $dir =~ m{^/};
@@ -71,5 +72,8 @@ our %conf;
 \$conf{rootdir} = "$escapeddir";
 EOT
 	$self->writefile("$dir/lock", '');
+
 	return 0;
 }
+
+use constant run => 0;

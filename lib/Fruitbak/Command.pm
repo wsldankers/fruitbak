@@ -34,6 +34,7 @@ use Class::Clarity -self;
 
 use Scalar::Util qw(reftype);
 use Getopt::Long qw(GetOptionsFromArray);
+use Privileges::Drop qw(drop_uidgid);
 
 use Fruitbak;
 
@@ -90,7 +91,38 @@ sub opt_h {
 	die Fruitbak::Command::List->format_table(\@table);
 }
 
-sub run {
+sub drop_privileges {
+	my $user = $self->fbak->cfg->user;
+	if(defined $user) {
+		my ($login, undef, $uid, $gid, undef, undef, undef, $home, $shell) = getpwnam($user);
+		die "fruitbak: could not find configured user '$user'\n"
+			unless defined $uid;
+
+		if($> != $uid) {
+			# Find all the groups the user is a member of
+			my @groups;
+			setgrent() or die "fruitbak: setgrent(): $!\n";
+			while(my ($name, $comment, $ggid, $members) = getgrent()) {
+				push @groups, $ggid
+					if index(" $members ", " $login ") != -1;
+			}
+			endgrent() or die "fruitbak: endgrent(): $!\n";
+
+			# Initialise %ENV
+			$ENV{USER} = $login;
+			$ENV{LOGNAME} = $login;
+			$ENV{HOME} = $home;
+			$ENV{SHELL} = $shell;
+
+			drop_uidgid($uid, $gid, @groups);
+		}
+	}
+}
+
+use constant run_early => 0;
+stub run;
+
+sub go {
 	local $SIG{__DIE__} = sub {
 		local $_ = shift;
 		die $_ if ref $_;
@@ -124,5 +156,9 @@ sub run {
 		}
 		push @longopts, $spec, $dest;
 	}
-	return !GetOptionsFromArray(\@_, @longopts) || $cmd->run(@_);
+	return undef unless GetOptionsFromArray(\@_, @longopts);
+	my $ret = $cmd->run_early(@_);
+	return $ret if $ret;
+	$self->drop_privileges;
+	return $cmd->run(@_);
 }
