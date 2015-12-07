@@ -24,18 +24,25 @@ Implemented:
  - shares: mountpoint < path < name
  - parallel backup job manager
  - pre/post-commands (per-backup, per-share)
+ - generic excludes
 
 Initial goals:
 
- - includes/excludes
- - manpages
+ - transfer-specific includes/excludes
+ - manpages for developers
+ - manpages for users
  - fix class structure:
    - only inherited classes should be in subdirs
    - (Backup|Share)::(Read|Write) should be subclasses of (Backup|Share)
  - test suite
  - logging (per-backup, per-share)
- - warning e-mails
- - local restore method
+ - warning e-mails (fruitbak report)
+ - local restore method (fruitbak restore)
+ - report files that changed without the mtime being updated
+ - implement config.d support
+ - move all defaults to a config.d file
+ - change [or => ...] and [rsync => ...] configuration items into hashes
+ - deprecate per-host excludes (should move to share/shares)
 
 After that:
 

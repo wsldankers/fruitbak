@@ -84,13 +84,11 @@ is(run(qw(fruitbak ls)), "Host name  Last backup  Index  Type  Level  Status\n")
 
 writefile("$testdir/conf/global.pl", <<EOT);
 our %conf;
-\$conf{concurrent_jobs} = 42;
 1;
 EOT
 
 writefile("$testdir/conf/common.pl", <<EOT);
 our %conf;
-\$conf{concurrent_jobs} = 42;
 \$conf{exclude} = [qw(/var/excl1 excl2 /usr/incl1 /incl1 /var/incl incl)];
 \$conf{shares} = [{name => 'var', mountpoint => '/var', path => "$testdir/source", exclude => [qw(/var/excl3 excl4 /opt/incl1 /incl1)]}];
 1;
