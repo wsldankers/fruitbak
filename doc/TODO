@@ -25,6 +25,7 @@ Implemented:
  - parallel backup job manager
  - pre/post-commands (per-backup, per-share)
  - generic excludes
+ - implement wholefile by faking ENOENT
 
 Initial goals:
 
@@ -35,11 +36,12 @@ Initial goals:
    - only inherited classes should be in subdirs
    - (Backup|Share)::(Read|Write) should be subclasses of (Backup|Share)
  - test suite
- - logging (per-backup, per-share)
+ - redirect logging (per-backup, per-share)
  - warning e-mails (fruitbak report)
  - report files that changed without the mtime being updated
  - implement config.d support
  - implement JSON config support
+ - implement a scheme that combines configuration entries recursively
  - move all defaults to a config.d file
  - change [or => ...] configuration items into hashes
  - deprecate per-host excludes (should move to share/shares)
@@ -54,6 +56,7 @@ After that:
  - pool chunk blacklisting
  - proper exception hierarchy
  - tutorials
+ - local restore method
 
 Later:
 
