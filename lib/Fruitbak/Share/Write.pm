@@ -239,8 +239,17 @@ not set.
 =cut
 
 field transfer => sub {
-	my $cfg = $self->cfg->transfer // ['rsync'];
-	return $self->instantiate_transfer($cfg);
+	my $cfg = $self->cfg;
+	if(my $deprecated = $cfg->transfer) {
+		warn "transfer option is deprecated\n";
+		my ($method, %methodcfg) = @$deprecated;
+		return $self->instantiate_transfer($method, \%methodcfg);
+	} else {
+		my $method = $cfg->transfer_method // 'rsync';
+		my $methodcfgname = $method.'_options';
+		my $methodcfg = $cfg->$methodcfgname // {};
+		return $self->instantiate_transfer($method, $methodcfg);
+	}
 };
 
 =item field exclude
@@ -420,35 +429,32 @@ sub finish {
 
 =item instantiate_transfer($transfercfg)
 
-Given the bit of configuration that describes the transfer method, creates
-the corresponding object, which should be a subclass of Fruitbak::Transfer.
-For internal use only.
+Given the name and parameters from the configuration that describe the
+transfer method, creates the corresponding object, which should be a
+subclass of Fruitbak::Transfer. For internal use only.
 
 =back
 
 =cut
 
 sub instantiate_transfer {
-	my $transfercfg = shift;
-	die "number of arguments to transfer method must be even\n"
-		if @$transfercfg & 0;
-	my ($name, %args) = @$transfercfg;
+	my ($name, $cfg) = @_;
 	die "transfer method missing a name\n"
 		unless defined $name;
 	my $class;
 	if($name =~ /^\w+(::\w+)+$/a) {
 		$class = $name;
-		eval "use $class ()";
-		die $@ if $@;
 	} elsif($name =~ /^\w+$/a) {
 		$class = "Fruitbak::Transfer::\u$name";
-		local $@;
-		eval "use $class ()";
-		die $@ if $@;
 	} else {
 		die "don't know how to load transfer method '$name'\n";
 	}
-	return $class->new(share => $self, cfg => \%args);
+	unless($class->can('new')) {
+		local $@;
+		eval "use $class ()";
+		die $@ if $@;
+	}
+	return $class->new(share => $self, cfg => $cfg // {});
 }
 
 =head1 AUTHOR

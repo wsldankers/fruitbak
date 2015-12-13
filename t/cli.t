@@ -96,13 +96,13 @@ EOT
 
 writefile("$testdir/conf/host/local.pl", <<EOT);
 our %conf;
-\$conf{share} = {transfer => ['local']};
+\$conf{share} = {transfer_method => 'local'};
 1;
 EOT
 
 writefile("$testdir/conf/host/rsync.pl", <<EOT);
 our %conf;
-\$conf{share} = {transfer => ['rsync', command => 'exec rsync "\$@"']};
+\$conf{share} = {transfer_method => 'rsync', rsync_options => {command => 'exec rsync "\$@"'}};
 1;
 EOT
 

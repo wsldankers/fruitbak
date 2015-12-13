@@ -41,7 +41,7 @@ Initial goals:
  - report files that changed without the mtime being updated
  - implement config.d support
  - move all defaults to a config.d file
- - change [or => ...] and [rsync => ...] configuration items into hashes
+ - change [or => ...] configuration items into hashes
  - deprecate per-host excludes (should move to share/shares)
 
 After that:
