@@ -37,15 +37,16 @@ Initial goals:
  - test suite
  - logging (per-backup, per-share)
  - warning e-mails (fruitbak report)
- - local restore method (fruitbak restore)
  - report files that changed without the mtime being updated
  - implement config.d support
+ - implement JSON config support
  - move all defaults to a config.d file
  - change [or => ...] configuration items into hashes
  - deprecate per-host excludes (should move to share/shares)
 
 After that:
 
+ - local restore method (fruitbak restore)
  - rsync restore method
  - tar and smb transfer methods
  - web based backup browsing
