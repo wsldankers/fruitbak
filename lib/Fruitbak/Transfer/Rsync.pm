@@ -153,6 +153,14 @@ The length of the hashes as stored in the pool. Do not set.
 
 field hashsize => sub { $self->pool->hashsize };
 
+=item wholefile
+
+Prevent rsync from doing delta transfers.
+
+=cut
+
+field wholefile => sub { $self->cfg->{wholefile} };
+
 =item curfile
 
 When receiving files, this is a handle to the Fruitbak::Pool::Write object
@@ -399,6 +407,12 @@ sub attribGet {
 	my $dentry = $ref->get_entry($attrs->{name});
 	return undef unless $dentry && $dentry->is_file;
 	my $a = dentry2attrs($dentry);
+	return undef if $self->wholefile
+		&& $a->{mtime} == $attrs->{mtime}
+		&& $a->{size} == $attrs->{size}
+		&& $a->{uid} == $attrs->{uid}
+		&& $a->{gid} == $attrs->{gid}
+		&& $a->{mode} == $attrs->{mode};
 	$a->{name} = $attrs->{name};
 	# rsync's model of hardlinks is a bit weird, kludge around that
 	$a->{hlink_self} = $attrs->{hlink_self}
