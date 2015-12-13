@@ -390,6 +390,15 @@ field filter_options => sub {
 	return \@options;
 };
 
+=item extra_options
+
+User-specified extra options that will be passed as-is to the remote rsync
+process.
+
+=cut
+
+field extra_options => sub { $self->cfg->{extra_options} // [] };
+
 =item attribGet($attrs)
 
 This File::RsyncP callback retrieves file attributes from the reference
@@ -615,11 +624,14 @@ sub recv_files {
 	local $SIG{PIPE} = 'IGNORE';
 	my $path = $self->share->path;
 	$path =~ s{(?:/+\.?)?$}{/.}a;
+	my @wholefile = qw(--whole-file)
+		if $self->wholefile;
 	my $pid = open2(my $out, my $in,
 		'fruitbak-rsyncp-recv',
 		$self->command,
 		$path,
 		@{$self->filter_options},
+		@wholefile,
 		qw(
 			--numeric-ids
 			--perms
@@ -632,7 +644,6 @@ sub recv_files {
 			--times
 			--specials
 			--block-size=131072
-			--whole-file
 		));
 	local $@;
 	eval {
