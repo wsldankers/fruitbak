@@ -416,12 +416,15 @@ sub attribGet {
 	my $dentry = $ref->get_entry($attrs->{name});
 	return undef unless $dentry && $dentry->is_file;
 	my $a = dentry2attrs($dentry);
-	return undef if $self->wholefile
-		&& $a->{mtime} == $attrs->{mtime}
-		&& $a->{size} == $attrs->{size}
-		&& $a->{uid} == $attrs->{uid}
-		&& $a->{gid} == $attrs->{gid}
-		&& $a->{mode} == $attrs->{mode};
+	# pretend we don't have the file so rsync won't try to
+	# do a delta transfer:
+	return undef if $self->wholefile && (
+			$a->{mtime} != $attrs->{mtime}
+			|| $a->{size} != $attrs->{size}
+			|| $a->{uid} != $attrs->{uid}
+			|| $a->{gid} != $attrs->{gid}
+			|| $a->{mode} != $attrs->{mode}
+		);
 	$a->{name} = $attrs->{name};
 	# rsync's model of hardlinks is a bit weird, kludge around that
 	$a->{hlink_self} = $attrs->{hlink_self}
