@@ -321,7 +321,7 @@ sub run {
 		if(defined $backupnum) {
 			my $backup = $host->get_backup($backupnum);
 			if(defined $sharename) {
-				@align[0, 2..4] = ('') x 10;
+				@align[2..4] = ('') x 10;
 				my $share;
 				if(defined $path) {
 					$share = $backup->get_share($sharename);
@@ -343,7 +343,7 @@ sub run {
 					my $share = $backup->get_share($sharename);
 					push @table, [
 						$sharename,
-						$share->mountpoint,
+						$share->mountpoint // '',
 						strftime('%Y-%m-%d %H:%M:%S', localtime($share->startTime)),
 						strftime('%Y-%m-%d %H:%M:%S', localtime($share->endTime)),
 						($share->endTime - $share->startTime).'s',

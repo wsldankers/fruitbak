@@ -269,7 +269,9 @@ sub resolve_share {
 			$bestbase = '';
 			$bestnum = -1;
 		}
-		my @share = split_path($share->mountpoint);
+		my $mp = $share->mountpoint;
+		next unless defined $mp;
+		my @share = split_path($mp);
 		next if @share > @path;
 		next if defined $bestnum && @share <= $bestnum;
 		my $num = @share;
