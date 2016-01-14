@@ -246,9 +246,9 @@ sub rdev_minor {
 		unless $self->is_device;
 	confess("trying to treat an unreferenced hardlink as a device")
 		if $self->is_hardlink;
-	my ($major, $minor) = unpack('LL', $self->extra);
+	my ($major, $minor) = unpack('L<L<', $self->extra);
 	return $minor unless @_;
-	$self->extra(pack('LL', $major // 0, shift));
+	$self->extra(pack('L<L<', $major // 0, shift));
 }
 
 sub rdev_major {
@@ -256,9 +256,9 @@ sub rdev_major {
 		unless $self->is_device;
 	confess("trying to treat an unreferenced hardlink as a device")
 		if $self->is_hardlink;
-	my ($major, $minor) = unpack('LL', $self->extra);
+	my ($major, $minor) = unpack('L<L<', $self->extra);
 	return $major unless @_;
-	$self->extra(pack('LL', shift, $minor // 0));
+	$self->extra(pack('L<L<', shift, $minor // 0));
 }
 
 sub is_hardlink { $self->mode & R_HARDLINK }
