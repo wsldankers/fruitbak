@@ -286,7 +286,6 @@ sub format_dentry {
 		: $self->human_readable($dentry->size);
 
 	return [
-		$dentry->inode,
 		"$typechar$modechars",
 		$dentry->uid,
 		$dentry->gid,
@@ -329,7 +328,6 @@ sub run {
 				} else {
 					($share, $path) = $backup->resolve_share($sharename);
 				}
-				#push @table, ["mode", "inum", "uid", "gid", "size", "mtime"];
 				my $cursor = $share->ls($path);
 				my $dentry = $cursor->read
 					// die "$path: No such file or directory\n";
