@@ -42,7 +42,7 @@ sub name {
 
 sub inode {
 	confess "attempt to modify a Fruitbak::Dentry::Hardlink directly" if @_;
-	return $self->original->inode;
+	return $self->target->inode;
 }
 
 sub mode {
