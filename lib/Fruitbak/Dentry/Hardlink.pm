@@ -60,9 +60,9 @@ sub storedsize {
 	return $self->target->storedsize;
 }
 
-sub mtime {
+sub mtime_ns {
 	confess "attempt to modify a Fruitbak::Dentry::Hardlink directly" if @_;
-	return $self->target->mtime;
+	return $self->target->mtime_ns;
 }
 
 sub uid {

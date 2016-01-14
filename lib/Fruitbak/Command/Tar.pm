@@ -236,7 +236,6 @@ sub run {
 		if($dentry->is_hardlink) {
 			my $target = $dentry->target;
 			my $targetname = $target->name;
-			my $remapped = $remap{$targetname};
 			# already seen as a regular file
 			my $targetinode = $target->inode;
 			if($targetinode >= $first->inode && $targetinode < $inode) {
