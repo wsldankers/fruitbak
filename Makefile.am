@@ -1,12 +1,14 @@
 pkgsysconfdir = $(sysconfdir)/@PACKAGE@
 scriptdir = $(pkgdatadir)/bin
+sbindir = $(exec_prefix)/sbin
 
 bin_SCRIPTS = bin/fruitbak
+sbin_SCRIPTS = sbin/mount.fruitbak
 script_SCRIPTS = bin/fruitbak-rsyncp-recv
 man_MANS = $(bin_SCRIPTS:=.1)
 
 CLEANFILES = $(bin_SCRIPTS) $(bin_SCRIPTS:=.tmp) $(man_MANS)
-EXTRA_DIST = $(bin_SCRIPTS:=.pl)
+EXTRA_DIST = $(bin_SCRIPTS:=.pl) $(sbin_SCRIPTS:=.pl)
 
 .pl:
 	mkdir -p $$(dirname $@)

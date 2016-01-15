@@ -26,6 +26,7 @@ Implemented:
  - pre/post-commands (per-backup, per-share)
  - generic excludes
  - implement wholefile by faking ENOENT
+ - backups can be mounted using fuse
 
 Initial goals:
 
