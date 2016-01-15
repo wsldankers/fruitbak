@@ -83,7 +83,7 @@ Fuse::main(
 	mountpoint => $ARGV[1],
 	mountopts => 'allow_other,use_ino,ro',
 	nullpath_ok => 1,
-	nopath => 1,
+#	nopath => 1, # older versions of Fuse.pm croak() on unknown options
 	init => sub {
 		setsid or die "setsid(): $!\n";
 		_exit(0) if fork // die "fork(): $!\n";
