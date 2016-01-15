@@ -13,7 +13,8 @@ Build-Depends: cdbs (>= 0.4.73~), debhelper (>= 7), perl-modules, libmodule-buil
 	libfile-rsyncp-perl,
 	libguard-perl,
 	libjson-perl,
-	libjson-xs-perl
+	libjson-xs-perl,
+	libfuse-perl
 Standards-Version: 3.9.1
 
 Package: fruitbak
@@ -29,7 +30,8 @@ Depends: ${misc:Depends}, ${perl:Depends}, adduser,
 	libfile-rsyncp-perl,
 	libguard-perl,
 	libjson-perl,
-	libjson-xs-perl
+	libjson-xs-perl,
+	libfuse-perl
 Description: Efficient disk-based backups
  Efficient disk-based backups. Features:
  .
