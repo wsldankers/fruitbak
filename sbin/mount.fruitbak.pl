@@ -101,8 +101,8 @@ Fuse::main(
 #		warn Dumper(readlink => @_);
 		my $path = shift;
 		my $dentry = $share->get_entry($path);
-		return ENOENT unless $dentry;
-		return EINVAL unless $dentry->is_symlink;
+		return - ENOENT unless $dentry;
+		return - EINVAL unless $dentry->is_symlink;
 		return $dentry->symlink;
 	},
 	access => sub {
@@ -113,7 +113,7 @@ Fuse::main(
 #		warn Dumper(getdir => @_);
 #		my $path = shift;
 #		my $cursor = $share->ls($path);
-#		return ENOENT unless $cursor->read;
+#		return - ENOENT unless $cursor->read;
 #		my @res;
 #		for(;;) {
 #			my $dentry = $cursor->fetch;
@@ -128,7 +128,7 @@ Fuse::main(
 	opendir => sub {
 		my $path = shift;
 		my $cursor = $share->ls($path);
-		return ENOENT unless $cursor->read;
+		return - ENOENT unless $cursor->read;
 		return 0, $cursor;
 	},
 	readdir => sub {
@@ -144,11 +144,11 @@ Fuse::main(
 	open => sub {
 #		warn Dumper(open => @_);
 		my ($path, $mode) = @_;
-		return EROFS if $mode & O_ACCMODE != O_RDONLY;
+		return - EROFS if $mode & O_ACCMODE != O_RDONLY;
 		my $dentry = $share->get_entry($path);
-		return ENOENT unless $dentry;
-		return EISDIR if $dentry->is_directory;
-		return ENOSYS unless $dentry->is_file;
+		return - ENOENT unless $dentry;
+		return - EISDIR if $dentry->is_directory;
+		return - ENOSYS unless $dentry->is_file;
 		return 0, $pool->reader(digests => $dentry->digests);
 	},
 	read => sub {
