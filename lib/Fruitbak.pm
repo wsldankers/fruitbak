@@ -264,8 +264,9 @@ sub host_exists {
 
 Generates and returns an up-to-date File::Hashset object representing the
 digests of all shares of all backups of all hosts known to Fruitbak (in
-other words: all used digests). See L<Fruitbak(7)> for more information
-about how digests are used in Fruitbak.
+other words: all used digests). Unless you have an exclusive lock on this
+Fruitbak object, the returned object may be inconsistent or stale. See
+L<Fruitbak(7)> for more information about how digests are used in Fruitbak.
 
 =cut
 

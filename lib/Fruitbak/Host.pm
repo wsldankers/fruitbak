@@ -157,19 +157,14 @@ sub new() {
 
 =item hashes
 
-Generates and returns an up-to-date File::Hashset object representing the
-digests of all shares of all backups of this host. See L<Fruitbak(7)> for
-more information about how digests are used in Fruitbak.
+Returns zero or more File::Hashset objects representing the digests of all
+shares of all backups of this host. See L<Fruitbak(7)> for more information
+about how digests are used in Fruitbak.
 
 =cut
 
 sub hashes {
-	my $hashes = $self->dir . '/hashes';
-	File::Hashset->merge("$hashes.new", $self->fbak->pool->hashsize,
-		map { $self->get_backup($_)->hashes } @{$self->backups});
-	rename("$hashes.new", $hashes)
-		or die "rename($hashes.new, $hashes): $!\n";
-	return File::Hashset->load($hashes);
+	return map { $self->get_backup($_)->hashes } @{$self->backups};
 }
 
 =item backups
