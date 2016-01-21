@@ -486,8 +486,12 @@ metadata.
 =cut
 
 sub fileDeltaRxDone {
-	my ($hashes, $size) = $self->curfile->close;
-	my $dentry = attrs2dentry($self->curfile_attrs, digests => $hashes, size => $size);
+	my $dentry = attrs2dentry($self->curfile_attrs);
+	if($dentry->is_file && !$dentry->is_hardlink) {
+		my ($hashes, $size) = $self->curfile->close;
+		$dentry->digests($hashes);
+		$dentry->size($size);
+	}
 	$self->share->add_entry($dentry);
 	$self->curfile_reset;
 	return undef;
