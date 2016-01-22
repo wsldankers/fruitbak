@@ -157,4 +157,6 @@ is(run(qw(fruitbak bu --full)), ''); # should issue a warning
 is(run(qw(fruitbak cat local 4 var incl1/file.txt)), "Hello world?\n");
 like(run(qw(fruitbak ls local 4 var incl1)), qr{^drwxrwxr-x  +\d+  +\d+  +\d+  +...................  +\.\n-rw-rw-r--  +\d+  +\d+  +13  +2009-02-13 23:31:30  +file.txt\n\z}a);
 
+is(run(qw(fruitbak gc)), '');
+
 done_testing();

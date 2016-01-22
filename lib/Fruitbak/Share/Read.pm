@@ -180,12 +180,10 @@ field hashes => sub {
 		(undef, $data) = $c->fetch
 			unless defined $data;
 		while(defined $data) {
-			my ($mode, $hashes) = mode_and_hashes($data);
+			my $hashes = just_the_hashes($data);
 
-			if(S_ISREG($mode) && !($mode & Fruitbak::Dentry::R_HARDLINK)) {
-				print $fh $hashes
-					or die "write($hashes.new): $!\n";
-			}
+			print $fh $hashes
+				or die "write($hashes.new): $!\n";
 
 			(undef, $data) = $c->fetch;
 		}

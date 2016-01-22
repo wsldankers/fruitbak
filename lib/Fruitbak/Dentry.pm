@@ -21,7 +21,7 @@ listing or retrieving files in an existing backup.
 
 These objects are used in Fruitbak to represent filesystem entries both
 when they are stored as part of the process of creating a backup, and when
-retrieving files 
+retrieving files.
 
 Specific to Fruitbak is the digests information: the list of digests of the
 data chunks that when concatenated form the contents of the file.
@@ -64,23 +64,6 @@ No arguments are required by Fruitbak::Dentry itself: objects of this
 class simply hold the information they're given and don't do much other
 than providing access to it.
 
-=head1 CONSTANTS
-
-=over
-
-=item R_HARDLINK
-
-This bit is set in mode fields to indicate that this is a hardlink.
-In contrary to real UNIX filesystems, there is no filename-to-inode
-indirection, hardlinks are handled just like symlinks. Fruitbak can
-get away with this simplification because its databases are write-once.
-
-=back
-
-=cut
-
-use constant R_HARDLINK => 0x40000000;
-
 =head1 FIELDS
 
 Fruitbak makes heavy use of Class::Clarity (the base class of this class).
@@ -93,7 +76,7 @@ the hash element. For more information, see L<Class::Clarity>.
 
 =item field name
 
-The filesystem path of this entry. 
+The filesystem path of this entry.
 
 =cut
 
@@ -152,6 +135,15 @@ suitable for storing in the metadata database. Do not set.
 =cut
 
 field extra => '';
+
+=item field is_hardlink
+
+A boolean indicating whether this entry is a hardlink. If you change this
+field, be sure to update the hardlink target as well.
+
+=cut
+
+field is_hardlink => undef;
 
 =item field inode
 
@@ -219,10 +211,10 @@ sub mtime {
 }
 
 sub hardlink {
-	return $self->is_hardlink ? $self->extra : undef
-		unless @_;
+	confess("trying to treat a non-hardlink as one")
+		unless $self->is_hardlink;
+	return $self->extra unless @_;
 	$self->extra(shift);
-	$self->mode($self->mode | R_HARDLINK);
 }
 
 sub symlink {
@@ -260,8 +252,6 @@ sub rdev_major {
 	return $major unless @_;
 	$self->extra(pack('L<L<', shift, $minor // 0));
 }
-
-sub is_hardlink { $self->mode & R_HARDLINK }
 
 sub is_file { S_ISREG($self->mode) }
 sub is_directory { S_ISDIR($self->mode) }

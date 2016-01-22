@@ -88,7 +88,6 @@ do {
 			uid => 1000,
 			gid => 1000,
 			symlink => 'derp',
-			hardlink_target => 1,
 	));
 
 	$shw->add_entry(new Fruitbak::Dentry(
@@ -98,6 +97,7 @@ do {
 			mode => S_IFLNK | 0777,
 			uid => 1000,
 			gid => 1000,
+			is_hardlink => 1,
 			hardlink => 'linktarget',
 	));
 

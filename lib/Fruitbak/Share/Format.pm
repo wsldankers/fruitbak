@@ -34,33 +34,47 @@ use strict;
 use warnings FATAL => 'all';
 
 use constant MAXNAMELEN => 65535;
+use constant FORMAT_FLAG_HARDLINK => 0x1;
+use constant FORMAT_MASK => FORMAT_FLAG_HARDLINK;
 
 use Encode;
+use Fcntl qw(:mode);
 use Fruitbak::Dentry;
 use Exporter qw(import);
 
-our @EXPORT_OK = qw(ATTRLEN MAXNAMELEN attrformat attrparse mangle unmangle mode_and_hashes);
+our @EXPORT_OK = qw(ATTRLEN MAXNAMELEN attrformat attrparse mangle unmangle just_the_hashes);
 our @EXPORT = @EXPORT_OK;
 
 # serialize attributes
 sub attrformat {
 	my $dentry = shift;
-	return pack('L<L<Q<Q<L<L<a*', 0, map { $dentry->$_ } qw(mode size mtime_ns uid gid extra));
+	my $flags = $dentry->is_hardlink ? FORMAT_FLAG_HARDLINK : 0;
+	return pack('L<L<Q<Q<L<L<a*', $flags, map { $dentry->$_ } qw(mode size mtime_ns uid gid extra));
 }
 
 # parse attributes
 sub attrparse {
 	my %attrs;
-	@attrs{qw(dummy mode size mtime_ns uid gid extra)} = unpack('L<L<Q<Q<L<L<a*', shift);
-	die "unknown format type $attrs{dummy}\n" if $attrs{dummy};
-	delete $attrs{dummy};
+	@attrs{qw(flags mode size mtime_ns uid gid extra)} = unpack('L<L<Q<Q<L<L<a*', shift);
+	my $flags = delete $attrs{flags};
+	if($flags & ~FORMAT_MASK) {
+		my $hex = sprintf('0x%x', $flags & ~FORMAT_MASK);
+		die "unknown format flags in $hex\n";
+	}
+	$attrs{is_hardlink} = 1 if $flags & FORMAT_FLAG_HARDLINK;
 	return new Fruitbak::Dentry(%attrs, @_);
 }
 
-# extract just the mode and hashes
-sub mode_and_hashes {
-	my (undef, $mode, undef, undef, undef, undef, $extra) = unpack('L<L<Q<Q<L<L<a*', $_[0]);
-	return $mode, $extra;
+# extract just the hashes. returns an empty string for entries that have no hashes.
+sub just_the_hashes {
+	my ($flags, $mode, undef, undef, undef, undef, $extra) = unpack('L<L<Q<Q<L<L<a*', $_[0]);
+	if($flags & ~FORMAT_MASK) {
+		my $hex = sprintf('0x%x', $flags & ~FORMAT_MASK);
+		die "unknown format flags in $hex\n";
+	}
+	return '' if $flags & FORMAT_FLAG_HARDLINK;
+	return '' unless S_ISREG($mode);
+	return $extra;
 }
 
 sub mangle {

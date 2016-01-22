@@ -19,7 +19,7 @@ This class is the entry point for all Fruitbak-related programming. Every
 program that wants to interact with Fruitbak should create an instance of
 this class first. Most other objects can either be created (directly or
 indirectly) through this class or require a handle to a Fruitbak object
-when they are created. 
+when they are created.
 
 A Fruitbak object allows you to access the configuration and browse the
 Host objects of the installation. As with all Fruitbak classes, any errors
@@ -45,6 +45,7 @@ use Guard;
 use Fruitbak::Util;
 use Fruitbak::Config;
 use Fruitbak::Pool;
+use Fruitbak::Host;
 
 =head1 FIELDS
 

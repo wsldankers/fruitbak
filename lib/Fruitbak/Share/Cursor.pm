@@ -51,7 +51,6 @@ sub fetch {
 	return $dentry;
 }
 
-
 sub read {
 	my ($name, $data, $inode) = $self->hhcursor->read
 		or return undef;
