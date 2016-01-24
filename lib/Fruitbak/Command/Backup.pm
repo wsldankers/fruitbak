@@ -104,7 +104,7 @@ sub run {
 			eval {
 				my $hostname = shift @hostnames;
 				die "'$hostname' is not a valid host name\n"
-					unless Fruitbak::Host::is_valid_name($hostname);
+					unless Fruitbak::Host->is_valid_name($hostname);
 				my $exists = $fbak->host_exists($hostname);
 				die "host '$hostname' is unknown\n"
 					unless $exists;
@@ -127,7 +127,7 @@ sub run {
 				my $hostname = shift @hostnames;
 				eval {
 					die "'$hostname' is not a valid host name\n"
-						unless Fruitbak::Host::is_valid_name($hostname);
+						unless Fruitbak::Host->is_valid_name($hostname);
 					my $exists = $fbak->host_exists($hostname);
 					die "host '$hostname' is unknown\n"
 						unless $exists;

@@ -215,7 +215,7 @@ sub hosts {
 	my $fh = new IO::Dir($hostdir)
 		or die "open($hostdir): $!\n";
 	my @hosts =
-		grep { Fruitbak::Host::is_valid_name($_) }
+		grep { Fruitbak::Host->is_valid_name($_) }
 		$fh->read;
 
 	# combine the two
@@ -254,7 +254,7 @@ wasn't found at all.
 
 sub host_exists {
 	my $name = shift;
-	return undef unless Fruitbak::Host::is_valid_name($name);
+	return undef unless Fruitbak::Host->is_valid_name($name);
 	return 2 if $self->cfg->host_exists($name);
 	my $hostdir = $self->hostdir;
 	return 1 if lstat("$hostdir/$name");

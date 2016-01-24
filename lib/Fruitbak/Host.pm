@@ -118,22 +118,6 @@ field expiry => sub {
 
 =back
 
-=head1 FUNCTIONS
-
-=over
-
-=item is_valid_name($name)
-
-Checks if a string is valid as name for a host in Fruitbak.
-
-=back
-
-=cut
-
-sub is_valid_name() {
-	return shift =~ /^[a-z0-9]+(?:-[[a-z0-9]+)*$/ia;
-}
-
 =head1 METHODS
 
 =over
@@ -153,6 +137,19 @@ sub new() {
 		unless $self->fbak->host_exists($name);
 
 	return $self;
+}
+
+=item is_valid_name($name)
+
+Checks if a string is valid as name for a host in Fruitbak.
+Static class method.
+
+=back
+
+=cut
+
+sub is_valid_name {
+	return shift =~ /^[a-z0-9]+(?:-[[a-z0-9]+)*$/ia;
 }
 
 =item hashes

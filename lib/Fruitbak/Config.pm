@@ -47,7 +47,7 @@ sub hosts {
 		or die "open($hostconfdir): $!\n";
 	my @hosts =
 		sort
-		grep { Fruitbak::Host::is_valid_name($_) }
+		grep { Fruitbak::Host->is_valid_name($_) }
 		map { s/\.pl$//a ? ($_) : () }
 		$fh->read;
 	return \@hosts;
@@ -60,7 +60,7 @@ sub get_host {
 
 sub host_exists {
 	my $name = shift;
-	return undef unless Fruitbak::Host::is_valid_name($name);
+	return undef unless Fruitbak::Host->is_valid_name($name);
 	my $hostconfdir = $self->hostconfdir;
 	return lstat("$hostconfdir/$name.pl") ? 1 : 0;
 }
