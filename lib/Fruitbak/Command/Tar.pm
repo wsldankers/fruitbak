@@ -225,20 +225,21 @@ sub run {
 	# be undef) and only then continue with the other, normal nodes.
 	my $root = $cursor->read;
 	my $first = $cursor->fetch;
+	my $firstinode = $first->original->inode;
 	for(my $dentry = $root || $first; $dentry; $dentry = $root ? do { undef $root; $first } : $cursor->fetch) {
 		my $name = $dentry->name;
-		my $inode = $dentry->inode;
 		my $remapped = $remap{$name};
 		if(defined $remapped) {
 			$self->output_entry($dentry, $remapped);
 			next;
 		}
 		if($dentry->is_hardlink) {
+			my $originalinode = $dentry->original->inode;
 			my $target = $dentry->target;
 			my $targetname = $target->name;
-			# already seen as a regular file
 			my $targetinode = $target->inode;
-			if($targetinode >= $first->inode && $targetinode < $inode) {
+			if($targetinode >= $firstinode && $targetinode < $originalinode) {
+				# target is already output
 				$self->output_entry($dentry, $targetname);
 				next;
 			}
