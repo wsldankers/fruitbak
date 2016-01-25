@@ -206,15 +206,23 @@ sub storedsize {
 }
 
 sub mtime {
-	return $self->mtime_ns(int(1000000000 * shift)) if @_;
-	return $self->mtime_ns / 1000000000.0;
+	$self->mtime_ns(int(1e9 * shift)) if @_;
+	return $self->mtime_ns / 1e9;
 }
 
 sub hardlink {
-	confess("trying to treat a non-hardlink as one")
-		unless $self->is_hardlink;
-	return $self->extra unless @_;
-	$self->extra(shift);
+	if(@_) {
+		if($self->extra_isset) {
+			confess("trying to treat a non-hardlink as one")
+				unless $self->is_hardlink;
+		}
+		$self->is_hardlink(1);
+		return $self->extra(shift);
+	} else {
+		confess("trying to treat a non-hardlink as one")
+			unless $self->is_hardlink;
+		return $self->extra;
+	}
 }
 
 sub symlink {
