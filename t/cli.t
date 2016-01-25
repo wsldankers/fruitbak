@@ -159,4 +159,34 @@ like(run(qw(fruitbak ls local 4 var incl1)), qr{^drwxrwxr-x  +\d+  +\d+  +\d+  +
 
 is(run(qw(fruitbak gc)), '');
 
+# create a hardlink to a symlink and use it for testing
+symlink('symbolic link', "$testdir/source/foo")
+	or die "symlink($testdir/source/foo): $!\n";
+link("$testdir/source/foo", "$testdir/source/bar")
+	or die "link($testdir/source/foo, $testdir/source/bar): $!\n";
+
+is(run(qw(fruitbak bu)), '');
+
+writefile("$testdir/local.tar", run(qw(fruitbak tar local 5 var)));
+writefile("$testdir/rsync.tar", run(qw(fruitbak tar rsync 5 var)));
+
+mkdir_or_die(
+	"$testdir/restore",
+	"$testdir/restore/local",
+	"$testdir/restore/rsync",
+);
+
+is(run(qw(tar xCf), "$testdir/restore/local", "$testdir/local.tar"), '');
+is(run(qw(tar xCf), "$testdir/restore/rsync", "$testdir/rsync.tar"), '');
+
+sub get_inode {
+	my $file = shift;
+	my @st = lstat($file)
+		or die "stat($file): $!\n";
+	return $st[1];
+}
+
+is(get_inode("$testdir/restore/local/foo"), get_inode("$testdir/restore/local/bar"), "restored hardlinks have the same inode number (local)");
+is(get_inode("$testdir/restore/rsync/foo"), get_inode("$testdir/restore/rsync/bar"), "restored hardlinks have the same inode number (rsync)");
+
 done_testing();
