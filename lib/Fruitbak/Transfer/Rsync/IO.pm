@@ -213,7 +213,9 @@ occurs.
 
 sub send_rpc {
 	confess("internal error: utf8 data passed") if utf8::is_utf8($_[1]);
-	my $buf = pack('LC', length($_[1]), $_[0]).$_[1];
+	my $len = length($_[1]);
+	confess("packet too large ($len)") if $len > 65535;
+	my $buf = pack('CL/a', $_[0], $_[1]);
 	if(length($buf) > PIPE_BUF) {
 		my $lock = $self->guardlock;
 		my $r = syswrite($self->out, $buf);
@@ -239,7 +241,9 @@ sub send_rpc {
 
 sub send_rpc_unlocked {
 	confess("internal error: utf8 data passed") if utf8::is_utf8($_[1]);
-	my $buf = pack('LC', length($_[1]), $_[0]).$_[1];
+	my $len = length($_[1]);
+	confess("packet too large ($len)") if $len > 65535;
+	my $buf = pack('CL/a', $_[0], $_[1]);
 	my $r = syswrite($self->out, $buf);
 	die "write(): $!\n" unless defined $r;
 	# POSIX guarantees that no partial writes will occur
@@ -248,7 +252,9 @@ sub send_rpc_unlocked {
 
 sub recv_rpc {
 	my $in = $self->in;
-	return saferead($in, unpack('L', saferead($in, 4)));
+	my $len = unpack('L', saferead($in, 4));
+	confess("packet too large ($len)") if $len > 65535;
+	return saferead($in, $len);
 }
 
 sub protocol_version {

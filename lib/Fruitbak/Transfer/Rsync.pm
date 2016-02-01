@@ -614,7 +614,9 @@ error conditions.
 
 sub reply_rpc {
 	my $in = $self->rpc;
-	my $buf = pack('L', length($_[0])) . $_[0];
+	my $len = length($_[0]);
+	confess("packet too large ($len)") if $len > 65535;
+	my $buf = pack('L/a', $_[0]);
 	my $r = syswrite $in, $buf;
 	die "write(): $!\n" unless defined $r;
 	confess("short write") if $r < length($buf);
@@ -658,7 +660,8 @@ sub recv_files {
 		$out->binmode;
 		$self->rpc($in);
 		for(;;) {
-			my ($len, $cmd) = unpack('LC', saferead($out, 5));
+			my ($cmd, $len) = unpack('CL', saferead($out, 5));
+			confess("packet too large ($len)") if $len > 65535;
 			die "internal protocol error: unknown RPC opcode $cmd\n"
 				if $cmd > RSYNC_RPC_max;
 			my $data = saferead($out, $len) if $len;
