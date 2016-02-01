@@ -53,7 +53,7 @@ sub new() {
 	my $self = super;
 	my $digests = $self->digests;
 	my $hashsize = $self->hashsize;
-	confess "invalid digests length"
+	confess("invalid digests length")
 		if length($$digests) % $hashsize;
 	return $self;
 }

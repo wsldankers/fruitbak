@@ -48,6 +48,8 @@ open(my $in, '<&', \*STDIN)
 	or die "dup(STDIN): $!\n";
 open(my $out, '>&', \*STDOUT)
 	or die "dup(STDOUT): $!\n";
+open(my $err, '>&', \*STDERR)
+	or die "dup(STDERR): $!\n";
 open(STDIN, '<', '/dev/null')
 	or die "open(/dev/null): $!\n";
 open(STDOUT, '>&', \*STDERR)
@@ -72,6 +74,7 @@ my $rs = new File::RsyncP({
 });
 
 eval {
+	local $SIG{__WARN__} = sub { print $err @_ };
 	$rs->remoteStart(1, $path);
 	$rs->go('/DUMMY');
 	$rs->serverClose;

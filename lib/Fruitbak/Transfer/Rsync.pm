@@ -617,9 +617,10 @@ sub reply_rpc {
 	my $len = length($_[0]);
 	confess("packet too large ($len)") if $len > 65535;
 	my $buf = pack('L/a', $_[0]);
+	my $buflen = length($buf);
 	my $r = syswrite $in, $buf;
 	die "write(): $!\n" unless defined $r;
-	confess("short write") if $r < length($buf);
+	confess("short write ($r < $buflen)") if $r < $buflen;
 }
 
 =item recv_files()

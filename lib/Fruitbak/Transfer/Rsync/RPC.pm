@@ -93,7 +93,7 @@ sub saferead {
 	while($len < $num) {
 		my $r = sysread $fh, $res, $num - $len, $len;
 		die "read(): $!\n" unless defined $r;
-		confess("short read") unless $r;
+		confess("short read ($r < 1)") unless $r;
 		$len = length($res);
 	}
 	return $res;

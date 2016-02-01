@@ -201,7 +201,7 @@ Dummy function that accepts and discards the local and remote directory.
 
 =cut
 
-sub dirs {}
+sub dirs { return }
 
 =item send_rpc
 
@@ -216,12 +216,13 @@ sub send_rpc {
 	my $len = length($_[1]);
 	confess("packet too large ($len)") if $len > 65535;
 	my $buf = pack('CL/a', $_[0], $_[1]);
-	if(length($buf) > PIPE_BUF) {
+	my $buflen = length($buf);
+	if($buflen > PIPE_BUF) {
 		my $lock = $self->guardlock;
 		my $r = syswrite($self->out, $buf);
 		die "write(): $!\n" unless defined $r;
 		# POSIX guarantees that no partial writes will occur
-		confess "short write" if $r < length($buf);
+		confess("short write ($r < $buflen)") if $r < $buflen;
 	} else {
 		# POSIX guarantees that writes of up to PIPE_BUF bytes are atomic.
 		# However, even if this write is atomic, we might interrupt a larger
@@ -231,7 +232,7 @@ sub send_rpc {
 		my $r = syswrite($self->out, $buf);
 		die "write(): $!\n" unless defined $r;
 		# POSIX guarantees that no partial writes will occur
-		confess "short write" if $r < length($buf);
+		confess("short write ($r < $buflen)") if $r < $buflen;
 	}
 }
 
@@ -244,10 +245,11 @@ sub send_rpc_unlocked {
 	my $len = length($_[1]);
 	confess("packet too large ($len)") if $len > 65535;
 	my $buf = pack('CL/a', $_[0], $_[1]);
+	my $buflen = length($buf);
 	my $r = syswrite($self->out, $buf);
 	die "write(): $!\n" unless defined $r;
 	# POSIX guarantees that no partial writes will occur
-	confess "short write" if $r < length($buf);
+	confess("short write ($r < $buflen)") if $r < $buflen;
 }
 
 sub recv_rpc {
