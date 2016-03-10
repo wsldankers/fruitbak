@@ -36,7 +36,7 @@ use Scalar::Util qw(reftype);
 use Getopt::Long qw(GetOptionsFromArray);
 use Privileges::Drop qw(drop_uidgid);
 
-use Fruitbak;
+use Class::Lazy qw(Fruitbak);
 
 # classes may register commands here as they are loaded:
 our %commands;

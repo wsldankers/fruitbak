@@ -13,7 +13,7 @@ use Fcntl qw(:mode);
 use POSIX qw(_exit setsid O_RDONLY O_ACCMODE);
 use Errno qw(ENOENT EROFS EISDIR EINVAL ENOSYS);
 use Getopt::Long qw(GetOptions);
-use Fruitbak;
+use Class::Lazy qw(Fruitbak);
 
 GetOptions('o=s' => \my $options) or die "invalid command line\n";
 

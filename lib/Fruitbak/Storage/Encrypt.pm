@@ -38,7 +38,7 @@ use Digest::SHA qw(hmac_sha512);
 use MIME::Base64;
 use IO::File;
 
-use Fruitbak::Storage::Encrypt::Iterator;
+use Class::Lazy qw(Fruitbak::Storage::Encrypt::Iterator);
 
 field hashsize => sub { $self->pool->hashsize };
 

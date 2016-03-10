@@ -7,7 +7,7 @@ our $pkglocalstatedir //= '.';
 our $pkgsysconfdir //= 'conf';
 our $pkgdatadir;
 
-use Fruitbak;
+use Class::Lazy qw(Fruitbak);
 use Fruitbak::Command;
 
 local $ENV{PATH} = "$pkgdatadir/bin:$ENV{PATH}"

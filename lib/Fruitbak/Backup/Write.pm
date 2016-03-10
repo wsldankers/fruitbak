@@ -32,8 +32,8 @@ use Fcntl qw(:flock);
 use JSON;
 use IO::File;
 
-use Fruitbak::Share::Write;
-use Fruitbak::Config::Share;
+use Class::Lazy qw(Fruitbak::Share::Write);
+use Class::Lazy qw(Fruitbak::Config::Share);
 
 use Class::Clarity -self;
 

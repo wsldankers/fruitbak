@@ -31,7 +31,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 package Fruitbak::Share::Cursor;
 
 use Fruitbak::Share::Format;
-use Fruitbak::Dentry::Hardlink;
+use Class::Lazy qw(Fruitbak::Dentry::Hardlink);
 
 use Class::Clarity -self;
 

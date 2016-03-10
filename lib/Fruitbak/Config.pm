@@ -32,9 +32,9 @@ package Fruitbak::Config;
 
 use Class::Clarity -self;
 
-use Fruitbak::Config::Global;
-use Fruitbak::Config::Host;
-use Fruitbak::Host;
+use Class::Lazy qw(Fruitbak::Config::Global);
+use Class::Lazy qw(Fruitbak::Config::Host);
+use Class::Lazy qw(Fruitbak::Host);
 
 field fbak;
 field dir => sub { $self->fbak->confdir };

@@ -51,8 +51,8 @@ use Class::Clarity -self;
 use Digest::SHA;
 use MIME::Base64;
 
-use Fruitbak::Pool::Read;
-use Fruitbak::Pool::Write;
+use Class::Lazy qw(Fruitbak::Pool::Read);
+use Class::Lazy qw(Fruitbak::Pool::Write);
 use Fruitbak::Util;
 
 =head1 FIELDS

@@ -48,10 +48,10 @@ use Carp qw(confess);
 use JSON;
 use File::Hardhat::Maker;
 
-use Fruitbak::Dentry;
+use Class::Lazy qw(Fruitbak::Dentry);
 use Fruitbak::Share::Format;
-use Fruitbak::Pool::Write;
-use Fruitbak::Transfer::Rsync;
+use Class::Lazy qw(Fruitbak::Pool::Write);
+use Class::Lazy qw(Fruitbak::Transfer::Rsync);
 use File::Hardhat qw(hardhat_normalize);
 
 =head1 FIELDS

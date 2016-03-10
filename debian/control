@@ -4,6 +4,7 @@ Priority: extra
 Maintainer: Wessel Dankers <wsl@fruit.je>
 Build-Depends: cdbs (>= 0.4.73~), debhelper (>= 7), perl-modules, libmodule-build-perl, rsync,
 	libclass-clarity-perl,
+	libclass-lazy-perl,
 	libprivileges-drop-perl,
 	libcrypt-openssl-random-perl,
 	libcrypt-rijndael-perl,
@@ -21,6 +22,7 @@ Package: fruitbak
 Architecture: all
 Depends: ${misc:Depends}, ${perl:Depends}, adduser,
 	libclass-clarity-perl,
+	libclass-lazy-perl,
 	libprivileges-drop-perl,
 	libcrypt-openssl-random-perl,
 	libcrypt-rijndael-perl,

@@ -35,11 +35,11 @@ use IO::File;
 use JSON;
 use File::Hardhat;
 use File::Hashset;
-use Fruitbak::Share::Cursor;
+use Class::Lazy qw(Fruitbak::Share::Cursor);
 use Fruitbak::Share::Format;
-use Fruitbak::Pool::Read;
-use Fruitbak::Dentry;
-use Fruitbak::Dentry::Hardlink;
+use Class::Lazy qw(Fruitbak::Pool::Read);
+use Class::Lazy qw(Fruitbak::Dentry);
+use Class::Lazy qw(Fruitbak::Dentry::Hardlink);
 
 =head1 FIELDS
 

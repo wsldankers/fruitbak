@@ -35,7 +35,7 @@ use MIME::Base64;
 use File::Path qw(make_path);
 
 use Fruitbak::Util;
-use Fruitbak::Storage::Filesystem::Iterator;
+use Class::Lazy qw(Fruitbak::Storage::Filesystem::Iterator);
 
 use Fruitbak::Storage -self;
 

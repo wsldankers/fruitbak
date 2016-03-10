@@ -35,7 +35,7 @@ use JSON;
 use Scalar::Util qw(weaken);
 use File::Hashset;
 use Fruitbak::Util;
-use Fruitbak::Share::Read;
+use Class::Lazy qw(Fruitbak::Share::Read);
 use Fruitbak::Share::Format;
 
 =head1 FIELDS

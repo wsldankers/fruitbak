@@ -39,7 +39,7 @@ use constant FORMAT_MASK => FORMAT_FLAG_HARDLINK;
 
 use Encode;
 use Fcntl qw(:mode);
-use Fruitbak::Dentry;
+use Class::Lazy qw(Fruitbak::Dentry);
 use Exporter qw(import);
 
 our @EXPORT_OK = qw(ATTRLEN MAXNAMELEN attrformat attrparse mangle unmangle just_the_hashes);

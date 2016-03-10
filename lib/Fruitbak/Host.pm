@@ -33,8 +33,8 @@ use Scalar::Util qw(weaken);
 use File::Hashset;
 use File::Path qw(remove_tree);
 
-use Fruitbak::Backup::Read;
-use Fruitbak::Backup::Write;
+use Class::Lazy qw(Fruitbak::Backup::Read);
+use Class::Lazy qw(Fruitbak::Backup::Write);
 
 use Class::Clarity -self;
 

@@ -35,7 +35,7 @@ use warnings FATAL => 'all';
 
 use File::Temp;
 use File::RsyncP;
-use Fruitbak::Transfer::Rsync::IO;
+use Class::Lazy qw(Fruitbak::Transfer::Rsync::IO);
 
 binmode STDIN;
 binmode STDOUT;

@@ -34,8 +34,8 @@ use Class::Clarity -self;
 
 use Scalar::Util qw(reftype blessed);
 
-use Fruitbak::Host;
-use Fruitbak::Config;
+use Class::Lazy qw(Fruitbak::Host);
+use Class::Lazy qw(Fruitbak::Config);
 use Fruitbak::Config::File;
 
 field fbak;

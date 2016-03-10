@@ -43,9 +43,9 @@ use Fcntl qw(:flock);
 use Guard;
 
 use Fruitbak::Util;
-use Fruitbak::Config;
-use Fruitbak::Pool;
-use Fruitbak::Host;
+use Class::Lazy qw(Fruitbak::Config);
+use Class::Lazy qw(Fruitbak::Pool);
+use Class::Lazy qw(Fruitbak::Host);
 
 =head1 FIELDS
 
