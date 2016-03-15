@@ -198,6 +198,13 @@ sub digests {
 	return $self->extra(@_);
 }
 
+=item storedsize()
+
+Returns the size of this dentry, unless the entry is not a regular file, in
+which it will return 0.
+
+=cut
+
 sub storedsize {
 	return 0 unless $self->is_file;
 	return 0 if $self->is_hardlink;
@@ -205,10 +212,23 @@ sub storedsize {
 	return $self->size;
 }
 
+=item mtime([$mtime])
+
+Get or set the mtime in seconds. This is a wrapper around mtime_ns.
+
+=cut
+
 sub mtime {
 	$self->mtime_ns(int(1e9 * shift)) if @_;
 	return $self->mtime_ns / 1e9;
 }
+
+=item hardlink([$target])
+
+Get or set the hardlink target. Will throw an exception if the
+Dentry is not a hardlink.
+
+=cut
 
 sub hardlink {
 	if(@_) {
@@ -225,6 +245,13 @@ sub hardlink {
 	}
 }
 
+=item symlink([$target])
+
+Get or set the symlink target. Will throw an exception if the
+Dentry is not a symlink.
+
+=cut
+
 sub symlink {
 	confess("trying to treat a non-symlink as one")
 		unless $self->is_symlink;
@@ -234,12 +261,28 @@ sub symlink {
 	$self->extra(shift);
 }
 
+=item rdev([$number])
+
+Get or set the device number (for block/character special devices) as a
+single combined number. The most significant 32 bits form the major device
+number, the 32 least significant bits the minor. Throws an exception if
+this Dentry does not represent a special device.
+
+=cut
+
 sub rdev {
 	return ($self->rdev_major << 32) | $self->rdev_minor unless @_;
 	my $rdev = shift;
 	$self->rdev_major($rdev >> 32);
 	$self->rdev_minor($rdev & 0xFFFFFFFF);
 }
+
+=item rdev_minor([$number])
+
+Get or set the minor device number (for block/character special devices).
+Throws an exception if this Dentry does not represent a special device.
+
+=cut
 
 sub rdev_minor {
 	confess("trying to treat a non-device as one")
@@ -251,6 +294,13 @@ sub rdev_minor {
 	$self->extra(pack('L<L<', $major // 0, shift));
 }
 
+=item rdev_major([$number])
+
+Get or set the major device number (for block/character special devices).
+Throws an exception if this Dentry does not represent a special device.
+
+=cut
+
 sub rdev_major {
 	confess("trying to treat a non-device as one")
 		unless $self->is_device;
@@ -261,6 +311,28 @@ sub rdev_major {
 	$self->extra(pack('L<L<', shift, $minor // 0));
 }
 
+=item is_file()
+
+=item is_directory()
+
+=item is_symlink()
+
+=item is_device()
+
+=item is_chardev()
+
+=item is_blockdev()
+
+=item is_fifo()
+
+=item is_socket()
+
+Various utility methods that will return true if this Dentry is of a
+specific type. is_device will return true iff this Dentry is either a
+block special device or a character special device.
+
+=cut
+
 sub is_file { S_ISREG($self->mode) }
 sub is_directory { S_ISDIR($self->mode) }
 sub is_symlink { S_ISLNK($self->mode) }
@@ -270,9 +342,23 @@ sub is_blockdev { S_ISBLK($self->mode) }
 sub is_fifo { S_ISFIFO($self->mode) }
 sub is_socket { S_ISSOCK($self->mode) }
 
+=item clone()
+
+Returns an independent clone of this Dentry object.
+
+=cut
+
 sub clone {
 	return blessed($self)->new(map { ($_, $self->$_) } keys %$self);
 }
+
+=item dump()
+
+Returns a string that lists all the information in this Dentry in a
+more or less human readable way. Not intended for serialization or
+other machine processing. Formatting may change without notice.
+
+=cut
 
 my @types;
 @types[S_IFREG, S_IFDIR, S_IFLNK, S_IFCHR, S_IFBLK, S_IFIFO, S_IFSOCK] =
@@ -313,7 +399,7 @@ Wessel Dankers <wsl@fruit.je>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2014,2015 Wessel Dankers <wsl@fruit.je>
+Copyright (c) 2014-2016 Wessel Dankers <wsl@fruit.je>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
