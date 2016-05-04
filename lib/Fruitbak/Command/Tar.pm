@@ -225,7 +225,7 @@ sub run {
 	# be undef) and only then continue with the other, normal nodes.
 	my $root = $cursor->read;
 	my $first = $cursor->fetch;
-	my $firstinode = $first->original->inode;
+	my $firstinode = $first->original->inode if $first;
 	for(my $dentry = $root || $first; $dentry; $dentry = $root ? do { undef $root; $first } : $cursor->fetch) {
 		my $name = $dentry->name;
 		my $remapped = $remap{$name};
