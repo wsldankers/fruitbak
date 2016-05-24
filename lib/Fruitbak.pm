@@ -187,7 +187,7 @@ sub lock {
 		if($shared) {
 			die "shared global lock not available: exclusive operation in progress\n";
 		} else {
-			die "exclusive global lock not available: another exclusive operation is already in progress\n";
+			die "exclusive global lock not available: another operation is still in progress\n";
 		}
 	}
 	my $filename = $self->lockfile;
