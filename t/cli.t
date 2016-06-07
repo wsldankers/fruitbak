@@ -189,4 +189,7 @@ sub get_inode {
 is(get_inode("$testdir/restore/local/foo"), get_inode("$testdir/restore/local/bar"), "restored hardlinks have the same inode number (local)");
 is(get_inode("$testdir/restore/rsync/foo"), get_inode("$testdir/restore/rsync/bar"), "restored hardlinks have the same inode number (rsync)");
 
+is(run(qw(fruitbak scrub)), '');
+is(run(qw(fruitbak scrub 3)), '');
+
 done_testing();
