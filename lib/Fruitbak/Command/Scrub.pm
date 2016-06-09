@@ -10,7 +10,7 @@ Wessel Dankers <wsl@fruit.je>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2014 Wessel Dankers <wsl@fruit.je>
+Copyright (c) 2014,2016 Wessel Dankers <wsl@fruit.je>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -86,12 +86,12 @@ sub run {
 			return 1;
 		}) {
 			if($numthreads > 1) {
-				eval { warn $@ };
+				warn $@;
 			} else {
 				die $@;
 			}
 		}
-		_exit($fail) if $numthreads > 1;;
+		_exit($fail) if $numthreads > 1;
 	}
 
 	my $fail = 0;
