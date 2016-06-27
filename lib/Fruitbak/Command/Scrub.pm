@@ -36,70 +36,100 @@ use Fruitbak::Command -self;
 
 use MIME::Base64;
 use POSIX qw(:sys_wait_h _exit);
+use Math::BigInt;
 
 BEGIN {
 	$Fruitbak::Command::commands{scrub} = [__PACKAGE__, "Check pool data for damage"];
 }
 
 sub run {
-	my (undef, $numthreads, $dummy) = @_;
+	my (undef, $numprocs, $dummy) = @_;
 
-	die "usage: fruitbak gc [numthreads]\n"
+	die "usage: fruitbak gc [numprocs]\n"
 		if defined $dummy;
 
-	$numthreads //= 1;
-	$numthreads = int($numthreads);
+	$numprocs //= 1;
+	$numprocs = int($numprocs);
 
 	my $fbak = $self->fbak;
 	my $pool = $fbak->pool;
-	my $iterator = $pool->iterator;
+	my $hashes = $fbak->hashes;
 	my $hashalgo = $pool->hashalgo;
+	my $hashsize = $pool->hashsize;
+	my $hexlen = 2 * $hashlen;
+	my $pad = '00' x $hexlen;
+	my $proto = new Math::BigInt("0x1$pad");
 
-	foreach my $tid (1..$numthreads) {
-		if($numthreads > 1) {
+	my $hash_search_boundary = sub {
+		my ($index, $total) = @_;
+
+		my $tel = $proto->copy;
+
+		$tel->bmul($index);
+		$tel->bdiv($total);
+
+		# remove 0x then leftpad with zeros
+		return pack('H*', substr($pad.substr($tel->as_hex, 2), -$hexlen));
+	};
+
+	my @pids;
+
+	foreach my $tid (1..$numprocs) {
+		if($numprocs > 1) {
 			my $pid = fork;
 			die "fork(): $!\n" unless defined $pid;
-			next if $pid;
+			if($pid) {
+				push @pids, $pid;
+				next;
+			}
 		}
 
 		my $fail = 0;
 		local $@;
 		unless(eval {
-			my $first = int(2**32 * ($tid - 1) / $numthreads);
-			my $last = int(2**32 * $tid / $numthreads);
+			my $first = $hash_search_boundary->($tid - 1, $numprocs);
+			my $last = $hash_search_boundary->($tid, $numprocs)
+				if $tid < $numprocs;
 
-			while(my $digests = $iterator->fetch) {
-				foreach my $digest (@$digests) {
-					my $slice = unpack(L => $digest);
-					next if $slice < $first;
-					next if $slice >= $last;
-	#				warn "$tid ".encode_base64($digest);
-					my $data = $pool->retrieve($digest);
-					unless($hashalgo->($$data) eq $digest) {
-						print encode_base64($digest)
-							or die "write(): $!\n";
-						$fail = 1;
-					}
+			my $iterator = $hashes->iterator($first);
+
+			while(my $digest = $iterator->fetch) {
+				last if $last && $digest ge $last;
+#				warn "$tid ".encode_base64($digest);
+				my $data = eval { $pool->retrieve($digest) };
+				unless($data) {
+					print "while reading ".encode_base64($digest, '').": $@\n"
+						or die "write(): $!\n";
+					$fail = 1;
+				} elsif($hashalgo->($$data) eq $digest) {
+					print encode_base64($digest, '')."\n"
+						or die "write(): $!\n";
+					$fail = 1;
 				}
 			}
 
 			return 1;
 		}) {
-			if($numthreads > 1) {
+			if($numprocs > 1) {
 				warn $@;
 			} else {
 				die $@;
 			}
 		}
-		_exit($fail) if $numthreads > 1;
+		_exit($fail) if $numprocs > 1;
 	}
 
 	my $fail = 0;
 
-	if($numthreads > 1) {
+	if($numprocs > 1) {
+		my $signaled;
+		my $term = sub { $signaled = 1; kill TERM => @pids };
+		local $SIG{INT} = $term;
+		local $SIG{TERM} = $term;
 		for(;;) {
 			my $pid = waitpid(-1, 0);
 			last if $pid == -1;
+			next if $signaled;
 			if(WIFEXITED($?)) {
 				$fail = 1 if WEXITSTATUS($?);
 			} elsif(WIFSIGNALED($?)) {
