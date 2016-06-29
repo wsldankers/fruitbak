@@ -171,14 +171,15 @@ in Fruitbak.
 =cut
 
 field hashes => sub {
+	my $shares = $self->shares;
+	return $self->get_share($shares->[0])->hashes if @$shares == 1;
 	my $hashes = $self->dir . '/hashes';
 	unless(-e $hashes) {
-		File::Hashset->merge("$hashes.new", $self->fbak->pool->hashsize,
-			map { $self->get_share($_)->hashes } @{$self->shares});
+		File::Hashset->merge("$hashes.new", map { $self->get_share($_)->hashes } @$shares);
 		rename("$hashes.new", $hashes)
 			or die "rename($hashes.new, $hashes): $!\n";
 	}
-	return File::Hashset->load($hashes);
+	return File::Hashset->load($hashes, $self->fbak->pool->hashsize);
 };
 
 =item shares

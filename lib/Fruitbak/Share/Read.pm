@@ -171,6 +171,7 @@ in Fruitbak.
 =cut
 
 field hashes => sub {
+	my $hashsize = $self->fbak->pool->hashsize;
 	my $hashes = $self->dir . '/hashes';
 	unless(-e $hashes) {
 		open my $fh, '>:raw', "$hashes.new"
@@ -191,10 +192,10 @@ field hashes => sub {
 		$fh->sync or die "fsync($hashes.new): $!\n";
 		$fh->close or die "close($hashes.new): $!\n";
 		undef $fh;
-		File::Hashset->sortfile("$hashes.new", $self->fbak->pool->hashsize);
+		File::Hashset->sortfile("$hashes.new", $hashsize);
 		rename("$hashes.new", $hashes);
 	}
-	return File::Hashset->load($hashes);
+	return File::Hashset->load($hashes, $hashsize);
 };
 
 =head1 METHODS

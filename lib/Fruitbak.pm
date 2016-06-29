@@ -273,11 +273,11 @@ L<Fruitbak(7)> for more information about how digests are used in Fruitbak.
 
 sub hashes {
 	my $hashes = $self->rootdir . '/hashes';
-	File::Hashset->merge("$hashes.new", $self->pool->hashsize,
+	File::Hashset->merge("$hashes.new",
 		map { $self->get_host($_)->hashes } @{$self->hosts});
 	rename("$hashes.new", $hashes)
 		or die "rename($hashes.new, $hashes): $!\n";
-	return File::Hashset->load($hashes);
+	return File::Hashset->load($hashes, $self->pool->hashsize);
 }
 
 =item clone

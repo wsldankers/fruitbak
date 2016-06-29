@@ -30,7 +30,6 @@ package Fruitbak::Host;
 
 use IO::Dir;
 use Scalar::Util qw(weaken);
-use File::Hashset;
 use File::Path qw(remove_tree);
 
 use Class::Lazy qw(Fruitbak::Backup::Read);

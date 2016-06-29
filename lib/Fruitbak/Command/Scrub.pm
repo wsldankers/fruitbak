@@ -56,7 +56,7 @@ sub run {
 	my $hashes = $fbak->hashes;
 	my $hashalgo = $pool->hashalgo;
 	my $hashsize = $pool->hashsize;
-	my $hexlen = 2 * $hashlen;
+	my $hexlen = 2 * $hashsize;
 	my $pad = '00' x $hexlen;
 	my $proto = new Math::BigInt("0x1$pad");
 
@@ -101,7 +101,7 @@ sub run {
 					print "while reading ".encode_base64($digest, '').": $@\n"
 						or die "write(): $!\n";
 					$fail = 1;
-				} elsif($hashalgo->($$data) eq $digest) {
+				} elsif($hashalgo->($$data) ne $digest) {
 					print encode_base64($digest, '')."\n"
 						or die "write(): $!\n";
 					$fail = 1;
