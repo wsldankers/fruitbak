@@ -57,7 +57,7 @@ sub run {
 	my $hashalgo = $pool->hashalgo;
 	my $hashsize = $pool->hashsize;
 	my $hexlen = 2 * $hashsize;
-	my $pad = '00' x $hexlen;
+	my $pad = '0' x $hexlen;
 	my $proto = new Math::BigInt("0x1$pad");
 
 	my $hash_search_boundary = sub {
@@ -96,13 +96,20 @@ sub run {
 			while(my $digest = $iterator->fetch) {
 				last if $last && $digest ge $last;
 #				warn "$tid ".encode_base64($digest);
-				my $data = eval { $pool->retrieve($digest) };
-				unless($data) {
+				unless(eval {
+					my $data = $pool->retrieve($digest);
+					unless($data) {
+						print encode_base64($digest, '').": missing\n"
+							or die "write(): $!\n";
+						$fail = 1;
+					} elsif($hashalgo->($$data) ne $digest) {
+						print encode_base64($digest, '').": hash check failed\n"
+							or die "write(): $!\n";
+						$fail = 1;
+					}
+					return 1;
+				}) {
 					print "while reading ".encode_base64($digest, '').": $@\n"
-						or die "write(): $!\n";
-					$fail = 1;
-				} elsif($hashalgo->($$data) ne $digest) {
-					print encode_base64($digest, '')."\n"
 						or die "write(): $!\n";
 					$fail = 1;
 				}
@@ -116,6 +123,7 @@ sub run {
 				die $@;
 			}
 		}
+#		warn "$tid done\n" if $numprocs > 1;
 		_exit($fail) if $numprocs > 1;
 	}
 
