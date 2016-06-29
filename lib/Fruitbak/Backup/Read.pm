@@ -172,6 +172,7 @@ in Fruitbak.
 
 field hashes => sub {
 	my $shares = $self->shares;
+	return new File::Hashset('', $self->fbak->pool->hashsize) if @$shares == 0;
 	return $self->get_share($shares->[0])->hashes if @$shares == 1;
 	my $hashes = $self->dir . '/hashes';
 	unless(-e $hashes) {
