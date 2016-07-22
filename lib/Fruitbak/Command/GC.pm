@@ -35,9 +35,28 @@ no utf8;
 use Fruitbak::Command -self;
 
 use MIME::Base64;
+use File::Hashset;
+use IO::Pipe;
+use POSIX qw(_exit);
 
 BEGIN {
 	$Fruitbak::Command::commands{gc} = [__PACKAGE__, "Clean up unused pool chunks"];
+}
+
+sub saferead() {
+	my $fh = shift;
+	my $num = shift;
+	my $len = 0;
+	my $res = '';
+	
+	while($len < $num) {
+		my $r = sysread $fh, $res, $num - $len, $len;
+		die "read(): $!\n" unless defined $r;
+		return undef unless $r;
+		confess("short read ($len < $num)") unless $r;
+		$len = length($res);
+	}
+	return $res;
 }
 
 sub run {
@@ -60,24 +79,89 @@ sub run {
 		}
 	}
 
+	my $pipe = new IO::Pipe;
+	my $pid = fork;
+	unless($pid) {
+		die "fork(): $!\n" unless defined $pid;
+		eval {
+			local $SIG{PIPE} = 'IGN';
+			$pipe->reader;
+			my $fbak = $fbak->clone;
+			$self->fbak($fbak);
+			my $pool = $fbak->pool;
+			my $hashsize = $pool->hashsize;
+			while(my $chunk = saferead($pipe, $hashsize)) {
+				$pool->remove($chunk);
+			}
+		};
+		if($@) {
+			warn $@;
+			_exit(1);
+		}
+		_exit(0);
+		for(;;) { kill KILL => $$ }
+	}
+	$pipe->writer;
+
 	my $pool = $fbak->pool;
 	my $iterator = $pool->iterator;
 	my $hashes = $fbak->hashes;
 	my $total = 0;
 	my $removed = 0;
+	my $rootdir = $fbak->rootdir;
+	my $hashsize = $pool->hashsize;
+
+	my $foundfile = "$rootdir/available";
+	my $found = new IO::File($foundfile, '>')
+		or die "open($foundfile): $!\n";
 
 	while(my $chunks = $iterator->fetch) {
 		foreach my $chunk (@$chunks) {
-			unless($hashes->exists($chunk)) {
+			if($hashes->exists($chunk)) {
+				$found->write($chunk) or die "write($foundfile): $!\n";
+			} else {
 #				warn encode_base64($chunk);
-				$pool->remove($chunk);
+				my $r = syswrite($pipe, $chunk);
+				die "write(): $!\n" unless defined $r;
+				# POSIX guarantees that no partial writes will occur,
+				# assuming $hashsize <= PIPE_BUF
+				confess("short write ($r < $hashsize)") if $r < $hashsize;
 				$removed++;
 			}
 			$total++;
 		}
 	}
+	$pipe->flush or die "write(pipe): $!\n";
+	$pipe->close or die "close(pipe): $!\n";
+
+	$found->flush or die "flush($foundfile): $!\n";
+	$found->sync or die "fsync($foundfile): $!\n";
+	$found->close or die "close($foundfile): $!\n";
+	File::Hashset->sortfile($foundfile, $pool->hashsize);
+	my $foundhashes = File::Hashset->load($foundfile, $hashsize);
+
+	unlink($foundfile) or die "unlink($foundfile): $!\n";
+
+	my $missingfile = "$rootdir/missing";
+	my $missing = new IO::File("$missingfile.new", '>')
+		or die "open($missingfile.new): $!\n";
+
+	$iterator = $hashes->iterator;
+	while(my $chunk = $iterator->fetch) {
+		unless($foundhashes->exists($chunk)) {
+			$missing->write($chunk) or die "write($foundfile): $!\n";
+		}
+	}
+
+	$missing->flush or die "flush($missingfile.new): $!\n";
+	$missing->sync or die "fsync($missingfile.new): $!\n";
+	$missing->close or die "close($missingfile.new): $!\n";
+	File::Hashset->sortfile("$missingfile.new", $hashsize);
+	rename("$missingfile.new", $missingfile)
+		or die "rename($missingfile.new, $missingfile): $!\n";
 
 #	warn "removed $removed out of $total pool files\n";
 
-	return 0;
+	waitpid $pid, 0;
+	return $?;
 }
