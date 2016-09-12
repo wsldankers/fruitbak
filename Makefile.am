@@ -3,7 +3,6 @@ scriptdir = $(pkgdatadir)/bin
 sbindir = $(exec_prefix)/sbin
 
 bin_SCRIPTS = bin/fruitbak
-sbin_SCRIPTS = sbin/mount.fruitbak
 script_SCRIPTS = bin/fruitbak-rsyncp-recv
 man_MANS = $(bin_SCRIPTS:=.1)
 
