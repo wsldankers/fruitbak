@@ -1,8 +1,11 @@
 # https://docs.python.org/3/howto/descriptor.html
 
+import inspect
+
 class getinitializer:
 	def __init__(self, getfunction):
 		self.getfunction = getfunction
+		self.__doc__ = getfunction.__doc__
 
 	def __get__(self, obj, value):
 		getfunction = self.getfunction
@@ -43,6 +46,7 @@ class getsetinitializer:
 		self.getfunction = getfunction
 		self.setfunction = setfunction
 		self.name = getfunction.__name__
+		self.__doc__ = getfunction.__doc__
 
 	def __get__(self, obj, objtype=None):
 		getfunction = self.getfunction
