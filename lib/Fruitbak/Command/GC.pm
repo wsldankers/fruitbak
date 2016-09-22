@@ -90,8 +90,8 @@ sub run {
 			$self->fbak($fbak);
 			my $pool = $fbak->pool;
 			my $hashsize = $pool->hashsize;
-			while(my $chunk = saferead($pipe, $hashsize)) {
-				$pool->remove($chunk);
+			while(my $hash = saferead($pipe, $hashsize)) {
+				$pool->remove($hash);
 			}
 		};
 		if($@) {
@@ -105,9 +105,10 @@ sub run {
 
 	my $pool = $fbak->pool;
 	my $iterator = $pool->iterator;
-	my $hashes = $fbak->hashes;
+	my $referenced = $fbak->hashes;
 	my $total = 0;
 	my $removed = 0;
+	my $lost = 0;
 	my $rootdir = $fbak->rootdir;
 	my $hashsize = $pool->hashsize;
 
@@ -115,13 +116,13 @@ sub run {
 	my $found = new IO::File($foundfile, '>')
 		or die "open($foundfile): $!\n";
 
-	while(my $chunks = $iterator->fetch) {
-		foreach my $chunk (@$chunks) {
-			if($hashes->exists($chunk)) {
-				$found->write($chunk) or die "write($foundfile): $!\n";
+	while(my $hashes = $iterator->fetch) {
+		foreach my $hash (@$hashes) {
+			if($referenced->exists($hash)) {
+				$found->write($hash) or die "write($foundfile): $!\n";
 			} else {
-#				warn encode_base64($chunk);
-				my $r = syswrite($pipe, $chunk);
+#				warn encode_base64($hash);
+				my $r = syswrite($pipe, $hash);
 				die "write(): $!\n" unless defined $r;
 				# POSIX guarantees that no partial writes will occur,
 				# assuming $hashsize <= PIPE_BUF
@@ -146,10 +147,11 @@ sub run {
 	my $missing = new IO::File("$missingfile.new", '>')
 		or die "open($missingfile.new): $!\n";
 
-	$iterator = $hashes->iterator;
-	while(my $chunk = $iterator->fetch) {
-		unless($foundhashes->exists($chunk)) {
-			$missing->write($chunk) or die "write($foundfile): $!\n";
+	$iterator = $referenced->iterator;
+	while(my $hash = $iterator->fetch) {
+		unless($foundhashes->exists($hash)) {
+			$missing->write($hash) or die "write($missingfile): $!\n";
+			$lost++;
 		}
 	}
 
@@ -161,6 +163,8 @@ sub run {
 		or die "rename($missingfile.new, $missingfile): $!\n";
 
 #	warn "removed $removed out of $total pool files\n";
+	warn "detected $lost missing chunks!\n"
+		if $lost;
 
 	waitpid $pid, 0;
 	return $?;

@@ -54,6 +54,7 @@ use MIME::Base64;
 use Class::Lazy qw(Fruitbak::Pool::Read);
 use Class::Lazy qw(Fruitbak::Pool::Write);
 use Fruitbak::Util;
+use File::Hashset;
 
 =head1 FIELDS
 
@@ -123,6 +124,31 @@ field storage => sub {
 	my $cfg = $self->cfg;
 	my $storagecfg = $cfg->pool // ['filesystem'];
 	return $self->instantiate_storage($storagecfg);
+};
+
+=item field rootdir
+
+The base directory of the fruitbak system, as configured.
+
+=cut
+
+field rootdir => sub { $self->fbak->rootdir };
+
+=item field missing
+
+A File::Hashset instance representing the chunks that are known to be
+erroneously missing from storage. Any chunks in this list should be stored
+unconditionally, in an attempt to repair the damage.
+
+=cut
+
+field missing => sub {
+	my $rootdir = $self->rootdir;
+	my $missingfile = "$rootdir/missing";
+	my $hashsize = $self->hashsize;
+	return File::Hashset->load($missingfile, $hashsize)
+		if -e $missingfile;
+	return new File::Hashset('', $hashsize);
 };
 
 =head1 METHODS

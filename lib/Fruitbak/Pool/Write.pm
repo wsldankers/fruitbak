@@ -58,15 +58,15 @@ field hashsets => [];
 field hashalgo => sub { $self->pool->hashalgo };
 field hashsize => sub { $self->pool->hashsize };
 field chunksize => sub { $self->pool->chunksize };
+field missing => sub { $self->pool->missing };
 
 sub putchunk {
 	my $chunk = shift;
 	my $digests = $self->digests;
 	my $hash = $self->hashalgo->($$chunk);
-	my $hashsize = length($hash);
-	my $digestslen = length($$digests);
 	$self->pool->store($hash, $chunk)
-		unless grep { $_->exists($hash) } @{$self->hashsets};
+		if $self->missing->exists($hash)
+			|| !grep { $_->exists($hash) } @{$self->hashsets};
 	$$digests .= $hash;
 	return;
 }
