@@ -7,7 +7,7 @@ class getinitializer:
 		self.getfunction = getfunction
 		self.__doc__ = getfunction.__doc__
 
-	def __get__(self, obj, value):
+	def __get__(self, obj, objtype = None):
 		getfunction = self.getfunction
 		value = getfunction(obj)
 		setattr(obj, getfunction.__name__, value)
@@ -48,7 +48,7 @@ class getsetinitializer:
 		self.name = getfunction.__name__
 		self.__doc__ = getfunction.__doc__
 
-	def __get__(self, obj, objtype=None):
+	def __get__(self, obj, objtype = None):
 		getfunction = self.getfunction
 		name = getfunction.__name__
 		objdict = obj.__dict__
