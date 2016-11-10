@@ -112,6 +112,7 @@ class MaxHeapMap:
 					break
 
 			index = heap_len
+			container = HeapMapNode(key, value, index)
 			mapping[key] = container
 			heap.append(container)
 			answers.reverse()
@@ -126,7 +127,6 @@ class MaxHeapMap:
 				else:
 					break
 
-			container = HeapMapNode(key, value, index)
 			heap[index] = container
 		else:
 			index = container.index
