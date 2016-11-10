@@ -205,8 +205,6 @@ class MaxHeapMap:
 		index = victim.index
 
 		heap = self.heap
-		replacement = heap[-1]
-		value = replacement.value
 		heap_len = len(heap) - 1
 
 		if index == heap_len:
@@ -214,6 +212,8 @@ class MaxHeapMap:
 			del mapping[key]
 			return
 
+		replacement = heap[heap_len]
+		value = replacement.value
 		answers = []
 
 		# don't try to bubble up if the deleted item was the
