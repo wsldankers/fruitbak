@@ -1,0 +1,59 @@
+
+def readclient():
+	def prefetcher():
+		for file in hardhat:
+			for chunk in file:
+				yield ReadRequest(chunk)
+
+	pool_agent = PoolAgent(prefetcher)
+
+	done = {}
+
+	for file in hardhat:
+		for chunk in file:
+			while chunk not in done:
+				d = pool_agent.wait()
+				done[d.hash] = d.value
+
+
+def writeclient():
+	def prefetcher():
+		for file in rsync:
+			for chunk in file:
+				yield WriteRequest(chunk)
+
+	pool_agent = PoolAgent(prefetcher)
+
+	while pool_agent.wait():
+		pass
+
+class PoolAgent:
+	def __init__(prefetcher):
+		self.prefetcher = prefetcher
+		self.done = []
+
+	def wait():
+		with self.pool.cond() as cond:
+			while not self.done:
+				self.pool.wait(self)
+
+class Pool:
+	def __init__():
+		self.agents = []
+
+	def wait(agent):
+		self.agents.push(agent)
+		with agent.cond:
+			while not agent.done:
+				while self.queue_depth >= self.max_queue_depth:
+					a = self.select_most_modest_agent()
+					req = a.next()
+
+					def on_completion():
+						a.done.push(req)
+						a.cond.notify()
+
+					self.root.queue(req, on_completion)
+				while self.queue_depth >= self.max_queue_depth and not agent.done:
+					self.cond.wait()
+		self.agents.pop(agent)
