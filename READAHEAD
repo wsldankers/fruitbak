@@ -31,11 +31,13 @@ class PoolAgent:
 	def __init__(prefetcher):
 		self.prefetcher = prefetcher
 		self.done = []
+		self.pending = []
 
 	def wait():
 		with self.pool.cond() as cond:
-			while not self.done:
+			while not self.done and self.pending:
 				self.pool.wait(self)
+		return self.done[0]
 
 class Pool:
 	def __init__():
