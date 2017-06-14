@@ -2,12 +2,17 @@ from weakref import ref as weakref
 
 from fruitbak.util.clarity import Clarity, initializer
 
-class mapnode:
-	__slots__ = ('__call__', lastvalue)
-
+class mapnode(weakref):
 	def __init__(self, agent):
-		self.__call__ = weakref(agent)
-		self.value = 0
+		super().__init__(agent)
+		self.hash = hash(agent)
+		self.id = id(agent)
+
+	def __hash__(self):
+		return self.hash
+
+	def __eq__(self, other):
+		return self.id == other.id
 
 	def value(self):
 		agent = self()
@@ -17,22 +22,21 @@ class mapnode:
 		self.lastvalue = v
 		return v
 
-	def __gt__(self, other):
-		return self.value() < other.value()
-
 class Pool(Clarity):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 
-		def agentcmp(wa, wb):
-
-
-		self.agents = MaxHeapMap(
+		self.agents = MinHeapMap()
 
 	def agent(*args, **kwargs):
 		a = Agent(*args, **kwargs)
 		w = weakref(a)
-		
+
+	def select_most_modest_agent(self):
+		agents = self.agents
+		agentref = agents.peek()
+		return agentref()
+		agents[agent] = len(agent.done) + len(agent.pending)
 
 	def wait(agent):
 		self.agents.push(agent)
