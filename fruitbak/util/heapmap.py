@@ -1,6 +1,6 @@
 #! /usr/bin/python3
 
-from util import lockingclass
+from .locking import lockingclass, unlockedmethod
 
 class HeapMapNode:
 	__slots__ = ('key', 'value', 'index')
@@ -86,7 +86,7 @@ class MaxHeapMap:
 
 	@unlockedmethod
 	def __len__(self):
-		return self.heap.len
+		return len(self.heap)
 
 	@unlockedmethod
 	def __getitem__(self, key):
