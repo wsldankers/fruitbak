@@ -3,5 +3,6 @@
 from sys import argv, exit
 from fruitbak.cli import Cli
 
-cli = Cli(argv = argv)
+cfg = {'base_path': '/tmp'}
+cli = Cli(cfg = cfg, argv = argv)
 exit(cli.run())

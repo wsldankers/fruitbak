@@ -5,6 +5,7 @@ from weakref import ref as weakref
 from base64 import b64encode
 from threading import Thread, Condition
 from collections import deque
+from warnings import warn
 
 class WorkerThread(Thread):
 	def __init__(self, queue, cond):
@@ -24,7 +25,7 @@ class WorkerThread(Thread):
 			try:
 				job()
 			except Exception as e:
-				print(e)
+				warn(e)
 
 class Filesystem(Storage):
 	@initializer
