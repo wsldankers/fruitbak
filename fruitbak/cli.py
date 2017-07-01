@@ -16,8 +16,14 @@ class Cli(Clarity):
 		elif self.argv[1] == 'test':
 			pool = Pool(cfg = self.cfg)
 			agent = pool.agent()
-			agent.queue_read(b'AAAAAAAAAAAAAAAAAAAAAAAAAAA')
-			while agent.wait() is not None:
-				pass
+			agent.queue_read(b'UUUUUUUUUUUUUUUUUUUUUUUUUUU')
+			agent.queue_read(b'XUUUUUUUUUUUUUUUUUUUUUUUUUU')
+			agent.queue_write(b'YUUUUUUUUUUUUUUUUUUUUUUUUUU', b'wuyertowyueru')
+			res = agent.wait()
+			print(res['value'])
+			res = agent.wait()
+			print(res['value'])
+			res = agent.wait()
+			print(res['value'])
 		else:
 			raise Exception("unknown command")
