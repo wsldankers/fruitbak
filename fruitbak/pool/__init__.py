@@ -9,6 +9,8 @@ from fruitbak.util.heapmap import MinHeapMap
 from fruitbak.pool.filesystem import Filesystem
 
 class mapnode(weakref):
+	__slots__ = ('hash', 'id')
+
 	def __init__(self, agent, *args):
 		super().__init__(agent, *args)
 		self.hash = hash(agent)
@@ -20,33 +22,33 @@ class mapnode(weakref):
 	def __eq__(self, other):
 		return self.id == other.id
 
+poolresult = namedtuple(
+
 class PoolAgent(Clarity):
+	@initializer
+	def cond(self):
+		return Condition(self.pool.lock)
+
+	@initializer
+	def done(self):
+		"""Completed operations"""
+		return []
+
+	@initializer
+	def pending(self):
+		"""The number of operations that have been submitted but not yet completed."""
+		return 0
+
+	@property
+	def avarice(self):
+		return len(self.done) + self.pending
+
 	def dequeue(self):
 		f = next(self.queue, None)
 		if f is None:
 			self.pool.unregister_agent(self)
 		else:
 			f(self)
-
-	@initializer
-	def cond(self):
-		return Condition(self.pool.lock)
-
-	@initializer
-	def queue(self):
-		return deque()
-
-	@initializer
-	def done(self):
-		return []
-
-	@initializer
-	def pending(self):
-		return 0
-
-	@property
-	def avarice(self):
-		return len(self.done) + self.pending
 
 	def update_registration(self):
 		if self.queue:
@@ -55,9 +57,10 @@ class PoolAgent(Clarity):
 			self.pool.unregister_agent(self)
 
 	def queue_read(self, hash):
+		"""Returns a function that will cause a read operation to be queued"""
 		pool = self.pool
 		with self.cond:
-			value = pool.cache.get(hash, None)
+			value = pool.chunk_registry.get(hash)
 			if value is not None:
 				self.done.append({'hash': hash, 'value': value})
 				self.cond.notify()
@@ -70,6 +73,7 @@ class PoolAgent(Clarity):
 			self.update_registration()
 			def whendone(hash, value, exception):
 				with self.cond:
+					value = pool.exchange_chunk(hash, value)
 					self.pending -= 1
 					self.done.append({'hash': hash, 'value': value, 'exception': exception})
 					self.update_registration()
@@ -79,16 +83,17 @@ class PoolAgent(Clarity):
 		return read_operation
 
 	def queue_write(self, hash, value):
+		"""Returns a function that will cause a write operation to be queued"""
 		pool = self.pool
 		with self.cond:
-			pool.cache[hash] = value
+			value = pool.exchange_chunk(hash, value)
 		def write_operation(self):
-			self.pending.add(hash)
+			self.pending += 1
 			self.update_registration()
 			def whendone(hash, exception):
 				with self.cond:
-					self.pending.remove(hash)
-					self.done.append({'hash': hash, 'exception': exception})
+					self.pending -= 1
+					self.done.append({'hash': hash, 'value': value, 'exception': exception})
 					self.update_registration()
 					self.cond.notify()
 					pool.replenish_queue()
@@ -96,14 +101,15 @@ class PoolAgent(Clarity):
 		return write_operation
 
 	def queue_delete(self, hash):
+		"""Returns a function that will cause a delete operation to be queued"""
 		pool = self.pool
 		def delete_operation(self):
-			self.pending.add(hash)
+			self.pending += 1
 			self.update_registration()
 			def whendone(hash, value):
 				with self.cond:
-					self.pending.remove(hash)
-					self.done.append({'hash': hash, 'exception': exception})
+					self.pending -= 1
+					self.done.append({'hash': hash, 'value': pool.chunk_registry.get(hash), 'exception': exception})
 					self.update_registration()
 					self.cond.notify()
 					pool.replenish_queue()
@@ -140,13 +146,22 @@ class Pool(Clarity):
 		return MinHeapMap()
 
 	@initializer
-	def weakcache(self):
+	def chunk_registry(self):
 		return WeakValueDictionary()
 
+	def exchange_chunk(self, hash, new_chunk = None):
+		# can't use setdefault(), it has weird corner cases
+		# involving None
+		chunk_registry = self.chunk_registry
+		old_chunk = chunk_registry.get(hash)
+		if old_chunk is not None:
+			return old_chunk
+		if new_chunk is not None:
+			chunk_registry[hash] = new_chunk
+		return new_chunk
+
 	def agent(self, *args, **kwargs):
-		a = PoolAgent(pool = self, *args, **kwargs)
-		self.register_agent(a)
-		return a
+		return PoolAgent(pool = self, *args, **kwargs)
 
 	def select_most_modest_agent(self):
 		agents = self.agents
