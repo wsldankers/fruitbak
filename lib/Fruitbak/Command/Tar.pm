@@ -63,7 +63,7 @@ sub format12 {
 
 sub output_header {
 	my ($name, $mode, $uid, $gid, $size, $mtime, $type, $link, $maj, $min) = @_;
-	my $header = pack('Z100 Z8 Z8 Z8 Z12 Z12 a8 a Z100 a8 Z32 Z32 Z8 Z8 Z155 Z12',
+	my $header = pack('a100 a8 a8 a8 a12 a12 a8 a a100 a8 a32 a32 a8 a8 a155 a12',
 		$name,
 		$self->format8($mode),
 		$self->format8($uid, 65534),
