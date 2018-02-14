@@ -2,7 +2,10 @@
 
 from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.weak import weakproperty
-from fruitbak.share import Share
+from fruitbak.backup import Backup
+import re
+
+numbers_re = re.compile('0|[1-9][0-9]*')
 
 class Host(Clarity):
 	"""Represent hosts to back up.
@@ -33,13 +36,9 @@ class Host(Clarity):
 		return path
 
 	@initializer
-	def sharedir(self):
-		return self.hostdir / 'share'
-
-	@initializer
-	def shares(self):
-		shares = []
-		for entry in self.sharedir.iterdir():
-			if entry.is_dir() and not entry.name.startswith('.'):
-				shares.append(Share(host = self, sharedir = entry))
-		return shares
+	def backups(self):
+		backups = []
+		for entry in self.hostdir.iterdir():
+			if numbers_re.match(entry.name) and entry.is_dir():
+				backups.append(Backup(host = self, backupdir = entry))
+		return sorted(backups, key = lambda b: b.index)

@@ -21,6 +21,11 @@ class Share(Clarity):
 	@weakproperty
 	def host(self):
 		"""The host object that this share belongs to"""
+		return self.backup.host
+
+	@weakproperty
+	def backup(self):
+		"""The host object that this share belongs to"""
 
 	@initializer
 	def name(self):
@@ -37,4 +42,4 @@ class Share(Clarity):
 
 	@initializer
 	def metadata(self):
-		return Hardhat(self.sharedir / 'metadata.hh')
+		return Hardhat(str(self.sharedir / 'metadata.hh'))

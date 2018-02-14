@@ -26,9 +26,9 @@ class Fruitbak(Clarity):
 	def hosts(self):
 		hosts = []
 		for entry in self.hostdir.iterdir():
-			if entry.is_dir() and not entry.name.startswith('.'):
+			if not entry.name.startswith('.') and entry.is_dir():
 				hosts.append(Host(fruitbak = self, hostdir = entry))
-		return hosts
+		return sorted(hosts, key = lambda h: h.name)
 
 	def name_to_path(self, name):
 		return Path(quote(name[0], errors = 'strict', safe = '+=_,%@')
