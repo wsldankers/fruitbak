@@ -10,4 +10,6 @@ cfg = {'rootdir': '/tmp'}
 
 fbak = Fruitbak(cfg = cfg)
 for host in fbak.hosts:
-	print(host.shares)
+	for share in host.shares:
+		print(share.name)
+		print(share.metadata)

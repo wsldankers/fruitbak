@@ -3,6 +3,7 @@
 from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.host import Host
 from pathlib import Path
+from urllib.parse import quote, unquote
 import os
 
 class Fruitbak(Clarity):
@@ -26,5 +27,12 @@ class Fruitbak(Clarity):
 		hosts = []
 		for entry in self.hostdir.iterdir():
 			if entry.is_dir() and not entry.name.startswith('.'):
-				hosts.append(Host(name = entry.name, fruitbak = self))
+				hosts.append(Host(fruitbak = self, hostdir = entry))
 		return hosts
+
+	def name_to_path(self, name):
+		return Path(quote(name[0], errors = 'strict', safe = '+=_,%@')
+			+ quote(name[1:], errors = 'strict', safe = '+=_,%@.-'))
+
+	def path_to_name(self, path):
+		return unquote(str(path), errors = 'strict')

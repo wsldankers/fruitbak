@@ -20,8 +20,17 @@ class Host(Clarity):
 	def fruitbak(self): pass
 
 	@initializer
+	def name(self):
+		return self.fruitbak.path_to_name(self.hostdir.name)
+
+	@initializer
 	def hostdir(self):
-		return self.fruitbak.hostdir / self.name
+		path = self.fruitbak.hostdir / self.fruitbak.name_to_path(self.name)
+		try:
+			path.mkdir(exist_ok = True)
+		except FileExistsError:
+			pass
+		return path
 
 	@initializer
 	def sharedir(self):
@@ -29,6 +38,8 @@ class Host(Clarity):
 
 	@initializer
 	def shares(self):
+		shares = []
 		for entry in self.sharedir.iterdir():
 			if entry.is_dir() and not entry.name.startswith('.'):
-				return Share(name = entry.name, host = self)
+				shares.append(Share(host = self, sharedir = entry))
+		return shares
