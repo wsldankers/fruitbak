@@ -2,7 +2,12 @@
 
 from sys import argv, exit
 from fruitbak.cli import Cli
+from fruitbak import Fruitbak
 
-cfg = {'base_path': '/tmp'}
-cli = Cli(cfg = cfg, argv = argv)
-exit(cli.run())
+cfg = {'rootdir': '/tmp'}
+#cli = Cli(cfg = cfg, argv = argv)
+#exit(cli.run())
+
+fbak = Fruitbak(cfg = cfg)
+for host in fbak.hosts:
+	print(host.shares)

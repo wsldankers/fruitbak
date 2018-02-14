@@ -6,10 +6,10 @@ class weakproperty(property):
 	def __init__(self, f):
 		dict = self.__dict__
 		name = f.__name__
-		def getter():
+		def getter(self):
 			return dict[name]()
 
-		def deleter():
+		def deleter(self):
 			del dict[name]
 
 		def setter(self, value):
