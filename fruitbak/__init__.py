@@ -2,6 +2,8 @@
 
 from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.host import Host
+from fruitbak.config import Config
+
 from pathlib import Path
 from urllib.parse import quote, unquote
 import os
@@ -15,8 +17,16 @@ class Fruitbak(Clarity):
 	"""
 
 	@initializer
+	def config(self):
+		return Config(self.confdir / 'global')
+
+	@initializer
+	def confdir(self):
+		return Path(self.rootdir) / 'conf'
+
+	@initializer
 	def rootdir(self):
-		return Path(self.cfg['rootdir'])
+		return Path(self.config['rootdir'])
 
 	@initializer
 	def hostdir(self):

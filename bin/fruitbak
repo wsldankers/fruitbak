@@ -3,14 +3,15 @@
 from sys import argv, exit
 from fruitbak import Fruitbak
 from fruitbak.cli import Cli
+from pathlib import Path
 
-cfg = {'rootdir': '/dev/shm'}
 #cli = Cli(cfg = cfg, argv = argv)
 #exit(cli.run())
 
-fbak = Fruitbak(cfg = cfg)
+fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 for host in fbak.hosts:
 	for backup in host.backups:
 		for share in backup.shares:
 			print(host.name + ': ' + str(backup.index) + ': ' + share.name)
 			print(share.metadata)
+			exit()
