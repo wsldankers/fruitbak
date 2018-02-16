@@ -3,7 +3,6 @@
 from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.weak import weakproperty
 from fruitbak.share import Share
-from hardhat import Hardhat
 
 class Backup(Clarity):
 	"""Represent a backup.

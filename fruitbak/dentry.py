@@ -19,10 +19,10 @@ class NotASymlinkError(FileTypeError):
 class NotADeviceError(FileTypeError):
 	pass
 
-class NotABlockDeviceError(FileTypeError):
+class NotABlockDeviceError(NotADeviceError):
 	pass
 
-class NotACharacterDeviceError(FileTypeError):
+class NotACharacterDeviceError(NotADeviceError):
 	pass
 
 def _to_bytes(value):
@@ -72,16 +72,28 @@ class Dentry(Clarity):
 	data from the hardlink target instead.
 	"""
 
+	MAXNAMELEN = 65535
+	FORMAT_FLAG_HARDLINK = 0x1 
+	FORMAT_MASK = FORMAT_FLAG_HARDLINK
+
+	@initializer
+	def extra(self):
+		return bytearray()
+
 	@initializer
 	def is_hardlink(self):
 		"""Is this dentry a hardlink?
 
 		If so, you can use the hardlink property to see what path it points at.
 
-		Boolean, readonly, defaults to False.
+		Boolean, readwrite, defaults to False.
 		"""
 
 		return False
+
+	@is_hardlink.setter
+	def is_hardlink(self, value):
+		return True if value else False
 
 	@property
 	def hardlink(self):
@@ -140,3 +152,169 @@ class Dentry(Clarity):
 		"""
 
 		return S_ISDIR(self.mode)
+
+	@property
+	def is_device(self):
+		"""Is this dentry a device?
+
+		Boolean, readonly.
+		"""
+
+		mode = self.mode
+		return S_ISCHR(mode) or S_ISBLK(mode)
+
+	@property
+	def is_chardev(self):
+		"""Is this dentry a character device?
+
+		Boolean, readonly.
+		"""
+
+		return S_ISCHR(self.mode)
+
+	@property
+	def is_blockdev(self):
+		"""Is this dentry a block device?
+
+		Boolean, readonly.
+		"""
+
+		return S_ISBLK(self.mode)
+
+	@property
+	def rdev_major(self):
+		if self.is_device:
+			major, minor = unpack('<LL', self.extra)
+			return major
+		raise NotADeviceError("'%s' is not a device" % self.name)
+
+	@rdev_major.setter
+	def rdev_major(self, major):
+		if self.is_device:
+			extra = self.extra
+			if extra:
+				old_major, minor = unpack('<LL', self.extra)
+			else:
+				minor = 0
+			self.extra[:] = pack('<LL', major, minor)
+		raise NotADeviceError("'%s' is not a device" % self.name)
+
+	@property
+	def rdev_minor(self):
+		if self.is_device:
+			major, minor = unpack('<LL', self.extra)
+			return minor
+		raise NotADeviceError("'%s' is not a device" % self.name)
+
+	@rdev_minor.setter
+	def rdev_minor(self, minor):
+		if self.is_device:
+			extra = self.extra
+			if extra:
+				major, old_minor = unpack('<LL', self.extra)
+			else:
+				major = 0
+			self.extra[:] = pack('<LL', major, minor)
+		raise NotADeviceError("'%s' is not a device" % self.name)
+
+	@property
+	def rdev(self):
+		if self.is_device:
+			return unpack('<LL', self.extra)
+		raise NotADeviceError("'%s' is not a device" % self.name)
+
+	@rdev.setter
+	def rdev(self, (major, minor)):
+		if self.is_device:
+			self.extra[:] = pack('<LL', major, minor)
+		raise NotADeviceError("'%s' is not a device" % self.name)
+
+	@property
+	def is_fifo(self):
+		"""Is this dentry a named pipe?
+
+		Boolean, readonly.
+		"""
+
+		return S_ISFIFO(self.mode)
+
+	@property
+	def is_socket(self):
+		"""Is this dentry a unix domain socket?
+
+		Boolean, readonly.
+		"""
+
+		return S_ISSOCK(self.mode)
+
+class HardlinkDentry(Dentry):
+	def __init__(original, target):
+		super().__init__(original = original, target = target)
+
+	@property
+	def name(self):
+		return self.original.name
+
+	@property
+	def inode(self):
+		return self.target.inode
+
+	@property
+	def mode(self):
+		return self.target.mode
+
+	@property
+	def size(self):
+		return self.target.size
+
+	@property
+	def storedsize(self):
+		return self.target.storedsize
+
+	@property
+	def mtime_ns(self):
+		return self.target.mtime_ns
+
+	@property
+	def uid(self):
+		return self.target.uid
+
+	@property
+	def gid(self):
+		return self.target.gid
+
+	@property
+	def digests(self):
+		return self.target.digests
+
+	@property
+	def hardlink(self):
+		return self.target.name
+
+	@property
+	def symlink(self):
+		return self.target.symlink
+
+	@property
+	def rdev_minor(self):
+		return self.target.rdev_minor
+
+	@property
+	def rdev_major(self):
+		return self.target.rdev_major
+
+	@property
+	def extra(self):
+		return self.target.extra
+
+	@property
+	def is_hardlink(self):
+		return True
+
+	@property
+	def is_file(self):
+		return self.target.is_file
+
+	@property
+	def is_directory(self):
+		return False

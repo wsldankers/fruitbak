@@ -2,6 +2,7 @@
 
 from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.weak import weakproperty
+from fruitbak.dentry import Dentry, HardlinkDentry
 from hardhat import Hardhat
 
 class Share(Clarity):
@@ -12,6 +13,10 @@ class Share(Clarity):
 	possible to have only one "share" for the entire host if the
 	distinction is not relevant/applicable for the host.
 	"""
+
+	MAXNAMELEN = 65535
+	FORMAT_FLAG_HARDLINK = 0x1
+	FORMAT_MASK = FORMAT_FLAG_HARDLINK
 
 	@weakproperty
 	def fruitbak(self):
@@ -43,3 +48,14 @@ class Share(Clarity):
 	@initializer
 	def metadata(self):
 		return Hardhat(str(self.sharedir / 'metadata.hh'))
+
+	def parse_dentry(path, data):
+		(flags, mode, size, mtime, uid, gid) = unpack_from('<LLQQLL', data)
+		if flags & FORMAT_FLAG_HARDLINK:
+			original = Dentry(is_hardlink = True)
+		else:
+		
+
+	def ls(self, path):
+		for (path, data) in self.metadata.ls(path):
+			yield self.parse_dentry(path, data)
