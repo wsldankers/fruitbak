@@ -32,13 +32,15 @@ class Fruitbak(Clarity):
 	def hostdir(self):
 		return self.rootdir / 'host'
 
-	@initializer
 	def hosts(self):
 		hosts = []
 		for entry in self.hostdir.iterdir():
 			if not entry.name.startswith('.') and entry.is_dir():
 				hosts.append(Host(fruitbak = self, hostdir = entry))
 		return sorted(hosts, key = lambda h: h.name)
+
+	def host(self, name):
+		return Host(fruitbak = self, name = name)
 
 	def name_to_path(self, name):
 		return Path(quote(name[0], errors = 'strict', safe = '+=_,%@')

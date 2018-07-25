@@ -19,7 +19,7 @@ class Host(Clarity):
 	distinction is not relevant/applicable for the host.
 	"""
 
-	@weakproperty
+	@initializer
 	def fruitbak(self): pass
 
 	@initializer
@@ -35,10 +35,12 @@ class Host(Clarity):
 			pass
 		return path
 
-	@initializer
 	def backups(self):
 		backups = []
 		for entry in self.hostdir.iterdir():
 			if numbers_re.match(entry.name) and entry.is_dir():
 				backups.append(Backup(host = self, backupdir = entry))
 		return sorted(backups, key = lambda b: b.index)
+
+	def backup(self, index):
+		return Backup(host = self, index = index)

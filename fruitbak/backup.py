@@ -16,12 +16,12 @@ class Backup(Clarity):
 	if the distinction is not relevant/applicable for the host.
 	"""
 
-	@weakproperty
+	@initializer
 	def fruitbak(self):
 		"""The fruitbak object that this backup belongs to"""
 		return self.host.fruitbak
 
-	@weakproperty
+	@initializer
 	def host(self):
 		"""The host object that this backup belongs to"""
 
@@ -31,7 +31,7 @@ class Backup(Clarity):
 
 	@initializer
 	def backupdir(self):
-		path = self.host.sharedir / str(self.index)
+		path = self.host.hostdir / str(self.index)
 		try:
 			path.mkdir(exist_ok = True)
 		except FileExistsError:
@@ -42,10 +42,12 @@ class Backup(Clarity):
 	def sharedir(self):
 		return self.backupdir / 'share'
 
-	@initializer
 	def shares(self):
 		shares = []
 		for entry in self.sharedir.iterdir():
 			if not entry.name.startswith('.') and entry.is_dir():
 				shares.append(Share(backup = self, sharedir = entry))
 		return sorted(shares, key = lambda s: s.name)
+
+	def share(self, name):
+		return Share(backup = self, name = name)

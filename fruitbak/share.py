@@ -28,17 +28,17 @@ class Share(Clarity):
 
 	dentry_layout = Struct('<LLQQLL')
 
-	@weakproperty
+	@initializer
 	def fruitbak(self):
 		"""The fruitbak object that this share belongs to"""
 		return self.host.fruitbak
 
-	@weakproperty
+	@initializer
 	def host(self):
 		"""The host object that this share belongs to"""
 		return self.backup.host
 
-	@weakproperty
+	@initializer
 	def backup(self):
 		"""The host object that this share belongs to"""
 
@@ -48,7 +48,7 @@ class Share(Clarity):
 
 	@initializer
 	def sharedir(self):
-		path = self.host.sharedir / self.fruitbak.name_to_path(self.name)
+		path = self.backup.backupdir / 'share' / self.fruitbak.name_to_path(self.name)
 		try:
 			path.mkdir(exist_ok = True)
 		except FileExistsError:
@@ -78,7 +78,7 @@ class Share(Clarity):
 				is_hardlink = True,
 				hardlink = hardlink,
 			)
-			data = self.metadata.get(hardlink)
+			data = self.metadata[hardlink]
 			(flags, mode, size, mtime, uid, gid) = dentry_layout.unpack_from(data)
 			if flags & FORMAT_FLAG_HARDLINK:
 				raise NestedHardlinkError("'%s' is a hardlink pointing to '%s', but that is also a hardlink" % (name, original.name))
@@ -112,7 +112,6 @@ class Share(Clarity):
 				gid = gid,
 				extra = extra,
 			)
-		
 
 	def ls(self, path):
 		for (path, data) in self.metadata.ls(path):

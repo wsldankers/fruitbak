@@ -248,7 +248,7 @@ class Dentry(Clarity):
 		return S_ISSOCK(self.mode)
 
 class HardlinkDentry(Dentry):
-	def __init__(original, target):
+	def __init__(self, original, target):
 		super().__init__(original = original, target = target)
 
 	@property
