@@ -224,9 +224,9 @@ class Dentry(Clarity):
 		raise NotADeviceError("'%s' is not a device" % self.name)
 
 	@rdev.setter
-	def rdev(self, (major, minor)):
+	def rdev(self, majorminor):
 		if self.is_device:
-			self.extra[:] = pack('<LL', major, minor)
+			self.extra[:] = pack('<LL', *majorminor)
 		raise NotADeviceError("'%s' is not a device" % self.name)
 
 	@property

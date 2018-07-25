@@ -14,4 +14,6 @@ for host in fbak.hosts:
 		for share in backup.shares:
 			print(host.name + ': ' + str(backup.index) + ': ' + share.name)
 			print(share.metadata)
+			for dentry in share.ls('/'):
+				print(dentry.name)
 			exit()

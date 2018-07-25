@@ -4,6 +4,14 @@ from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.weak import weakproperty
 from fruitbak.dentry import Dentry, HardlinkDentry
 from hardhat import Hardhat
+from struct import Struct
+
+class ShareError(Exception):
+    """Something Share-related went wrong."""
+    pass
+
+class NestedHardlinkError(ShareError):
+    pass
 
 class Share(Clarity):
 	"""Represent a share to back up.
@@ -17,6 +25,8 @@ class Share(Clarity):
 	MAXNAMELEN = 65535
 	FORMAT_FLAG_HARDLINK = 0x1
 	FORMAT_MASK = FORMAT_FLAG_HARDLINK
+
+	dentry_layout = Struct('<LLQQLL')
 
 	@weakproperty
 	def fruitbak(self):
@@ -49,11 +59,59 @@ class Share(Clarity):
 	def metadata(self):
 		return Hardhat(str(self.sharedir / 'metadata.hh'))
 
-	def parse_dentry(path, data):
-		(flags, mode, size, mtime, uid, gid) = unpack_from('<LLQQLL', data)
+	def parse_dentry(self, path, data):
+		dentry_layout = self.dentry_layout
+		dentry_layout_size = dentry_layout.size
+		FORMAT_FLAG_HARDLINK = self.FORMAT_FLAG_HARDLINK
+		MAXNAMELEN = self.MAXNAMELEN
+		(flags, mode, size, mtime, uid, gid) = dentry_layout.unpack_from(data)
 		if flags & FORMAT_FLAG_HARDLINK:
-			original = Dentry(is_hardlink = True)
+			hardlink = data[dentry_layout_size:]
+			original = Dentry(
+				name = path,
+				flags = flags,
+				mode = mode,
+				size = size,
+				mtime = mtime,
+				uid = uid,
+				gid = gid,
+				is_hardlink = True,
+				hardlink = hardlink,
+			)
+			data = self.metadata.get(hardlink)
+			(flags, mode, size, mtime, uid, gid) = dentry_layout.unpack_from(data)
+			if flags & FORMAT_FLAG_HARDLINK:
+				raise NestedHardlinkError("'%s' is a hardlink pointing to '%s', but that is also a hardlink" % (name, original.name))
+			if len(data) > dentry_layout_size + MAXNAMELEN:
+				extra = memoryview(data)[dentry_layout_size:]
+			else:
+				extra = data[dentry_layout_size:]
+			target = Dentry(
+				name = hardlink,
+				flags = flags,
+				mode = mode,
+				size = size,
+				mtime = mtime,
+				uid = uid,
+				gid = gid,
+				extra = extra,
+			)
+			return HardlinkDentry(original, target)
 		else:
+			if len(data) > dentry_layout_size + MAXNAMELEN:
+				extra = memoryview(data)[dentry_layout_size:]
+			else:
+				extra = data[dentry_layout_size:]
+			return Dentry(
+				name = path,
+				flags = flags,
+				mode = mode,
+				size = size,
+				mtime = mtime,
+				uid = uid,
+				gid = gid,
+				extra = extra,
+			)
 		
 
 	def ls(self, path):
