@@ -39,10 +39,6 @@ class Share(Clarity):
 		return self.backup.host
 
 	@initializer
-	def backup(self):
-		"""The host object that this share belongs to"""
-
-	@initializer
 	def name(self):
 		return self.fruitbak.path_to_name(self.sharedir.name)
 

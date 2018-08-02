@@ -10,20 +10,20 @@ from pathlib import Path
 
 fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 
-share = fbak.host('abby').backup(0).share('sys/log')
+share = fbak['abby'][0]['sys/log']
 for dentry in share.ls('/'):
 	print(dentry.name)
 
-dentry = None
-share = None
+#dentry = None
+#share = None
 
 print("done")
-exit(0)
 
-for host in fbak.hosts:
-	for backup in host.backups:
-		for share in backup.shares:
+for host in fbak:
+	for backup in host:
+		for share in backup:
 			print(host.name + ': ' + str(backup.index) + ': ' + share.name)
+			print(share.name)
 			print(share.metadata)
 			for dentry in share.ls('/'):
 				print(dentry.name)

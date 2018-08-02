@@ -4,6 +4,8 @@ from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.weak import weakproperty
 from fruitbak.share import Share
 
+from weakref import WeakValueDictionary
+
 class Backup(Clarity):
 	"""Represent a backup.
 
@@ -22,10 +24,6 @@ class Backup(Clarity):
 		return self.host.fruitbak
 
 	@initializer
-	def host(self):
-		"""The host object that this backup belongs to"""
-
-	@initializer
 	def index(self):
 		return int(self.backupdir.name)
 
@@ -42,12 +40,31 @@ class Backup(Clarity):
 	def sharedir(self):
 		return self.backupdir / 'share'
 
-	def shares(self):
-		shares = []
-		for entry in self.sharedir.iterdir():
-			if not entry.name.startswith('.') and entry.is_dir():
-				shares.append(Share(backup = self, sharedir = entry))
-		return sorted(shares, key = lambda s: s.name)
 
-	def share(self, name):
-		return Share(backup = self, name = name)
+	@initializer
+	def sharecache(self):
+		return WeakValueDictionary()
+
+	def __iter__(self):
+		shares = []
+		sharecache = self.sharecache
+		fruitbak = self.fruitbak
+		for entry in self.sharedir.iterdir():
+			entry_name = entry.name
+			if not entry_name.startswith('.') and entry.is_dir():
+				name = fruitbak.path_to_name(entry_name)
+				share = sharecache.get(name)
+				if share is None:
+					share = Share(fruitbak = fruitbak, backup = self, name = name, sharedir = entry)
+					sharecache[name] = share
+				shares.append(share)
+		return iter(sorted(shares, key = lambda s: s.name))
+
+	def __getitem__(self, name):
+		name = str(name)
+		sharecache = self.sharecache
+		share = sharecache.get(name)
+		if share is None:
+			share = Share(backup = self, name = name)
+			sharecache[name] = share
+		return share

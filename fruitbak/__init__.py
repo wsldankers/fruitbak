@@ -4,6 +4,7 @@ from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.host import Host
 from fruitbak.config import Config
 
+from weakref import WeakValueDictionary
 from pathlib import Path
 from urllib.parse import quote, unquote
 import os
@@ -32,15 +33,36 @@ class Fruitbak(Clarity):
 	def hostdir(self):
 		return self.rootdir / 'host'
 
-	def hosts(self):
-		hosts = []
-		for entry in self.hostdir.iterdir():
-			if not entry.name.startswith('.') and entry.is_dir():
-				hosts.append(Host(fruitbak = self, hostdir = entry))
-		return sorted(hosts, key = lambda h: h.name)
+	@initializer
+	def config(self):
+		return Config(self.confdir / 'global')
 
-	def host(self, name):
-		return Host(fruitbak = self, name = name)
+	@initializer
+	def hostcache(self):
+		return WeakValueDictionary()
+
+	def __iter__(self):
+		hosts = []
+		hostcache = self.hostcache
+		for entry in self.hostdir.iterdir():
+			entry_name = entry.name
+			if not entry_name.startswith('.') and entry.is_dir():
+				name = self.path_to_name(entry_name)
+				host = hostcache.get(name)
+				if host is None:
+					host = Host(fruitbak = self, name = name, hostdir = entry)
+					hostcache[name] = host
+				hosts.append(host)
+		return iter(sorted(hosts, key = lambda h: h.name))
+
+	def __getitem__(self, name):
+		name = str(name)
+		hostcache = self.hostcache
+		host = hostcache.get(name)
+		if host is None:
+			host = Host(fruitbak = self, name = name)
+			hostcache[name] = host
+		return host
 
 	def name_to_path(self, name):
 		return Path(quote(name[0], errors = 'strict', safe = '+=_,%@')
