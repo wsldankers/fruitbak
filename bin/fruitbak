@@ -1,32 +1,36 @@
 #! /usr/bin/env python3
 
-from sys import argv, exit
 from fruitbak import Fruitbak
 from fruitbak.cli import Cli
+
+from os import fsdecode
 from pathlib import Path
+import click
 
-#cli = Cli(cfg = cfg, argv = argv)
-#exit(cli.run())
+@click.group()
+def cli(): pass
 
-fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+@cli.command()
+@click.argument('host', required = False)
+@click.argument('backup', required = False)
+@click.argument('share', required = False)
+@click.argument('path', required = False, default = '')
+def ls(host, backup, share, path):
+	"""Lists hosts, backups, shares and paths"""
 
-share = fbak['abby'][0]['sys/log']
-for dentry in share.ls('/'):
-	print(dentry.name)
+	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 
-#dentry = None
-#share = None
+	if host is None:
+		for h in fbak:
+			print(h.name)
+	elif backup is None:
+		for b in fbak[host]:
+			print(b.index)
+	elif share is None:
+		for s in fbak[host][backup]:
+			print(s.name)
+	else:
+		for dentry in fbak[host][backup][share].ls(path):
+			print(fsdecode(dentry.name))
 
-print("done")
-
-for host in fbak:
-	for backup in host:
-		for share in backup:
-			print(host.name + ': ' + str(backup.index) + ': ' + share.name)
-			print(share.name)
-			print(share.metadata)
-			for dentry in share.ls('/'):
-				print(dentry.name)
-			break
-		break
-	break
+cli()

@@ -28,12 +28,7 @@ class Host(Clarity):
 	@initializer
 	def hostdir(self):
 		fruitbak = self.fruitbak
-		path = fruitbak.hostdir / fruitbak.name_to_path(self.name)
-		try:
-			path.mkdir(exist_ok = True)
-		except FileExistsError:
-			pass
-		return path
+		return fruitbak.hostdir / fruitbak.name_to_path(self.name)
 
 	@initializer
 	def backupcache(self):
