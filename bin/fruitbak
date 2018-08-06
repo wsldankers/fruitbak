@@ -4,8 +4,17 @@ from fruitbak import Fruitbak
 from fruitbak.cli import Cli
 
 from os import fsdecode
+from sys import stderr
 from pathlib import Path
+from warnings import warn
+
 import click
+import gc, atexit
+
+@atexit.register
+def check_for_loops():
+	if gc.collect() != 0:
+		print("W: reference loops at program exit!", file = stderr)
 
 @click.group()
 def cli(): pass
@@ -32,5 +41,26 @@ def ls(host, backup, share, path):
 	else:
 		for dentry in fbak[host][backup][share].ls(path):
 			print(fsdecode(dentry.name))
+
+@cli.command()
+def pooltest():
+	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+
+	agent = None
+
+	def readahead():
+		yield agent.queue_read(b'foo')
+
+	agent = fbak.pool.agent(readahead = readahead())
+
+	agent.put_chunk(b'foo', b'bar')
+
+	action = agent.wait()
+	if action.exception:
+		raise action.exception
+	print(str(action.value))
+
+	agent = None
+	fbak = None
 
 cli()

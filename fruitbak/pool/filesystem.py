@@ -7,7 +7,8 @@ from threading import Thread, Condition
 from collections import deque
 from warnings import warn
 from tempfile import NamedTemporaryFile
-from os import mkdir, replace, fsync, unlink
+from os import mkdir, replace, fsync, unlink, fsdecode
+from pathlib import Path
 
 class WorkerThread(Thread):
 	def __init__(self, queue, cond):
@@ -31,8 +32,8 @@ class WorkerThread(Thread):
 
 class Filesystem(Storage):
 	@initializer
-	def base_path(self):
-		return self.cfg['base_path']
+	def pooldir(self):
+		return self.config['pooldir']
 
 	def __init__(self, **kwargs):
 		super().__init__(**kwargs)
@@ -42,30 +43,24 @@ class Filesystem(Storage):
 
 	def hash2path(self, hash):
 		b64 = b64encode(hash, b'+_').rstrip(b'=')
-		relpath = b'/' + b64[:2] + b'/' + b64[2:]
-		base_path = self.base_path
-		if isinstance(base_path, str):
-			relpath = relpath.decode()
-		return base_path + relpath
+		return self.pooldir / Path(fsdecode(b64[:2])) / Path(fsdecode(b64[2:]))
 
 	def hash2parent(self, hash):
 		b64 = b64encode(hash, b'+_').rstrip(b'=')
-		relpath = b'/' + b64[:2]
-		base_path = self.base_path
-		if isinstance(base_path, str):
-			relpath = relpath.decode()
-		return base_path + relpath
+		return self.pooldir / Path(fsdecode(b64[:2]))
 
 	def get_chunk(self, hash, callback):
 		path = self.hash2path(hash)
 
 		def job():
 			try:
-				with open(path, mode = 'rb', buffering = 0) as f:
+				with path.open(mode = 'rb', buffering = 0) as f:
 					buf = f.read()
-				callback(hash, buf)
+				callback(buf, None)
 			except Exception as e:
-				callback(hash, e)
+				callback(None, e)
+
+		cond = self.cond
 		with self.cond:
 			self.queue.append(job)
 			self.cond.notify()
@@ -75,7 +70,8 @@ class Filesystem(Storage):
 
 		def job():
 			try:
-				with NamedTemporaryFile(dir = self.base_path, buffering = 0, delete = False) as f:
+				with NamedTemporaryFile(dir = str(self.pooldir), buffering = 0, delete = False) as f:
+					f_path = Path(f.name)
 					try:
 						offset = f.write(value)
 						if offset < len(value):
@@ -86,17 +82,19 @@ class Filesystem(Storage):
 						fsync(f.fileno())
 						f.close()
 						try:
-							replace(f.name, path)
+							f_path.replace(path)
 						except FileNotFoundError:
-							mkdir(self.hash2parent(hash))
-							replace(f.name, path)
+							self.hash2parent(hash).mkdir()
+							f_path.replace(path)
 					except:
 						unlink(f.name)
 						raise
 
-				callback(hash, None)
+				callback(None)
 			except Exception as e:
-				callback(hash, e)
+				callback(e)
+
+		cond = self.cond
 		with self.cond:
 			self.queue.append(job)
 			self.cond.notify()
@@ -106,12 +104,14 @@ class Filesystem(Storage):
 
 		def job():
 			try:
-				unlink(path)
-				callback(hash, None)
+				path.unlink()
 			except FileNotFoundError:
-				callback(hash, None)
+				callback(None)
 			except Exception as e:
-				callback(hash, e)
+				callback(e)
+			callback(None)
+
+		cond = self.cond
 		with self.cond:
 			self.queue.append(job)
 			self.cond.notify()

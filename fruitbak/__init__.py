@@ -1,8 +1,10 @@
 """Top-level object for a Fruitbak installation"""
 
 from fruitbak.util.clarity import Clarity, initializer
+from fruitbak.util.weak import weakproperty
 from fruitbak.host import Host
 from fruitbak.config import Config
+from fruitbak.pool import Pool
 
 from weakref import WeakValueDictionary
 from pathlib import Path
@@ -34,8 +36,17 @@ class Fruitbak(Clarity):
 		return self.rootdir / 'host'
 
 	@initializer
+	def pooldir(self):
+		return self.rootdir / 'pool'
+
+	@initializer
 	def config(self):
 		return Config(self.confdir / 'global')
+
+	#@weakproperty
+	@initializer
+	def pool(self):
+		return Pool(fbak = self, config = {'pooldir': self.pooldir})
 
 	@initializer
 	def hostcache(self):
