@@ -6,7 +6,7 @@ from fruitbak.cli import Cli
 from os import fsdecode
 from sys import stderr
 from pathlib import Path
-from warnings import warn
+from time import sleep
 
 import click
 import gc, atexit
@@ -46,10 +46,8 @@ def ls(host, backup, share, path):
 def pooltest():
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 
-	agent = None
-
 	def readahead():
-		yield agent.queue_read(b'foo')
+		yield b'foo'
 
 	agent = fbak.pool.agent(readahead = readahead())
 
@@ -62,5 +60,7 @@ def pooltest():
 
 	agent = None
 	fbak = None
+
+	sleep(1)
 
 cli()

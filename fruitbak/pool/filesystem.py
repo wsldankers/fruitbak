@@ -3,32 +3,18 @@ from fruitbak.pool.handler import Storage
 
 from weakref import ref as weakref
 from base64 import b64encode
-from threading import Thread, Condition
-from collections import deque
-from warnings import warn
+from traceback import format_exc
+from sys import stderr
+from concurrent.futures import ThreadPoolExecutor
 from tempfile import NamedTemporaryFile
 from os import mkdir, replace, fsync, unlink, fsdecode
 from pathlib import Path
 
-class WorkerThread(Thread):
-	def __init__(self, queue, cond):
-		super().__init__(daemon = True)
-		self.cond = cond
-		self.queue = queue
-		self.start()
-
-	def run(self):
-		cond = self.cond
-		queue = self.queue
-		while True:
-			with cond:
-				while not queue:
-					cond.wait()
-				job = queue.popleft()
-			try:
-				job()
-			except Exception as e:
-				warn(e)
+def windshield(f, *args, **kwargs):
+	try:
+		f(*args, **kwargs)
+	except:
+		print(format_exc(), file = stderr)
 
 class Filesystem(Storage):
 	@initializer
@@ -37,9 +23,7 @@ class Filesystem(Storage):
 
 	def __init__(self, **kwargs):
 		super().__init__(**kwargs)
-		self.cond = Condition()
-		self.queue = deque()
-		self.workers = [WorkerThread(self.queue, self.cond) for x in range(32)]
+		self.executor = ThreadPoolExecutor(max_workers = 32)
 
 	def hash2path(self, hash):
 		b64 = b64encode(hash, b'+_').rstrip(b'=')
@@ -60,10 +44,7 @@ class Filesystem(Storage):
 			except Exception as e:
 				callback(None, e)
 
-		cond = self.cond
-		with self.cond:
-			self.queue.append(job)
-			self.cond.notify()
+		self.executor.submit(windshield, job)
 
 	def put_chunk(self, hash, value, callback):
 		path = self.hash2path(hash)
@@ -87,17 +68,14 @@ class Filesystem(Storage):
 							self.hash2parent(hash).mkdir()
 							f_path.replace(path)
 					except:
-						unlink(f.name)
+						f_path.unlink()
 						raise
 
 				callback(None)
 			except Exception as e:
 				callback(e)
 
-		cond = self.cond
-		with self.cond:
-			self.queue.append(job)
-			self.cond.notify()
+		self.executor.submit(windshield, job)
 
 	def del_chunk(self, hash, callback):
 		path = self.hash2path(hash)
@@ -111,7 +89,4 @@ class Filesystem(Storage):
 				callback(e)
 			callback(None)
 
-		cond = self.cond
-		with self.cond:
-			self.queue.append(job)
-			self.cond.notify()
+		self.executor.submit(windshield, job)

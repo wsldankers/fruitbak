@@ -314,7 +314,12 @@ class MaxHeapMap:
 
 	@unlockedmethod
 	def peek(self):
-		return self.heap[0].key
+		return self.heap[0].value
+
+	@unlockedmethod
+	def peekitem(self):
+		item = self.heap[0]
+		return item.key, item.value
 
 	@unlockedmethod
 	def keys(self):
