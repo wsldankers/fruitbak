@@ -3,18 +3,12 @@ from fruitbak.pool.handler import Storage
 
 from weakref import ref as weakref
 from base64 import b64encode
-from traceback import format_exc
-from sys import stderr
+from traceback import print_exc
+from sys import stderr, exc_info
 from concurrent.futures import ThreadPoolExecutor
 from tempfile import NamedTemporaryFile
 from os import mkdir, replace, fsync, unlink, fsdecode
 from pathlib import Path
-
-def windshield(f, *args, **kwargs):
-	try:
-		f(*args, **kwargs)
-	except:
-		print(format_exc(), file = stderr)
 
 class Filesystem(Storage):
 	@initializer
@@ -33,6 +27,15 @@ class Filesystem(Storage):
 		b64 = b64encode(hash, b'+_').rstrip(b'=')
 		return self.pooldir / Path(fsdecode(b64[:2]))
 
+	def submit(job, *args, **kwargs):
+		def windshield():
+			try:
+				job(*args, **kwargs)
+			except:
+				print_exc(file = stderr)
+
+		self.executor.submit(windshield)
+
 	def get_chunk(self, hash, callback):
 		path = self.hash2path(hash)
 
@@ -41,8 +44,8 @@ class Filesystem(Storage):
 				with path.open(mode = 'rb', buffering = 0) as f:
 					buf = f.read()
 				callback(buf, None)
-			except Exception as e:
-				callback(None, e)
+			except:
+				callback(None, exc_info())
 
 		self.executor.submit(windshield, job)
 
@@ -72,8 +75,8 @@ class Filesystem(Storage):
 						raise
 
 				callback(None)
-			except Exception as e:
-				callback(e)
+			except:
+				callback(exc_info())
 
 		self.executor.submit(windshield, job)
 
@@ -85,8 +88,8 @@ class Filesystem(Storage):
 				path.unlink()
 			except FileNotFoundError:
 				callback(None)
-			except Exception as e:
-				callback(e)
+			except:
+				callback(exc_info())
 			callback(None)
 
 		self.executor.submit(windshield, job)

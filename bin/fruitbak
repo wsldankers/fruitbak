@@ -1,7 +1,6 @@
 #! /usr/bin/env python3
 
 from fruitbak import Fruitbak
-from fruitbak.cli import Cli
 
 from os import fsdecode
 from sys import stderr
@@ -11,7 +10,6 @@ from time import sleep
 import click
 import gc, atexit
 
-@atexit.register
 def check_for_loops():
 	if gc.collect() != 0:
 		print("W: reference loops at program exit!", file = stderr)
@@ -44,6 +42,8 @@ def ls(host, backup, share, path):
 
 @cli.command()
 def pooltest():
+	"""Run some tests on the pool code"""
+
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 
 	def readahead():
@@ -62,5 +62,10 @@ def pooltest():
 	fbak = None
 
 	sleep(1)
+	check_for_loops()
+
+@cli.command()
+def xyzzy():
+	"""Nothing happens"""
 
 cli()

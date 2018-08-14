@@ -63,13 +63,24 @@ class PoolAgent(Clarity):
 		return Condition(self.pool.lock)
 
 	@initializer
-	def queue(self):
+	def pending_readaheads(self):
 		"""Submitted readahead operations that may or may not have completed"""
 		return deque()
 
 	@initializer
-	def pending(self):
+	def incomplete_readaheads(self):
+		"""Submitted readahead operations that have not yet completed"""
+		return 0
+
+	@initializer
+	def pending_operations(self):
+		"""Directly submitted operations that have not completed"""
 		return MinHeapMap()
+
+	@initializer
+	def queued_operation(self):
+		"""A function that will queue a direct operation"""
+		return None
 
 	@initializer
 	def serial(self):
@@ -77,55 +88,67 @@ class PoolAgent(Clarity):
 
 	@property
 	def avarice(self):
-		if self.readahead is None:
-			return None
+		if self.queued_operation:
+			return len(self.pending_operations) + self.incomplete_readaheads
 		else:
-			return len(self.queue)
+			return len(self.pending_operations) + len(self.pending_readaheads)
 
 	def dequeue(self):
+		pool = self.pool
+		
+		op = self.queued_operation
+		if op:
+			op()
+			return
+
+		if self.pending_operations:
+			pool.unregister_agent(self)
+			return
+
 		readahead = self.readahead
 		if readahead is None:
+			pool.unregister_agent(self)
 			return
-		pool = self.pool
+
 		hash = next(readahead, None)
 		if hash is None:
 			self.readahead = None
 			pool.unregister_agent(self)
-		else:
-			self.update_registration()
-			cond = self.cond
-			action = PoolReadAction(hash = hash)
-			self.queue.append(action)
-			value = pool.chunk_registry.get(hash)
-			self.queue.append(action)
-			if value is None:
-				def when_done(value, exception):
-					with cond:
-						action.value = value
-						action.exception = exception
-						action.done = True
-						cond.notify()
-				pool.get_chunk(hash, when_done)
-			else:
-				action.value = value
-				action.done = True
-				cond.notify()
+			return
 
-			return action
+		cond = self.cond
+		action = PoolReadAction(hash = hash)
+		self.pending_readaheads.append(action)
+		pool.register_agent(self)
+		value = pool.chunk_registry.get(hash)
+		if value is None:
+			def when_done(value, exception):
+				with cond:
+					action.value = value
+					action.exception = exception
+					action.done = True
+					self.incomplete_readaheads -= 1
+					cond.notify()
+			self.incomplete_readaheads += 1
+			pool.get_chunk(hash, when_done)
+		else:
+			action.value = value
+			action.done = True
+			cond.notify()
 
 	def update_registration(self):
 		pool = self.pool
-		if self.readahead:
+		if self.queued_operation or (self.readahead and not self.pending_operations):
 			pool.register_agent(self)
 		else:
 			pool.unregister_agent(self)
 
 	def put_chunk(self, hash, value, async = False):
-		pending = self.pending
 		cond = self.cond
 		with cond:
-			serial = self.serial
-			self.serial = serial + 1
+			if self.queued_operation:
+				raise Exception("operation already in progress")
+			
 			action = PoolWriteAction(hash = hash, value = value)
 			def when_done(exception):
 				action.done = True
@@ -137,21 +160,31 @@ class PoolAgent(Clarity):
 					action.exception = exception
 					with cond:
 						cond.notify()
-			pending[action] = serial
-			self.pool.put_chunk(hash, value, when_done)
-			if not async:
+			def queue_put_chunk():
+				serial = self.serial
+				self.serial = serial + 1
+				pending_operations[action] = serial
+				self.pool.put_chunk(hash, value, when_done)
+				self.queued_operation = None
+				cond.notify()
+			self.queued_operation = queue_put_chunk
+			self.update_registration()
+			while self.queued_operation:
+				cond.wait()
+			if async:
+				return action
+			else:
 				while not action.done:
 					cond.wait()
 				if action.exception:
 					raise action.exception
-			return action
 
 	def sync(self):
 		serial = self.serial
-		pending = self.pending
-		cond = self.cond:
+		pending_operations = self.pending_operations
+		cond = self.cond
 		with cond:
-			while pending && pending.peek() < serial:
+			while pending_operations and pending_operations.peek() < serial:
 				cond.wait()
 
 	def wait(self):
@@ -159,12 +192,12 @@ class PoolAgent(Clarity):
 		cond = self.cond
 		pool = self.pool
 		with cond:
-			queue = self.queue
-			while (queue and not queue[0].done) or self.readahead:
+			pending_readaheads = self.pending_readaheads
+			while (pending_readaheads and not pending_readaheads[0].done) or self.readahead:
 				pool.replenish_queue()
 				cond.wait()
 			try:
-				return queue.popleft()
+				return pending_readaheads.popleft()
 			except IndexError:
 				return None
 			finally:
@@ -193,6 +226,10 @@ class Pool(Clarity):
 	@initializer
 	def agents(self):
 		return MinHeapMap()
+
+	@initializer
+	def serial(self):
+		return 0
 
 	@initializer
 	def chunk_registry(self):
@@ -236,8 +273,8 @@ class Pool(Clarity):
 				del agents[r]
 			except KeyError:
 				pass
-			except Exception as e:
-				warn(e)
+			except:
+				print_exc(file = stderr)
 		node = mapnode(agent, finalizer)
 		agents[node] = agent.avarice
 
