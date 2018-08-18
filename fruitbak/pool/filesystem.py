@@ -10,6 +10,9 @@ from tempfile import NamedTemporaryFile
 from os import mkdir, replace, fsync, unlink, fsdecode
 from pathlib import Path
 
+from time import sleep
+from random import random
+
 class Filesystem(Storage):
 	@initializer
 	def pooldir(self):
@@ -27,9 +30,10 @@ class Filesystem(Storage):
 		b64 = b64encode(hash, b'+_').rstrip(b'=')
 		return self.pooldir / Path(fsdecode(b64[:2]))
 
-	def submit(job, *args, **kwargs):
+	def submit(self, job, *args, **kwargs):
 		def windshield():
 			try:
+				#sleep(random())
 				job(*args, **kwargs)
 			except:
 				print_exc(file = stderr)
@@ -47,13 +51,14 @@ class Filesystem(Storage):
 			except:
 				callback(None, exc_info())
 
-		self.executor.submit(windshield, job)
+		self.submit(job)
 
 	def put_chunk(self, hash, value, callback):
 		path = self.hash2path(hash)
 
 		def job():
 			try:
+				print("putting", value)
 				with NamedTemporaryFile(dir = str(self.pooldir), buffering = 0, delete = False) as f:
 					f_path = Path(f.name)
 					try:
@@ -78,7 +83,7 @@ class Filesystem(Storage):
 			except:
 				callback(exc_info())
 
-		self.executor.submit(windshield, job)
+		self.submit(job)
 
 	def del_chunk(self, hash, callback):
 		path = self.hash2path(hash)
@@ -92,4 +97,4 @@ class Filesystem(Storage):
 				callback(exc_info())
 			callback(None)
 
-		self.executor.submit(windshield, job)
+		self.submit(job)

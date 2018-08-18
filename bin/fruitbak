@@ -3,12 +3,19 @@
 from fruitbak import Fruitbak
 
 from os import fsdecode
-from sys import stderr
+from sys import stdout as text_stdout, stderr
 from pathlib import Path
-from time import sleep
+from hashlib import sha256 as sha256_constructor
 
 import click
 import gc, atexit
+
+stdout = text_stdout.buffer
+
+def sha256(data):
+	h = sha256_constructor()
+	h.update(data)
+	return h.digest()
 
 def check_for_loops():
 	if gc.collect() != 0:
@@ -41,31 +48,57 @@ def ls(host, backup, share, path):
 			print(fsdecode(dentry.name))
 
 @cli.command()
+@click.argument('host')
+@click.argument('backup')
+@click.argument('share')
+@click.argument('path')
+def cat(host, backup, share, path):
+	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+	dentry = fbak[host][backup][share][path]
+	digests = dentry.digests
+	agent = fbak.pool.agent()
+	stdout.write(agent.get_chunk(digests))
+
+@cli.command()
 def pooltest():
 	"""Run some tests on the pool code"""
 
+	check_for_loops()
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 
 	def readahead():
-		yield b'foo'
+		yield sha256(b'foo')
 
 	agent = fbak.pool.agent(readahead = readahead())
 
-	agent.put_chunk(b'foo', b'bar')
+	agent.put_chunk(sha256(b'foo'), b'foo', async = True)
 
-	action = agent.wait()
-	if action.exception:
-		raise action.exception
-	print(str(action.value))
+	print("get_chunk:", agent.get_chunk(sha256(b'foo')))
+
+	action = agent.get_chunk(sha256(b'foo'), async = True)
+
+	print("async get_chunk:", action.sync())
+
+	for i in range(200):
+		data = str(i).encode()
+		agent.put_chunk(sha256(data), data, async = True)
+
+	agent.sync()
+
+	for action in agent:
+		if action.exception:
+			exceptiontype, exception, backtrace = action.exception
+			raise exception
+		print("readahead:", action.value)
 
 	agent = None
 	fbak = None
 
-	sleep(1)
 	check_for_loops()
 
 @cli.command()
 def xyzzy():
 	"""Nothing happens"""
 
-cli()
+if __name__ == '__main__':
+	cli()

@@ -10,6 +10,9 @@ class DentryError(Exception):
 class FileTypeError(DentryError, ValueError):
 	pass
 
+class NotAFileError(FileTypeError):
+	pass
+
 class NotAHardlinkError(FileTypeError):
 	pass
 
@@ -79,6 +82,30 @@ class Dentry(Clarity):
 	@initializer
 	def extra(self):
 		return bytearray()
+
+	@property
+	def is_file(self):
+		return S_ISREG(self.mode)
+
+	@property
+	def digests(self):
+		"""The digests for this file.
+
+		Bytes, readwrite.
+
+		Raises a NotAFileError exception if this dentry is not a regular file.
+		"""
+
+		if self.is_file:
+			return self.extra
+		raise NotAFileError("'%s' is not a regular file" % self.name)
+
+	@digests.setter
+	def digests(self, value):
+		if self.is_file:
+			self.extra = _to_bytes(value)
+		else:
+			raise NotAFileError("'%s' is not a regular file" % self.name)
 
 	@initializer
 	def is_hardlink(self):

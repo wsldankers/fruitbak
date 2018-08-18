@@ -3,6 +3,7 @@ from weakref import ref as weakref, WeakValueDictionary
 from warnings import warn
 from threading import Condition, RLock
 from collections import deque
+from sys import stderr
 
 from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.heapmap import MinHeapMap
@@ -40,16 +41,25 @@ class weakbytes(bytes):
 	pass
 
 class PoolAction(Clarity):
-	@initializer
-	def done(self):
-		return False
+	done = False
+	cond = None
+	hash = None
+	value = None
+	exception = None
 
-	@initializer
-	def exception(self):
-		return None
+	def sync(self):
+		cond = self.cond
+		with cond:
+			while not self.done:
+				cond.wait()
+		exception = self.exception
+		if self.exception:
+			raise exception[1]
 
 class PoolReadAction(PoolAction):
-	pass
+	def sync(self):
+		super().sync()
+		return self.value
 
 class PoolWriteAction(PoolAction):
 	pass
@@ -67,37 +77,45 @@ class PoolAgent(Clarity):
 		"""Submitted readahead operations that may or may not have completed"""
 		return deque()
 
-	@initializer
-	def incomplete_readaheads(self):
-		"""Submitted readahead operations that have not yet completed"""
-		return 0
+	# Iterator that yields chunks to prefetch
+	readahead = None
+
+	# Number of submitted read operations that have not yet completed
+	incomplete_reads = 0
+
+	# Number of submitted readahead operations that have not yet completed
+	incomplete_readaheads = 0
 
 	@initializer
 	def pending_operations(self):
 		"""Directly submitted operations that have not completed"""
 		return MinHeapMap()
 
-	@initializer
-	def queued_operation(self):
-		"""A function that will queue a direct operation"""
-		return None
+	# A function that will queue a direct operation
+	mailhook = None
 
-	@initializer
-	def serial(self):
-		return 0
+	# This agent's serial
+	serial = None
+
+	# The next serial to assign to an action
+	next_serial = 0
+
+	# The last exception that was raised
+	exception = None
 
 	@property
 	def avarice(self):
-		if self.queued_operation:
-			return len(self.pending_operations) + self.incomplete_readaheads
+		if self.mailhook:
+			return len(self.pending_operations) + self.incomplete_reads + self.incomplete_readaheads
 		else:
-			return len(self.pending_operations) + len(self.pending_readaheads)
+			return len(self.pending_operations) + self.incomplete_reads + len(self.pending_readaheads)
 
 	def dequeue(self):
 		pool = self.pool
 		
-		op = self.queued_operation
+		op = self.mailhook
 		if op:
+			self.mailhook = None
 			op()
 			return
 
@@ -138,68 +156,155 @@ class PoolAgent(Clarity):
 
 	def update_registration(self):
 		pool = self.pool
-		if self.queued_operation or (self.readahead and not self.pending_operations):
+		if self.mailhook or (self.readahead and not self.pending_operations):
 			pool.register_agent(self)
 		else:
 			pool.unregister_agent(self)
 
-	def put_chunk(self, hash, value, async = False):
-		cond = self.cond
-		with cond:
-			if self.queued_operation:
-				raise Exception("operation already in progress")
-			
-			action = PoolWriteAction(hash = hash, value = value)
-			def when_done(exception):
-				action.done = True
-				if exception is None:
-					with cond:
-						del pending[action]
-						cond.notify()
-				else:
-					action.exception = exception
-					with cond:
-						cond.notify()
-			def queue_put_chunk():
-				serial = self.serial
-				self.serial = serial + 1
-				pending_operations[action] = serial
-				self.pool.put_chunk(hash, value, when_done)
-				self.queued_operation = None
-				cond.notify()
-			self.queued_operation = queue_put_chunk
-			self.update_registration()
-			while self.queued_operation:
-				cond.wait()
-			if async:
-				return action
-			else:
-				while not action.done:
-					cond.wait()
-				if action.exception:
-					raise action.exception
-
-	def sync(self):
-		serial = self.serial
-		pending_operations = self.pending_operations
-		cond = self.cond
-		with cond:
-			while pending_operations and pending_operations.peek() < serial:
-				cond.wait()
-
-	def wait(self):
-		self.update_registration()
+	def get_chunk(self, hash, async = False):
 		cond = self.cond
 		pool = self.pool
 		with cond:
+			if self.mailhook:
+				raise Exception("operation already in progress")
+
+			action = PoolReadAction(hash = hash, cond = cond)
+			def when_done(value, exception):
+				with cond:
+					if exception:
+						action.exception = exception
+						self.exception = exception
+					else:
+						action.value = value
+					self.incomplete_reads -= 1
+					action.done = True
+					cond.notify()
+
+			def mailbag():
+				self.incomplete_reads += 1
+				self.update_registration()
+				pool.get_chunk(hash, when_done)
+
+			self.mailhook = mailbag
+			pool.register_agent(self)
+			pool.replenish_queue()
+
+			while self.mailhook is mailbag:
+				cond.wait()
+
+			if async:
+				return action
+
+			return action.sync()
+
+	def put_chunk(self, hash, value, async = False):
+		cond = self.cond
+		pool = self.pool
+		with cond:
+			if self.mailhook:
+				raise Exception("operation already in progress")
+
+			if self.exception:
+				raise Exception("an operation has failed. call agent.sync() first") from self.exception
+			
+			action = PoolWriteAction(hash = hash, value = value, cond = cond)
+			def when_done(exception):
+				with cond:
+					del self.pending_operations[action]
+					self.update_registration()
+					if exception:
+						action.exception = exception
+						self.exception = exception
+					action.done = True
+					cond.notify()
+
+			def mailbag():
+				serial = self.next_serial
+				self.next_serial = serial + 1
+				self.pending_operations[action] = serial
+				self.update_registration()
+				pool.put_chunk(hash, value, when_done)
+
+			self.mailhook = mailbag
+			pool.register_agent(self)
+			pool.replenish_queue()
+
+			while self.mailhook is mailbag:
+				cond.wait()
+
+			if async:
+				return action
+
+			action.sync()
+
+	def del_chunk(self, hash, value, async = False):
+		cond = self.cond
+		pool = self.pool
+		with cond:
+			if self.mailhook:
+				raise Exception("operation already in progress")
+
+			if self.exception:
+				raise Exception("an operation has failed. call agent.sync() first") from self.exception
+
+			action = PoolDeleteAction(hash = hash, value = value, cond = cond)
+			def when_done(exception):
+				with cond:
+					del self.pending_operations[action]
+					self.update_registration()
+					if exception:
+						action.exception = exception
+						self.exception = exception
+					action.done = True
+					cond.notify()
+
+			def mailbag():
+				serial = self.next_serial
+				self.next_serial = serial + 1
+				self.pending_operations[action] = serial
+				self.update_registration()
+				pool.del_chunk(hash, value, when_done)
+
+			self.mailhook = mailbag
+			pool.register_agent(self)
+			pool.replenish_queue()
+
+			while self.mailhook is mailbag:
+				cond.wait()
+
+			if async:
+				return action
+
+			action.sync()
+
+	def sync(self):
+		pending_operations = self.pending_operations
+		cond = self.cond
+		with cond:
+			serial = self.next_serial
+			while pending_operations and pending_operations.peek() < serial:
+				cond.wait()
+			exception = self.exception
+			self.exception = None
+			if exception:
+				raise Exception("an operation has failed") from exception
+
+	def __iter__(self):
+		return self
+
+	def __next__(self):
+		cond = self.cond
+		pool = self.pool
+		with cond:
+			self.update_registration()
+			pool.replenish_queue()
 			pending_readaheads = self.pending_readaheads
-			while (pending_readaheads and not pending_readaheads[0].done) or self.readahead:
-				pool.replenish_queue()
+			while self.readahead or (pending_readaheads and not pending_readaheads[0].done):
 				cond.wait()
 			try:
 				return pending_readaheads.popleft()
 			except IndexError:
-				return None
+				raise StopIteration()
 			finally:
 				self.update_registration()
 
@@ -207,13 +312,8 @@ class Pool(Clarity):
 	def __init__(self, *args, **kwargs):
 		super().__init__(lock = RLock(), *args, **kwargs)
 
-	@initializer
-	def max_queue_depth(self):
-		return 32
-
-	@initializer
-	def queue_depth(self):
-		return 0
+	max_queue_depth = 32
+	queue_depth = 0
 
 	@initializer
 	def config(self):
@@ -227,9 +327,7 @@ class Pool(Clarity):
 	def agents(self):
 		return MinHeapMap()
 
-	@initializer
-	def serial(self):
-		return 0
+	next_serial = 0
 
 	@initializer
 	def chunk_registry(self):
@@ -251,7 +349,10 @@ class Pool(Clarity):
 		return new_chunk
 
 	def agent(self, *args, **kwargs):
-		return PoolAgent(pool = self, *args, **kwargs)
+		with self.lock:
+			serial = self.next_serial
+			self.next_serial = serial + 1
+		return PoolAgent(pool = self, serial = serial, *args, **kwargs)
 
 	def select_most_modest_agent(self):
 		agents = self.agents
@@ -264,6 +365,9 @@ class Pool(Clarity):
 				except KeyError:
 					pass
 			else:
+				serial = self.next_serial
+				self.next_serial = serial + 1
+				agent.serial = serial
 				return agent
 
 	def register_agent(self, agent):
@@ -276,7 +380,7 @@ class Pool(Clarity):
 			except:
 				print_exc(file = stderr)
 		node = mapnode(agent, finalizer)
-		agents[node] = agent.avarice
+		agents[node] = agent.avarice, agent.serial
 
 	def unregister_agent(self, agent):
 		try:
@@ -296,30 +400,36 @@ class Pool(Clarity):
 		with lock:
 			self.queue_depth += 1
 		def when_done(value, exception):
-			with lock:
-				self.queue_depth -= 1
-				self.replenish_queue()
-			return callback(value, exception)
-		return self.root.get_chunk(hash, callback)
+			try:
+				callback(value, exception)
+			finally:
+				with lock:
+					self.queue_depth -= 1
+					self.replenish_queue()
+		return self.root.get_chunk(hash, when_done)
 
 	def put_chunk(self, hash, value, callback):
 		lock = self.lock
 		with lock:
 			self.queue_depth += 1
-		def when_done(hash, value, exception):
-			with lock:
-				self.queue_depth -= 1
-				self.replenish_queue()
-			return callback(exception)
-		return self.root.put_chunk(hash, value, callback)
+		def when_done(exception):
+			try:
+				callback(exception)
+			finally:
+				with lock:
+					self.queue_depth -= 1
+					self.replenish_queue()
+		return self.root.put_chunk(hash, value, when_done)
 
 	def del_chunk(self, hash, callback):
 		lock = self.lock
 		with lock:
 			self.queue_depth += 1
-		def when_done(hash, value, exception):
-			with lock:
-				self.queue_depth -= 1
-				self.replenish_queue()
-			return callback(exception)
-		return self.root.del_chunk(hash, callback)
+		def when_done(exception):
+			try:
+				callback(exception)
+			finally:
+				with lock:
+					self.queue_depth -= 1
+					self.replenish_queue()
+		return self.root.del_chunk(hash, when_done)

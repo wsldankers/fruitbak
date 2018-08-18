@@ -112,3 +112,6 @@ class Share(Clarity):
 	def ls(self, path):
 		for (path, data) in self.metadata.ls(path):
 			yield self.parse_dentry(path, data)
+
+	def __getitem__(self, path):
+		return self.parse_dentry(path, self.metadata[path])
