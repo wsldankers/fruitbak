@@ -5,17 +5,11 @@ from fruitbak import Fruitbak
 from os import fsdecode
 from sys import stdout as text_stdout, stderr
 from pathlib import Path
-from hashlib import sha256 as sha256_constructor
 
 import click
 import gc, atexit
 
 stdout = text_stdout.buffer
-
-def sha256(data):
-	h = sha256_constructor()
-	h.update(data)
-	return h.digest()
 
 def check_for_loops():
 	if gc.collect() != 0:
@@ -63,25 +57,28 @@ def cat(host, backup, share, path):
 def pooltest():
 	"""Run some tests on the pool code"""
 
-	check_for_loops()
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 
+	fbak.derp()
+
+	hashfunc = fbak.hashfunc
+
 	def readahead():
-		yield sha256(b'foo')
+		yield hashfunc(b'foo')
 
 	agent = fbak.pool.agent(readahead = readahead())
 
-	agent.put_chunk(sha256(b'foo'), b'foo', async = True)
+	agent.put_chunk(hashfunc(b'foo'), b'foo', async = True)
 
-	print("get_chunk:", agent.get_chunk(sha256(b'foo')))
+	print("get_chunk:", agent.get_chunk(hashfunc(b'foo')))
 
-	action = agent.get_chunk(sha256(b'foo'), async = True)
+	action = agent.get_chunk(hashfunc(b'foo'), async = True)
 
 	print("async get_chunk:", action.sync())
 
 	for i in range(200):
 		data = str(i).encode()
-		agent.put_chunk(sha256(data), data, async = True)
+		agent.put_chunk(hashfunc(data), data, async = True)
 
 	agent.sync()
 
@@ -93,8 +90,6 @@ def pooltest():
 
 	agent = None
 	fbak = None
-
-	check_for_loops()
 
 @cli.command()
 def xyzzy():

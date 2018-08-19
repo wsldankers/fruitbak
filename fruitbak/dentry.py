@@ -139,13 +139,8 @@ class Dentry(Clarity):
 	def hardlink(self, value):
 		if self.is_hardlink:
 			self.extra = _to_bytes(value)
-		elif hasattr(self, 'extra'):
-			raise NotAHardlinkError("'%s' is not a hardlink" % self.name)
-		elif self.is_directory:
-			raise NotAHardlinkError("'%s' is not a hardlink" % self.name)
 		else:
-			self.extra = _to_bytes(value)
-			self.is_hardlink = True
+			raise NotAHardlinkError("'%s' is not a hardlink" % self.name)
 
 	@property
 	def is_symlink(self):

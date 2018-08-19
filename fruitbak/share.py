@@ -72,7 +72,7 @@ class Share(Clarity):
 				uid = uid,
 				gid = gid,
 				is_hardlink = True,
-				hardlink = hardlink,
+				extra = hardlink,
 			)
 			data = self.metadata[hardlink]
 			(flags, mode, size, mtime, uid, gid) = dentry_layout.unpack_from(data)

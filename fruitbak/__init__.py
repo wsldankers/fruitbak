@@ -3,13 +3,14 @@
 from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.weak import weakproperty
 from fruitbak.host import Host
-from fruitbak.config import Config
+from fruitbak.config import Config, configurable, configurable_function
 from fruitbak.pool import Pool
 
 from weakref import WeakValueDictionary
 from pathlib import Path
 from urllib.parse import quote, unquote
-import os
+from sys import stderr
+from os import getenv
 
 class Fruitbak(Clarity):
 	"""Top-level object for a Fruitbak installation.
@@ -21,27 +22,57 @@ class Fruitbak(Clarity):
 
 	@initializer
 	def config(self):
-		return Config(self.confdir / 'global')
+		return Config(self.confdir, 'global')
 
-	@initializer
+	@configurable
 	def confdir(self):
-		return Path(self.rootdir) / 'conf'
+		return self.rootdir / 'conf'
 
-	@initializer
+	@confdir.validate
+	def confdir(self, value):
+		return Path(value)
+
+	@configurable
 	def rootdir(self):
-		return Path(self.config['rootdir'])
+		return getenv('HOME')
 
-	@initializer
+	@rootdir.prepare
+	def rootdir(self, value):
+		return Path(value)
+
+	@configurable
 	def hostdir(self):
 		return self.rootdir / 'host'
 
-	@initializer
+	@hostdir.prepare
+	def hostdir(self, value):
+		return Path(value)
+
+	@configurable
 	def pooldir(self):
 		return self.rootdir / 'pool'
 
+	@pooldir.prepare
+	def pooldir(self, value):
+		return Path(value)
+
+	@configurable
+	def hashalgo(data):
+		from hashlib import sha256
+		return sha256
+
 	@initializer
-	def config(self):
-		return Config(self.confdir / 'global')
+	def hashfunc(self):
+		hashalgo = self.hashalgo
+		def hashfunc(data):
+			h = hashalgo()
+			h.update(data)
+			return h.digest()
+		return hashfunc
+
+	@initializer
+	def hashsize(self):
+		return self.hashfunc(b'').length
 
 	#@weakproperty
 	@initializer

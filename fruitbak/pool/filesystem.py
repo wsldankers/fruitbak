@@ -33,7 +33,7 @@ class Filesystem(Storage):
 	def submit(self, job, *args, **kwargs):
 		def windshield():
 			try:
-				#sleep(random())
+				sleep(random() / 10.0)
 				job(*args, **kwargs)
 			except:
 				print_exc(file = stderr)
@@ -58,7 +58,6 @@ class Filesystem(Storage):
 
 		def job():
 			try:
-				print("putting", value)
 				with NamedTemporaryFile(dir = str(self.pooldir), buffering = 0, delete = False) as f:
 					f_path = Path(f.name)
 					try:
