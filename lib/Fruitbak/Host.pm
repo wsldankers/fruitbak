@@ -115,6 +115,15 @@ field expiry => sub {
 	return $self->instantiate_expiry($cfg);
 };
 
+=item field auto
+
+Whether this host should be backed up as part of the normal backup
+run.
+
+=cut
+
+field auto => sub { $self->cfg->auto // $self->fbak->host_exists($self->name) == 2 };
+
 =back
 
 =head1 METHODS
