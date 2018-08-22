@@ -68,16 +68,17 @@ class Config:
 		globals = dict(kwargs)
 		self.globals = globals
 
+		extra_builtins = dict(builtins)
+		extra_builtins['delayed'] = delayed
+		globals['__builtins__'] = extra_builtins
+
 		try:
 			def include(path):
 				with open(str(basepath / path) + '.py') as f:
 					content = f.read()
 				exec(content, globals)
 
-			extra_builtins = dict(builtins)
 			extra_builtins['include'] = include
-			extra_builtins['delayed'] = delayed
-			globals['__builtins__'] = extra_builtins
 
 			include(path)
 		finally:

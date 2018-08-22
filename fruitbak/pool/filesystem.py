@@ -72,7 +72,7 @@ class Filesystem(Storage):
 						try:
 							f_path.replace(path)
 						except FileNotFoundError:
-							self.hash2parent(hash).mkdir()
+							path.parent.mkdir()
 							f_path.replace(path)
 					except:
 						f_path.unlink()
