@@ -11,7 +11,7 @@ class HeapMapNode:
 
 # datatype: supports both extractmax and fetching by key
 @lockingclass
-class MaxHeapMap:
+class MinHeapMap:
 	def __init__(self, items = None, **kwargs):
 		heap = []
 		mapping = {}
@@ -292,7 +292,7 @@ class MaxHeapMap:
 
 	@unlockedmethod
 	def compare(self, a, b):
-		return a > b
+		return a < b
 
 	def pop(self, key = None):
 		if key is None:
@@ -339,9 +339,11 @@ class MaxHeapMap:
 		self.heap.clear()
 		self.mapping.clear()
 
+	@unlockedmethod
 	def reversed(self):
-		return MinHeapMap(self)
+		return MaxHeapMap(self)
 
+	@unlockedmethod
 	def copy(self):
 		return type(self)(self.heap)
 
@@ -374,9 +376,9 @@ class MaxHeapMap:
 		else:
 			self.__init__(items, **kwargs)
 
-class MinHeapMap(MaxHeapMap):
+class MaxHeapMap(MinHeapMap):
 	def compare(self, a, b):
-		return b > a
+		return b < a
 
 	def reversed(self):
-		return MaxHeapMap(self)
+		return MinHeapMap(self)
