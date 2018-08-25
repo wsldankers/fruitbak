@@ -1,6 +1,7 @@
 #! /usr/bin/python3
 
 from .locking import lockingclass, unlockedmethod
+from collections.abc import Set
 
 class HeapMapNode:
 	__slots__ = ('key', 'value', 'index')
@@ -8,6 +9,40 @@ class HeapMapNode:
 		self.key = key
 		self.value = value
 		self.index = index
+
+class HeapMapValueView:
+	__slots__ = ('mapping')
+
+	def __init__(self, heapmap):
+		self.mapping = heapmap.mapping
+
+	def __iter__(self):
+		for node in self.mapping:
+			yield node.value
+
+	def __contains__(self, value):
+		for node in self.mapping:
+			if node.value == value:
+				return True
+		return False
+
+class HeapMapItemView(Set):
+	__slots__ = ('mapping')
+
+	def __init__(self, heapmap):
+		self.mapping = heapmap.mapping
+
+	def __iter__(self):
+		for node in heapmap.mapping:
+			yield node.key, node.value
+
+	def __contains__(self, item):
+		key, value = item
+		try:
+			node = self.mapping[key]
+		except KeyError:
+			return False
+		return node.value == value
 
 # datatype: supports both extractmax and fetching by key
 @lockingclass

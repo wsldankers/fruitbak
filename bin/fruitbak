@@ -62,11 +62,13 @@ def pooltest():
 	hashfunc = fbak.hashfunc
 
 	def readahead():
-		yield hashfunc(b'foo')
+		for i in range(200):
+			yield hashfunc(str(i).encode())
 
-	agent = fbak.pool.agent()
-
+	pool = fbak.pool
+	agent = pool.agent()
 	reader = agent.readahead(readahead())
+	readers = [agent.readahead(readahead()) for x in range(3)]
 
 	agent.put_chunk(hashfunc(b'foo'), b'foo', async = True)
 
@@ -82,13 +84,18 @@ def pooltest():
 
 	agent.sync()
 
+	print("derp")
+
 	for action in reader:
 		if action.exception:
 			exceptiontype, exception, backtrace = action.exception
 			raise exception
 		print("readahead:", action.value)
 
+	reader = None
+	print(len(agent.readaheads))
 	agent = None
+	print(len(pool.agents))
 	fbak = None
 
 @cli.command()

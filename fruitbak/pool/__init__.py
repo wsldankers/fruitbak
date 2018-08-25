@@ -75,7 +75,8 @@ class PoolReadahead(Clarity):
 		cond = self.cond
 		queue = self.queue
 		with cond:
-			while self.iterator or (queue and not queue[0].done):
+			while not queue[0].done if queue else self.iterator:
+				print("cond", bool(self.iterator), len(queue), queue[0].done if queue else None)
 				cond.wait()
 			try:
 				return queue.popleft()
@@ -90,6 +91,13 @@ class PoolReadahead(Clarity):
 		if agent is not None:
 			agent.unregister_readahead(self)
 
+	def __enter__(self):
+		return self
+
+	def __exit__(self, exc_type, exc_value, traceback):
+		self.agent.unregister_readahead(self)
+		self.__dict__.clear()
+
 	def dequeue(self):
 		iterator = self.iterator
 		if iterator is None:
@@ -103,8 +111,11 @@ class PoolReadahead(Clarity):
 
 		cond = self.cond
 		action = PoolReadAction(hash = hash)
+		agent = self.agent
 		self.queue.append(action)
-		self.agent.register_readahead(self)
+		agent.register_readahead(self)
+
+		print("readahead dequeue", id(self))
 
 		pool = self.pool
 		value = pool.chunk_registry.get(hash)
@@ -114,7 +125,8 @@ class PoolReadahead(Clarity):
 					action.value = value
 					action.exception = exception
 					action.done = True
-					self.agent.pending_readaheads -= 1
+					agent.pending_readaheads -= 1
+					agent.register_readahead(self)
 					cond.notify()
 			self.agent.pending_readaheads += 1
 			self.agent.total_readaheads += 1
@@ -129,15 +141,15 @@ class PoolAgent(Clarity):
 	def cond(self):
 		return Condition(self.pool.lock)
 
-	# Number of submitted read operations that have not yet completed
+	# Number of submitted read actions that have not yet completed
 	pending_reads = 0
 
 	@initializer
-	def pending_operations(self):
-		"""Submitted write/delete operations that have not yet completed"""
+	def pending_writes(self):
+		"""Submitted write/delete actions that have not yet completed"""
 		return MinHeapMap()
 
-	# A function that will queue a direct operation
+	# A function that will queue a direct action
 	mailhook = None
 
 	@initializer
@@ -147,10 +159,10 @@ class PoolAgent(Clarity):
 	# Sum of the length of all readaheads, both completed and not yet completed
 	total_readaheads = 0
 
-	# Number of submitted readaheads that have not yet completed
+	# Number of submitted readahead actions that have not yet completed
 	pending_readaheads = 0
 
-	# Maximum number of readaheads
+	# Maximum number of readahead actions
 	max_readaheads = 32
 
 	# This agent's serial
@@ -165,15 +177,23 @@ class PoolAgent(Clarity):
 	# The last exception that was raised
 	exception = None
 
+	def __enter__(self):
+		return self
+
+	def __exit__(self, exc_type, exc_value, traceback):
+		self.sync()
+		self.pool.unregister_agent(self)
+		self.__dict__.clear()
+
 	def readahead(self, iterator):
 		return PoolReadahead(agent = self, iterator = iterator)
 
 	@property
 	def avarice(self):
-		pending_operations = self.pending_operations
+		pending_writes = self.pending_writes
 		pending_reads = self.pending_reads
-		if self.mailhook or pending_operations or pending_reads:
-			return len(pending_operations) + pending_reads + self.pending_readaheads
+		if self.mailhook or pending_writes or pending_reads:
+			return len(pending_writes) + pending_reads + self.pending_readaheads
 
 		try:
 			spent, length, serial = self.readaheads.peek()
@@ -185,8 +205,25 @@ class PoolAgent(Clarity):
 
 		return self.pending_readaheads
 
+	@property
+	def eligible_readahead(self):
+		try:
+			readahead, (spent, length, serial) = self.readaheads.peekitem()
+		except IndexError:
+			print("no registered readaheads")
+			return None
+
+		if spent or (length and self.total_readaheads >= self.max_readaheads):
+			print("no suitable readaheads", spent, length, len(readahead))
+			return None
+
+		print("returning a suitable readaheads")
+		return readahead
+
 	def dequeue(self):
 		pool = self.pool
+
+		print("agent dequeue")
 		
 		op = self.mailhook
 		if op:
@@ -197,17 +234,12 @@ class PoolAgent(Clarity):
 				pool.unregister_agent(self)
 			return
 
-		if self.pending_operations or self.pending_reads:
+		if self.pending_writes or self.pending_reads:
 			pool.unregister_agent(self)
 			return
 
-		try:
-			readahead, (spent, length, serial) = self.readaheads.peekitem()
-		except IndexError:
-			pool.unregister_agent(self)
-			return
-
-		if spent or (length and self.total_readaheads >= self.max_readaheads):
+		readahead = self.eligible_readahead
+		if readahead is None:
 			pool.unregister_agent(self)
 		else:
 			readahead.dequeue()
@@ -226,6 +258,7 @@ class PoolAgent(Clarity):
 			readahead.serial = serial
 		readaheads[readahead] = readahead.spent, len(readahead), serial
 		self.total_readaheads += len(readahead)
+		self.update_registration()
 
 	def unregister_readahead(self, readahead):
 		readaheads = self.readaheads
@@ -233,21 +266,31 @@ class PoolAgent(Clarity):
 			spent, length, serial = readaheads[readahead]
 			del readaheads[readahead]
 		except KeyError:
-			pass
+			length = 0
+		self.total_readaheads -= length
+		self.update_registration()
 
 	def update_registration(self):
 		pool = self.pool
-		if self.mailhook or (self.readahead and not self.pending_operations):
+		if self.mailhook:
+			print("registering because mailhook")
 			pool.register_agent(self)
-		else:
+		elif self.pending_reads or self.pending_writes:
+			print("unregistering because pending reads/writes")
 			pool.unregister_agent(self)
+		elif self.eligible_readahead is None:
+			print("unregistering because nothing is to be done")
+			pool.unregister_agent(self)
+		else:
+			print("registering because eligible readahead")
+			pool.register_agent(self)
 
 	def get_chunk(self, hash, async = False):
 		cond = self.cond
 		pool = self.pool
 		with cond:
 			if self.mailhook:
-				raise Exception("operation already in progress")
+				raise Exception("action already in progress")
 
 			action = PoolReadAction(hash = hash, cond = cond)
 			def when_done(value, exception):
@@ -283,7 +326,7 @@ class PoolAgent(Clarity):
 		pool = self.pool
 		with cond:
 			if self.mailhook:
-				raise Exception("operation already in progress")
+				raise Exception("action already in progress")
 
 			if self.exception:
 				raise Exception("an operation has failed. call agent.sync() first") from self.exception
@@ -291,7 +334,7 @@ class PoolAgent(Clarity):
 			action = PoolWriteAction(hash = hash, value = value, cond = cond)
 			def when_done(exception):
 				with cond:
-					del self.pending_operations[action]
+					del self.pending_writes[action]
 					self.update_registration()
 					if exception:
 						action.exception = exception
@@ -302,7 +345,7 @@ class PoolAgent(Clarity):
 			def mailbag():
 				serial = self.next_action_serial
 				self.next_action_serial = serial + 1
-				self.pending_operations[action] = serial
+				self.pending_writes[action] = serial
 				self.update_registration()
 				pool.put_chunk(hash, value, when_done)
 
@@ -323,7 +366,7 @@ class PoolAgent(Clarity):
 		pool = self.pool
 		with cond:
 			if self.mailhook:
-				raise Exception("operation already in progress")
+				raise Exception("action already in progress")
 
 			if self.exception:
 				raise Exception("an operation has failed. call agent.sync() first") from self.exception
@@ -331,7 +374,7 @@ class PoolAgent(Clarity):
 			action = PoolDeleteAction(hash = hash, value = value, cond = cond)
 			def when_done(exception):
 				with cond:
-					del self.pending_operations[action]
+					del self.pending_writes[action]
 					self.update_registration()
 					if exception:
 						action.exception = exception
@@ -342,7 +385,7 @@ class PoolAgent(Clarity):
 			def mailbag():
 				serial = self.next_action_serial
 				self.next_action_serial = serial + 1
-				self.pending_operations[action] = serial
+				self.pending_writes[action] = serial
 				self.update_registration()
 				pool.del_chunk(hash, value, when_done)
 
@@ -359,11 +402,11 @@ class PoolAgent(Clarity):
 			action.sync()
 
 	def sync(self):
-		pending_operations = self.pending_operations
+		pending_writes = self.pending_writes
 		cond = self.cond
 		with cond:
 			serial = self.next_action_serial
-			while pending_operations and pending_operations.peek() < serial:
+			while pending_writes and pending_writes.peek() < serial:
 				cond.wait()
 			exception = self.exception
 			self.exception = None
@@ -418,12 +461,14 @@ class Pool(Clarity):
 
 	def register_agent(self, agent):
 		self.agents[agent] = agent.avarice, agent.serial
+		print("agents:", len(self.agents))
 
 	def unregister_agent(self, agent):
 		try:
 			del self.agents[agent]
 		except KeyError:
 			pass
+		print("agents:", len(self.agents))
 
 	def replenish_queue(self):
 		agents = self.agents

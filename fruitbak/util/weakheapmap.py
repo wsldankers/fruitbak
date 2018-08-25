@@ -71,7 +71,9 @@ class WeakHeapMapItemView(Set):
 
 	def __iter__(self):
 		for node in heapmap.mapping:
-			yield node.key, node.value
+			key = node.weakkey()
+			if key is not None:
+				yield key, node.value
 
 	def __contains__(self, item):
 		key, value = item
