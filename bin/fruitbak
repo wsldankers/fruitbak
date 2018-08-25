@@ -59,14 +59,14 @@ def pooltest():
 
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 
-	fbak.derp()
-
 	hashfunc = fbak.hashfunc
 
 	def readahead():
 		yield hashfunc(b'foo')
 
-	agent = fbak.pool.agent(readahead = readahead())
+	agent = fbak.pool.agent()
+
+	reader = agent.readahead(readahead())
 
 	agent.put_chunk(hashfunc(b'foo'), b'foo', async = True)
 
@@ -82,7 +82,7 @@ def pooltest():
 
 	agent.sync()
 
-	for action in agent:
+	for action in reader:
 		if action.exception:
 			exceptiontype, exception, backtrace = action.exception
 			raise exception

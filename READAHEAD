@@ -1,4 +1,4 @@
-indien mailhook of een van de readaheads is leeg:
+indien mailhook of er zijn directe acties bezig of een van de readaheads is leeg:
 	rapporteer num(inflight)
 anders:
 	rapporteer num(inflight) + sum(voltooide readahead items)
