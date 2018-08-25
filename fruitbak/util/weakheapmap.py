@@ -86,6 +86,8 @@ class WeakHeapMapItemView(Set):
 # datatype: supports both extractmin and fetching by key
 @lockingclass
 class MinWeakHeapMap:
+	in_delete = 0
+
 	def __init__(self, items = None, **kwargs):
 		heap = []
 		mapping = {}
@@ -211,6 +213,7 @@ class MinWeakHeapMap:
 				else:
 					break
 
+			container.index = index
 			heap[index] = container
 		else:
 			index = container.index
@@ -286,6 +289,7 @@ class MinWeakHeapMap:
 	def __delitem__(self, key):
 		self._delnode(self.mapping[FakeWeakHeapMapNode(id(key), hash(key))])
 
+	@unlockedmethod
 	def _delnode(self, victim):
 		index = victim.index
 

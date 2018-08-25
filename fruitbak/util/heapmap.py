@@ -162,6 +162,7 @@ class MinHeapMap:
 				else:
 					break
 
+			container.index = index
 			heap[index] = container
 		else:
 			index = container.index

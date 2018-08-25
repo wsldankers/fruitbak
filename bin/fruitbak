@@ -68,7 +68,6 @@ def pooltest():
 	pool = fbak.pool
 	agent = pool.agent()
 	reader = agent.readahead(readahead())
-	readers = [agent.readahead(readahead()) for x in range(3)]
 
 	agent.put_chunk(hashfunc(b'foo'), b'foo', async = True)
 

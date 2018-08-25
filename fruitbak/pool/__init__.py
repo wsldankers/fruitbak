@@ -74,9 +74,9 @@ class PoolReadahead(Clarity):
 	def __next__(self):
 		cond = self.cond
 		queue = self.queue
+		print(len(queue))
 		with cond:
 			while not queue[0].done if queue else self.iterator:
-				print("cond", bool(self.iterator), len(queue), queue[0].done if queue else None)
 				cond.wait()
 			try:
 				return queue.popleft()
@@ -114,8 +114,6 @@ class PoolReadahead(Clarity):
 		agent = self.agent
 		self.queue.append(action)
 		agent.register_readahead(self)
-
-		print("readahead dequeue", id(self))
 
 		pool = self.pool
 		value = pool.chunk_registry.get(hash)
@@ -210,21 +208,16 @@ class PoolAgent(Clarity):
 		try:
 			readahead, (spent, length, serial) = self.readaheads.peekitem()
 		except IndexError:
-			print("no registered readaheads")
 			return None
 
 		if spent or (length and self.total_readaheads >= self.max_readaheads):
-			print("no suitable readaheads", spent, length, len(readahead))
 			return None
 
-		print("returning a suitable readaheads")
 		return readahead
 
 	def dequeue(self):
 		pool = self.pool
 
-		print("agent dequeue")
-		
 		op = self.mailhook
 		if op:
 			self.mailhook = None
@@ -273,17 +266,14 @@ class PoolAgent(Clarity):
 	def update_registration(self):
 		pool = self.pool
 		if self.mailhook:
-			print("registering because mailhook")
 			pool.register_agent(self)
 		elif self.pending_reads or self.pending_writes:
-			print("unregistering because pending reads/writes")
 			pool.unregister_agent(self)
 		elif self.eligible_readahead is None:
-			print("unregistering because nothing is to be done")
 			pool.unregister_agent(self)
 		else:
-			print("registering because eligible readahead")
 			pool.register_agent(self)
+		pool.replenish_queue()
 
 	def get_chunk(self, hash, async = False):
 		cond = self.cond
@@ -461,14 +451,12 @@ class Pool(Clarity):
 
 	def register_agent(self, agent):
 		self.agents[agent] = agent.avarice, agent.serial
-		print("agents:", len(self.agents))
 
 	def unregister_agent(self, agent):
 		try:
 			del self.agents[agent]
 		except KeyError:
 			pass
-		print("agents:", len(self.agents))
 
 	def replenish_queue(self):
 		agents = self.agents
