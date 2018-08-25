@@ -215,7 +215,7 @@ class PoolAgent(Clarity):
 	def register_readahead(self, readahead):
 		readaheads = self.readaheads
 		try:
-			(spent, length, serial) = readaheads[readahead]
+			spent, length, serial = readaheads[readahead]
 		except KeyError:
 			length = 0
 		self.total_readaheads -= length
@@ -228,8 +228,10 @@ class PoolAgent(Clarity):
 		self.total_readaheads += len(readahead)
 
 	def unregister_readahead(self, readahead):
+		readaheads = self.readaheads
 		try:
-			del self.readaheads[readahead]
+			spent, length, serial = readaheads[readahead]
+			del readaheads[readahead]
 		except KeyError:
 			pass
 
