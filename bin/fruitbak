@@ -50,8 +50,17 @@ def cat(host, backup, share, path):
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 	dentry = fbak[host][backup][share][path]
 	digests = dentry.digests
-	agent = fbak.pool.agent()
-	stdout.write(agent.get_chunk(digests))
+	hashsize = fbak.hashsize
+	def digestiterator(digests):
+		offset = 0
+		length = len(digests)
+		while offset < length:
+			next_offset = offset + hashsize
+			yield digests[offset:next_offset]
+			offset = next_offset
+	with fbak.pool.agent().readahead(digestiterator(digests)) as reader:
+		for action in reader:
+			stdout.write(action.value)
 
 @cli.command()
 def pooltest():

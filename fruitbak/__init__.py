@@ -72,7 +72,7 @@ class Fruitbak(Clarity):
 
 	@initializer
 	def hashsize(self):
-		return self.hashfunc(b'').length
+		return len(self.hashfunc(b''))
 
 	#@weakproperty
 	@initializer
