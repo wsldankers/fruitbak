@@ -74,7 +74,6 @@ class PoolReadahead(Clarity):
 	def __next__(self):
 		cond = self.cond
 		queue = self.queue
-		print(len(queue))
 		with cond:
 			while not queue[0].done if queue else self.iterator:
 				cond.wait()
@@ -83,8 +82,8 @@ class PoolReadahead(Clarity):
 			except IndexError:
 				raise StopIteration()
 			finally:
-				self.agent.total_readaheads -= 1
-				self.agent.register_readahead(self)
+				agent = self.agent
+				agent.register_readahead(self)
 
 	def __del__(self):
 		agent = self.agent
@@ -113,7 +112,6 @@ class PoolReadahead(Clarity):
 		action = PoolReadAction(hash = hash)
 		agent = self.agent
 		self.queue.append(action)
-		agent.register_readahead(self)
 
 		pool = self.pool
 		value = pool.chunk_registry.get(hash)
@@ -126,13 +124,14 @@ class PoolReadahead(Clarity):
 					agent.pending_readaheads -= 1
 					agent.register_readahead(self)
 					cond.notify()
-			self.agent.pending_readaheads += 1
-			self.agent.total_readaheads += 1
+			agent.pending_readaheads += 1
 			pool.get_chunk(hash, when_done)
 		else:
 			action.value = value
 			action.done = True
 			cond.notify()
+
+		agent.register_readahead(self)
 
 class PoolAgent(Clarity):
 	@initializer
@@ -249,8 +248,9 @@ class PoolAgent(Clarity):
 			serial = self.next_readahead_serial
 			self.next_readahead_serial = serial + 1
 			readahead.serial = serial
-		readaheads[readahead] = readahead.spent, len(readahead), serial
-		self.total_readaheads += len(readahead)
+		length = len(readahead)
+		readaheads[readahead] = readahead.spent, length, serial
+		self.total_readaheads += length
 		self.update_registration()
 
 	def unregister_readahead(self, readahead):
