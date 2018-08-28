@@ -49,18 +49,32 @@ def ls(host, backup, share, path):
 def cat(host, backup, share, path):
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 	dentry = fbak[host][backup][share][path]
-	digests = dentry.digests
-	hashsize = fbak.hashsize
-	def digestiterator(digests):
-		offset = 0
-		length = len(digests)
-		while offset < length:
-			next_offset = offset + hashsize
-			yield digests[offset:next_offset]
-			offset = next_offset
-	with fbak.pool.agent().readahead(digestiterator(digests)) as reader:
+	with fbak.pool.agent().readahead(dentry.digests) as reader:
 		for action in reader:
 			stdout.write(action.value)
+
+@cli.command()
+@click.argument('host')
+@click.argument('backup')
+@click.argument('share')
+@click.argument('path')
+def tar(host, backup, share, path):
+	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+	share = fbak[host][backup][share]
+
+	def iterator():
+		for dentry in share.find(path):
+			if dentry.is_file:
+				yield from dentry.digests
+
+	with fbak.pool.agent().readahead(iterator()) as reader:
+		for dentry in share.find(path):
+			if dentry.is_file:
+				for digest in dentry.digests:
+					action = next(reader)
+					if action.exception:
+						raise action.exception
+					stdout.write(action.value)
 
 @cli.command()
 def pooltest():

@@ -83,6 +83,14 @@ class Dentry(Clarity):
 	def extra(self):
 		return bytearray()
 
+	@initializer
+	def fruitbak(self):
+		return self.share.fruitbak
+
+	@initializer
+	def hashsize(self):
+		return self.fruitbak.hashsize
+
 	@property
 	def is_file(self):
 		return S_ISREG(self.mode)
@@ -97,13 +105,25 @@ class Dentry(Clarity):
 		"""
 
 		if self.is_file:
-			return self.extra
+			hashsize = self.hashsize
+			def digestiterator(digests):
+				offset = 0
+				length = len(digests)
+				while offset < length:
+					next_offset = offset + hashsize
+					yield digests[offset:next_offset]
+					offset = next_offset
+			return digestiterator(self.extra)
+
 		raise NotAFileError("'%s' is not a regular file" % self.name)
 
 	@digests.setter
 	def digests(self, value):
 		if self.is_file:
-			self.extra = _to_bytes(value)
+			try:
+				self.extra = b''.join(value)
+			except TypeError:
+				self.extra = _to_bytes(value)
 		else:
 			raise NotAFileError("'%s' is not a regular file" % self.name)
 

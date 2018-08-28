@@ -73,6 +73,7 @@ class Share(Clarity):
 				gid = gid,
 				is_hardlink = True,
 				extra = hardlink,
+				share = self,
 			)
 			data = self.metadata[hardlink]
 			(flags, mode, size, mtime, uid, gid) = dentry_layout.unpack_from(data)
@@ -91,6 +92,7 @@ class Share(Clarity):
 				uid = uid,
 				gid = gid,
 				extra = extra,
+				share = self,
 			)
 			return HardlinkDentry(original, target)
 		else:
@@ -107,10 +109,15 @@ class Share(Clarity):
 				uid = uid,
 				gid = gid,
 				extra = extra,
+				share = self,
 			)
 
 	def ls(self, path):
 		for (path, data) in self.metadata.ls(path):
+			yield self.parse_dentry(path, data)
+
+	def find(self, path):
+		for (path, data) in self.metadata.find(path):
 			yield self.parse_dentry(path, data)
 
 	def __getitem__(self, path):
