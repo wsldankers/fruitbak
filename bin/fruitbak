@@ -63,7 +63,25 @@ def tar(host, backup, share, path):
 	share = fbak[host][backup][share]
 
 	def iterator():
+		remap = {}
 		for dentry in share.find(path):
+			if first_inode is None:
+				first_inode = dentry.inode
+			name = dentry.name
+			try:
+				remapped = remap[name]
+			except KeyError:
+				pass
+			else:
+				# output_entry(dentry, remapped)
+				continue
+			if dentry.is_hardlink:
+				target = dentry.target
+				if first_inode <= target.inode < dentry.original.inode:
+					# target is already output
+					# output_entry(dentry, target.name)
+					continue
+				remap[target.name] = name
 			if dentry.is_file:
 				yield from dentry.digests
 

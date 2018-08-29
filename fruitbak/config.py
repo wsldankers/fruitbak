@@ -57,9 +57,11 @@ class delayed:
 # Ugly: the official way is to use the builtins module, but that is
 # not a dict we can extend. However, exec() is documented to populate
 # the __builtins__ key of globals with something that is usable.
-builtins = {}
-exec('', builtins)
-builtins = builtins['__builtins__']
+#builtins = {}
+#exec('', builtins)
+#builtins = builtins['__builtins__']
+import builtins as builtins_module
+builtins = vars(builtins_module)
 
 class Config:
 	def __init__(self, basepath, path, **kwargs):

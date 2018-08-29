@@ -112,12 +112,30 @@ class Share(Clarity):
 				share = self,
 			)
 
-	def ls(self, path):
-		for (path, data) in self.metadata.ls(path):
+	def ls(self, path = b'', parent = None):
+		c = self.metadata.ls(path)
+		if parent or parent is None:
+			try:
+				path, data = c.item
+			except KeyError:
+				if parent:
+					yield None
+			else:
+				yield self.parse_dentry(path, data)
+		for path, data in c:
 			yield self.parse_dentry(path, data)
 
-	def find(self, path):
-		for (path, data) in self.metadata.find(path):
+	def find(self, path = b'', parent = None):
+		c = self.metadata.find(path)
+		if parent or parent is None:
+			try:
+				path, data = c.item
+			except KeyError:
+				if parent:
+					yield None
+			else:
+				yield self.parse_dentry(path, data)
+		for path, data in c:
 			yield self.parse_dentry(path, data)
 
 	def __getitem__(self, path):
