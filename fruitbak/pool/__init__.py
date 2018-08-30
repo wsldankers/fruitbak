@@ -239,20 +239,27 @@ class PoolAgent(Clarity):
 			readahead.dequeue()
 
 	def register_readahead(self, readahead):
+		new_serial = readahead.serial
+		if new_serial is None:
+			new_serial = self.next_readahead_serial
+			self.next_readahead_serial = new_serial + 1
+			readahead.serial = new_serial
+		new_length = len(readahead)
+		new = readahead.spent, new_length, new_serial
+
 		readaheads = self.readaheads
 		try:
-			spent, length, serial = readaheads[readahead]
+			old = readaheads[readahead]
 		except KeyError:
-			length = 0
-		self.total_readaheads -= length
-		serial = readahead.serial
-		if serial is None:
-			serial = self.next_readahead_serial
-			self.next_readahead_serial = serial + 1
-			readahead.serial = serial
-		length = len(readahead)
-		readaheads[readahead] = readahead.spent, length, serial
-		self.total_readaheads += length
+			old_length = 0
+		else:
+			if old == new:
+				return
+			old_spent, old_length, old_serial = old
+			self.total_readaheads -= old_length
+
+		readaheads[readahead] = new
+		self.total_readaheads += new_length
 		self.update_registration()
 
 	def unregister_readahead(self, readahead):
@@ -466,7 +473,16 @@ class Pool(Clarity):
 		return PoolAgent(pool = self, serial = serial, *args, **kwargs)
 
 	def register_agent(self, agent):
-		self.agents[agent] = agent.avarice, agent.serial
+		new = agent.avarice, agent.serial
+		agents = self.agents
+		try:
+			old = agents[agent]
+		except KeyError:
+			pass
+		else:
+			if old == new:
+				return
+		self.agents[agent] = new
 
 	def unregister_agent(self, agent):
 		try:
