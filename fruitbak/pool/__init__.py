@@ -104,7 +104,7 @@ class PoolReadahead(Clarity):
 			self.agent.register_readahead(self)
 			return
 		hash = next(iterator, None)
-		self.pool.assert_locked()
+		assert self.pool.locked
 		if hash is None:
 			self.iterator = None
 			self.agent.register_readahead(self)
@@ -437,19 +437,14 @@ class Pool(Clarity):
 	def chunk_registry(self):
 		return WeakValueDictionary()
 
-	def assert_locked(self):
+	@property
+	def locked(self):
 		try:
 			Condition(self.lock).notify()
 		except RuntimeError:
-			raise RuntimeError("lock should be held but isn't") from None
-
-	def assert_unlocked(self):
-		try:
-			Condition(self.lock).notify()
-		except RuntimeError:
-			pass
+			return False
 		else:
-			raise RuntimeError("lock should not be held but is")
+			return True
 
 	def exchange_chunk(self, hash, new_chunk = None):
 		# can't use setdefault(), it has weird corner cases
