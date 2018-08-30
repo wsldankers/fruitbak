@@ -5,12 +5,16 @@ from fruitbak.util.weak import weakproperty
 from fruitbak.dentry import Dentry, HardlinkDentry
 from hardhat import Hardhat
 from struct import Struct
+from sys import stderr
 
 class ShareError(Exception):
     """Something Share-related went wrong."""
     pass
 
 class NestedHardlinkError(ShareError):
+    pass
+
+class MissingLinkError(ShareError):
     pass
 
 class Share(Clarity):
@@ -59,8 +63,7 @@ class Share(Clarity):
 		dentry_layout = self.dentry_layout
 		dentry_layout_size = dentry_layout.size
 		FORMAT_FLAG_HARDLINK = self.FORMAT_FLAG_HARDLINK
-		MAXNAMELEN = self.MAXNAMELEN
-		(flags, mode, size, mtime, uid, gid) = dentry_layout.unpack_from(data)
+		flags, mode, size, mtime, uid, gid = dentry_layout.unpack_from(data)
 		if flags & FORMAT_FLAG_HARDLINK:
 			hardlink = data[dentry_layout_size:]
 			original = Dentry(
@@ -75,14 +78,12 @@ class Share(Clarity):
 				extra = hardlink,
 				share = self,
 			)
+
 			data = self.metadata[hardlink]
-			(flags, mode, size, mtime, uid, gid) = dentry_layout.unpack_from(data)
+			flags, mode, size, mtime, uid, gid = dentry_layout.unpack_from(data)
 			if flags & FORMAT_FLAG_HARDLINK:
 				raise NestedHardlinkError("'%s' is a hardlink pointing to '%s', but that is also a hardlink" % (name, original.name))
-			if len(data) > dentry_layout_size + MAXNAMELEN:
-				extra = memoryview(data)[dentry_layout_size:]
-			else:
-				extra = data[dentry_layout_size:]
+			extra = data[dentry_layout_size:]
 			target = Dentry(
 				name = hardlink,
 				flags = flags,
@@ -95,11 +96,9 @@ class Share(Clarity):
 				share = self,
 			)
 			return HardlinkDentry(original, target)
+
 		else:
-			if len(data) > dentry_layout_size + MAXNAMELEN:
-				extra = memoryview(data)[dentry_layout_size:]
-			else:
-				extra = data[dentry_layout_size:]
+			extra = data[dentry_layout_size:]
 			return Dentry(
 				name = path,
 				flags = flags,
@@ -112,31 +111,144 @@ class Share(Clarity):
 				share = self,
 			)
 
-	def ls(self, path = b'', parent = None):
-		c = self.metadata.ls(path)
-		if parent or parent is None:
-			try:
-				path, data = c.item
-			except KeyError:
-				if parent:
-					yield None
-			else:
-				yield self.parse_dentry(path, data)
-		for path, data in c:
-			yield self.parse_dentry(path, data)
+	def ls(self, path = b'', parent = False):
+		return self.hardlink_inverter(self.metadata.ls(path, parent = parent))
 
-	def find(self, path = b'', parent = None):
-		c = self.metadata.find(path)
-		if parent or parent is None:
-			try:
-				path, data = c.item
-			except KeyError:
-				if parent:
-					yield None
-			else:
-				yield self.parse_dentry(path, data)
+	def find(self, path = b'', parent = True):
+		return self.hardlink_inverter(self.metadata.find(path, parent = parent))
+
+	def hardlink_inverter(self, c):
+		remap = {}
+		first_inode = None
+		metadata = self.metadata
 		for path, data in c:
-			yield self.parse_dentry(path, data)
+			dentry_layout = self.dentry_layout
+			dentry_layout_size = dentry_layout.size
+			FORMAT_FLAG_HARDLINK = self.FORMAT_FLAG_HARDLINK
+
+			inode = c.inode
+			if first_inode is None:
+				first_inode = inode
+
+			flags, mode, size, mtime, uid, gid = dentry_layout.unpack_from(data)
+
+			extra = data[dentry_layout_size:]
+
+			try:
+				remapped = remap[path]
+			except KeyError:
+				pass
+			else:
+				# This is a normal entry, but it was the target of a hardlink that
+				# was output earlier as if it was a regular, non-hardlink dentry.
+				# So now we'll pretend that *this* was the hardlink.
+
+				del remap[path]
+
+				remapped_path = remapped[dentry_layout_size:]
+
+				original = Dentry(
+					name = path,
+					flags = flags,
+					mode = mode,
+					size = size,
+					mtime = mtime,
+					uid = uid,
+					gid = gid,
+					is_hardlink = True,
+					extra = remapped_path,
+					share = self,
+				)
+
+				flags, mode, size, mtime, uid, gid = dentry_layout.unpack_from(remapped)
+				target = Dentry(
+					name = remapped_path,
+					flags = flags & ~FORMAT_FLAG_HARDLINK,
+					mode = mode,
+					size = size,
+					mtime = mtime,
+					uid = uid,
+					gid = gid,
+					extra = extra,
+					share = self,
+				)
+
+				yield HardlinkDentry(original, target)
+				continue
+
+			if flags & FORMAT_FLAG_HARDLINK:
+				target_cursor = metadata.ls(extra)
+				try:
+					target_path = target_cursor.key
+					target_data = target_cursor.value
+					target_inode = target_cursor.inode
+				except KeyError as e:
+					raise MissingLinkError("'%s' is a hardlink to '%s' but the latter does not exist" % (path, extra)) from e
+
+				target_extra = target_data[dentry_layout_size:]
+
+				if first_inode <= target_inode < inode:
+					# target is already output
+
+					original = Dentry(
+						name = path,
+						flags = flags & ~FORMAT_FLAG_HARDLINK,
+						mode = mode,
+						size = size,
+						mtime = mtime,
+						uid = uid,
+						gid = gid,
+						is_hardlink = True,
+						extra = extra,
+						share = self,
+					)
+
+					flags, mode, size, mtime, uid, gid = dentry_layout.unpack_from(target_data)
+					if flags & FORMAT_FLAG_HARDLINK:
+						raise NestedHardlinkError("'%s' is a hardlink pointing to '%s', but that is also a hardlink" % (path, extra))
+
+
+					target = Dentry(
+						name = target_path,
+						flags = flags,
+						mode = mode,
+						size = size,
+						mtime = mtime,
+						uid = uid,
+						gid = gid,
+						extra = target_extra,
+						share = self,
+					)
+
+					yield HardlinkDentry(original, target)
+				else:
+					remap[target_path] = b''.join((data[:dentry_layout_size], path))
+
+					yield Dentry(
+						name = path,
+						flags = flags & ~FORMAT_FLAG_HARDLINK,
+						mode = mode,
+						size = size,
+						mtime = mtime,
+						uid = uid,
+						gid = gid,
+						extra = target_extra,
+						share = self,
+					)
+
+				continue
+
+			yield Dentry(
+				name = path,
+				flags = flags,
+				mode = mode,
+				size = size,
+				mtime = mtime,
+				uid = uid,
+				gid = gid,
+				extra = extra,
+				share = self,
+			)
 
 	def __getitem__(self, path):
 		return self.parse_dentry(path, self.metadata[path])
