@@ -9,7 +9,7 @@ from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.heapmap import MinHeapMap
 from fruitbak.util.weakheapmap import MinWeakHeapMap
 from fruitbak.pool.filesystem import Filesystem
-	
+
 class PoolAction(Clarity):
 	done = False
 	cond = None
@@ -60,7 +60,8 @@ class PoolReadahead(Clarity):
 
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		self.agent.register_readahead(self)
+		with self.cond:
+			self.agent.register_readahead(self)
 
 	def __len__(self):
 		return len(self.queue)
@@ -103,6 +104,7 @@ class PoolReadahead(Clarity):
 			self.agent.register_readahead(self)
 			return
 		hash = next(iterator, None)
+		self.pool.assert_locked()
 		if hash is None:
 			self.iterator = None
 			self.agent.register_readahead(self)
@@ -427,6 +429,20 @@ class Pool(Clarity):
 	@initializer
 	def chunk_registry(self):
 		return WeakValueDictionary()
+
+	def assert_locked(self):
+		try:
+			Condition(self.lock).notify()
+		except RuntimeError:
+			raise RuntimeError("lock should be held but isn't") from None
+
+	def assert_unlocked(self):
+		try:
+			Condition(self.lock).notify()
+		except RuntimeError:
+			pass
+		else:
+			raise RuntimeError("lock should not be held but is")
 
 	def exchange_chunk(self, hash, new_chunk = None):
 		# can't use setdefault(), it has weird corner cases

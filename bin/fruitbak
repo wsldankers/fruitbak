@@ -5,6 +5,7 @@ from fruitbak import Fruitbak
 from os import fsdecode
 from sys import stdout as text_stdout, stderr
 from pathlib import Path
+from tarfile import TarInfo, REGTYPE, LNKTYPE, SYMTYPE, CHRTYPE, BLKTYPE, DIRTYPE, FIFOTYPE, GNU_FORMAT, BLOCKSIZE
 
 import click
 import gc, atexit
@@ -69,12 +70,48 @@ def tar(host, backup, share, path):
 
 	with fbak.pool.agent().readahead(iterator()) as reader:
 		for dentry in share.find(path):
+			i = TarInfo(fsdecode(bytes(dentry.name)))
+			i.mode = dentry.mode & 0o7777
+			i.uid = dentry.uid
+			i.gid = dentry.gid
+			i.mtime = dentry.mtime // 1000000000
+			if dentry.is_hardlink:
+				i.type = LNKTYPE
+				i.linkname = fsdecode(bytes(dentry.hardlink))
+			elif dentry.is_file:
+				i.type = REGTYPE
+				i.size = dentry.size
+			elif dentry.is_symlink:
+				i.type = SYMTYPE
+				i.linkname = fsdecode(bytes(dentry.symlink))
+			elif dentry.is_chardev:
+				i.type = CHRTYPE
+				i.devmajor = dentry.major
+				i.devminor = dentry.minor
+			elif dentry.is_blockdev:
+				i.type = BLKTYPE
+				i.devmajor = dentry.major
+				i.devminor = dentry.minor
+			elif dentry.is_directory:
+				i.type = DIRTYPE
+			elif dentry.is_fifo:
+				i.type = FIFOTYPE
+			else:
+				continue
+
+			stdout.write(i.tobuf(GNU_FORMAT))
+
 			if dentry.is_file and not dentry.is_hardlink:
 				for digest in dentry.digests:
 					action = next(reader)
 					if action.exception:
 						raise action.exception
 					stdout.write(action.value)
+				padding = -i.size % BLOCKSIZE
+				if padding:
+					stdout.write(b'\0' * padding)
+
+	stdout.write(b'\0' * (BLOCKSIZE*2))
 
 @cli.command()
 def pooltest():

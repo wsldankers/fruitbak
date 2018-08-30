@@ -314,8 +314,8 @@ class HardlinkDentry(Dentry):
 		return self.target.storedsize
 
 	@property
-	def mtime_ns(self):
-		return self.target.mtime_ns
+	def mtime(self):
+		return self.target.mtime
 
 	@property
 	def uid(self):
