@@ -6,6 +6,7 @@ from os import fsdecode
 from sys import stdout as text_stdout, stderr
 from pathlib import Path
 from tarfile import TarInfo, REGTYPE, LNKTYPE, SYMTYPE, CHRTYPE, BLKTYPE, DIRTYPE, FIFOTYPE, GNU_FORMAT, BLOCKSIZE
+from time import sleep
 
 import click
 import gc, atexit
@@ -156,6 +157,14 @@ def pooltest():
 	agent = None
 	print(len(pool.agents))
 	fbak = None
+
+@cli.command()
+def fstest():
+	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+	data = "derp".encode()
+	hashfunc = fbak.hashfunc
+	fbak.pool.agent().put_chunk(hashfunc(data), data)
+	sleep(1)
 
 @cli.command()
 def xyzzy():

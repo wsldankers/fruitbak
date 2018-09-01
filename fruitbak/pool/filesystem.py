@@ -7,11 +7,36 @@ from traceback import print_exc
 from sys import stderr, exc_info
 from concurrent.futures import ThreadPoolExecutor
 from tempfile import NamedTemporaryFile
-from os import mkdir, replace, fsync, unlink, fsdecode
+from os import open as os_open, close as os_close, mkdir, replace, fsync, link, unlink, fsdecode, O_DIRECTORY, O_CLOEXEC, O_PATH, O_TMPFILE, O_WRONLY
 from pathlib import Path
 
 from time import sleep
-from random import random
+from random import random, randrange
+
+# b64order = bytes(b64encode(bytes((i * 4,)), b'+_')[0] for i in range(64)).decode()
+# dirs.sort(key = lambda x: b64decode(x+'A=', b'+_'))
+
+# garbage collected variant of os.open()
+class sysopen(int):
+	closed = False
+
+	def __new__(cls, *args, **kwargs):
+		return super().__new__(cls, os_open(*args, **kwargs))
+
+	def __del__(self):
+		if not self.closed:
+			try:
+				os_close(self)
+			except:
+				pass
+
+	def __enter__(self):
+		return self
+
+	def __exit__(self, exc_type, exc_value, traceback):
+		if not self.closed:
+			self.closed = True
+			os_close(self)
 
 class Filesystem(Storage):
 	@initializer
@@ -26,9 +51,27 @@ class Filesystem(Storage):
 		b64 = b64encode(hash, b'+_').rstrip(b'=')
 		return self.pooldir / Path(fsdecode(b64[:2])) / Path(fsdecode(b64[2:]))
 
-	def hash2parent(self, hash):
-		b64 = b64encode(hash, b'+_').rstrip(b'=')
-		return self.pooldir / Path(fsdecode(b64[:2]))
+	@initializer
+	def pooldir_fd(self):
+		return sysopen(str(self.pooldir), O_PATH|O_DIRECTORY|O_CLOEXEC)
+
+	def tempfile(self, path):
+		def opener(path, flags):
+			# gleefully ignores flags
+			return os_open(path, O_TMPFILE|O_WRONLY|O_CLOEXEC, dir_fd = self.pooldir_fd)
+		return open(path, 'wb', buffering = 0, opener = opener)
+
+	@initializer
+	def have_fancy_stuff(self):
+		name = b64encode(bytes(randrange(256) for x in range(24)), b'+_')
+		try:
+			pooldir_fd = self.pooldir_fd
+			with self.tempfile('.') as f:
+				link("/proc/self/fd/" + str(f.fileno()), name, dst_dir_fd = pooldir_fd)
+			unlink(name, dir_fd = pooldir_fd)
+			return True
+		except:
+			return False
 
 	def submit(self, job, *args, **kwargs):
 		def windshield():
@@ -55,12 +98,45 @@ class Filesystem(Storage):
 
 	def put_chunk(self, hash, value, callback):
 		path = self.hash2path(hash)
+		path_str = str(path)
 
 		def job():
 			try:
-				with NamedTemporaryFile(dir = str(self.pooldir), buffering = 0, delete = False) as f:
-					f_path = Path(f.name)
+				if self.have_fancy_stuff:
+					parent = path.parent
+					parent_str = str(parent)
 					try:
+						tmp = self.tempfile(parent_str)
+					except FileNotFoundError:
+						try:
+							parent.mkdir()
+						except FileExistsError:
+							pass
+						tmp = self.tempfile(parent_str)
+					with tmp as f:
+						offset = f.write(value)
+						if offset < len(value):
+							m = memoryview(value)
+							while offset < len(value):
+								offset += f.write(m[offset:])
+						f.flush()
+						fd = f.fileno()
+						fsync(fd)
+						try:
+							link("/proc/self/fd/" + str(fd), path_str, dst_dir_fd = self.pooldir_fd)
+						except FileExistsError:
+							pass
+				else:
+					print("fallback", file = stderr)
+					parent = path.parent
+					parent_str = str(parent)
+					try:
+						tmp = NamedTemporaryFile(dir = parent_str, buffering = 0)
+					except FileNotFoundError:
+						parent.mkdir()
+						tmp = NamedTemporaryFile(dir = parent_str, buffering = 0)
+					with tmp as f:
+						f_path = Path(f.name)
 						offset = f.write(value)
 						if offset < len(value):
 							m = memoryview(value)
@@ -68,15 +144,19 @@ class Filesystem(Storage):
 								offset += f.write(m[offset:])
 						f.flush()
 						fsync(f.fileno())
-						f.close()
 						try:
-							f_path.replace(path)
+							link(f.name, path_str)
+						except FileExistsError:
+							pass
 						except FileNotFoundError:
-							path.parent.mkdir()
-							f_path.replace(path)
-					except:
-						f_path.unlink()
-						raise
+							try:
+								parent.mkdir()
+							except FileExistsError:
+								pass
+							try:
+								link(f.name, path_str)
+							except FileExistsError:
+								pass
 
 				callback(None)
 			except:
@@ -97,3 +177,6 @@ class Filesystem(Storage):
 			callback(None)
 
 		self.submit(job)
+
+	def lister(self):
+		pass
