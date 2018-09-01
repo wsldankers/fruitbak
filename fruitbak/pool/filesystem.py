@@ -7,11 +7,17 @@ from traceback import print_exc
 from sys import stderr, exc_info
 from concurrent.futures import ThreadPoolExecutor
 from tempfile import NamedTemporaryFile
-from os import open as os_open, close as os_close, mkdir, replace, fsync, link, unlink, fsdecode, O_DIRECTORY, O_CLOEXEC, O_PATH, O_TMPFILE, O_WRONLY
+from os import open as os_open, close as os_close, write as os_write, mkdir, fsync, link, unlink, fsdecode, O_DIRECTORY, O_CLOEXEC, O_WRONLY
 from pathlib import Path
 
 from time import sleep
 from random import random, randrange
+
+try:
+	from os import O_PATH, O_TMPFILE
+except ImportError:
+	O_PATH = None
+	O_TMPFILE = None
 
 # b64order = bytes(b64encode(bytes((i * 4,)), b'+_')[0] for i in range(64)).decode()
 # dirs.sort(key = lambda x: b64decode(x+'A=', b'+_'))
@@ -49,25 +55,28 @@ class Filesystem(Storage):
 
 	def hash2path(self, hash):
 		b64 = b64encode(hash, b'+_').rstrip(b'=')
-		return self.pooldir / Path(fsdecode(b64[:2])) / Path(fsdecode(b64[2:]))
+		return Path(fsdecode(b64[:2])) / Path(fsdecode(b64[2:]))
 
 	@initializer
 	def pooldir_fd(self):
 		return sysopen(str(self.pooldir), O_PATH|O_DIRECTORY|O_CLOEXEC)
 
+	@initializer
+	def proc_self_fd(self):
+		return sysopen("/proc/self/fd", O_PATH|O_DIRECTORY|O_CLOEXEC)
+
 	def tempfile(self, path):
-		def opener(path, flags):
-			# gleefully ignores flags
-			return os_open(path, O_TMPFILE|O_WRONLY|O_CLOEXEC, dir_fd = self.pooldir_fd)
-		return open(path, 'wb', buffering = 0, opener = opener)
+		return sysopen(path, O_TMPFILE|O_WRONLY|O_CLOEXEC, dir_fd = self.pooldir_fd)
 
 	@initializer
-	def have_fancy_stuff(self):
+	def have_linux_stuff(self):
+		if O_PATH is None or O_TMPFILE is None:
+			return False
 		name = b64encode(bytes(randrange(256) for x in range(24)), b'+_')
 		try:
 			pooldir_fd = self.pooldir_fd
-			with self.tempfile('.') as f:
-				link("/proc/self/fd/" + str(f.fileno()), name, dst_dir_fd = pooldir_fd)
+			with self.tempfile('.') as fd:
+				link(str(fd), name, src_dir_fd = self.proc_self_fd, dst_dir_fd = pooldir_fd)
 			unlink(name, dir_fd = pooldir_fd)
 			return True
 		except:
@@ -97,50 +106,61 @@ class Filesystem(Storage):
 		self.submit(job)
 
 	def put_chunk(self, hash, value, callback):
-		path = self.hash2path(hash)
-		path_str = str(path)
-
 		def job():
+			value_len = len(value)
 			try:
-				if self.have_fancy_stuff:
+				if self.have_linux_stuff:
+					path = self.hash2path(hash)
+					path_str = str(path)
+					parent = path.parent
+					parent_str = str(parent)
+					pooldir_fd = self.pooldir_fd
+					try:
+						tmp = self.tempfile(parent_str)
+					except FileNotFoundError:
+						try:
+							mkdir(parent_str, dir_fd = pooldir_fd)
+						except FileExistsError:
+							pass
+						tmp = self.tempfile(parent_str)
+					with tmp as fd:
+						while True:
+							try:
+								offset = os_write(fd, value)
+							except InterruptedError:
+								pass
+							else:
+								break
+						if offset < value_len:
+							m = memoryview(value)
+							while offset < value_len:
+								try:
+									offset += os_write(fd, m[offset:])
+								except InterruptedError:
+									pass
+						fsync(fd)
+						try:
+							link(str(fd), path_str, src_dir_fd = self.proc_self_fd, dst_dir_fd = pooldir_fd)
+						except FileExistsError:
+							pass
+				else:
+					path = self.pooldir / self.hash2path(hash)
+					path_str = str(path)
 					parent = path.parent
 					parent_str = str(parent)
 					try:
-						tmp = self.tempfile(parent_str)
+						tmp = NamedTemporaryFile(dir = parent_str, buffering = 0)
 					except FileNotFoundError:
 						try:
 							parent.mkdir()
 						except FileExistsError:
 							pass
-						tmp = self.tempfile(parent_str)
-					with tmp as f:
-						offset = f.write(value)
-						if offset < len(value):
-							m = memoryview(value)
-							while offset < len(value):
-								offset += f.write(m[offset:])
-						f.flush()
-						fd = f.fileno()
-						fsync(fd)
-						try:
-							link("/proc/self/fd/" + str(fd), path_str, dst_dir_fd = self.pooldir_fd)
-						except FileExistsError:
-							pass
-				else:
-					print("fallback", file = stderr)
-					parent = path.parent
-					parent_str = str(parent)
-					try:
-						tmp = NamedTemporaryFile(dir = parent_str, buffering = 0)
-					except FileNotFoundError:
-						parent.mkdir()
 						tmp = NamedTemporaryFile(dir = parent_str, buffering = 0)
 					with tmp as f:
-						f_path = Path(f.name)
 						offset = f.write(value)
-						if offset < len(value):
+						if offset < value_len:
 							m = memoryview(value)
-							while offset < len(value):
+							while offset < value_len:
 								offset += f.write(m[offset:])
 						f.flush()
 						fsync(f.fileno())
@@ -148,16 +168,6 @@ class Filesystem(Storage):
 							link(f.name, path_str)
 						except FileExistsError:
 							pass
-						except FileNotFoundError:
-							try:
-								parent.mkdir()
-							except FileExistsError:
-								pass
-							try:
-								link(f.name, path_str)
-							except FileExistsError:
-								pass
-
 				callback(None)
 			except:
 				callback(exc_info())
