@@ -128,21 +128,22 @@ def pooltest():
 
 	pool = fbak.pool
 	agent = pool.agent()
-	reader = agent.readahead(readahead())
 
 	agent.put_chunk(hashfunc(b'foo'), b'foo', async = True)
-
-	print("get_chunk:", agent.get_chunk(hashfunc(b'foo')))
-
-	action = agent.get_chunk(hashfunc(b'foo'), async = True)
-
-	print("async get_chunk:", action.sync())
 
 	for i in range(200):
 		data = str(i).encode()
 		agent.put_chunk(hashfunc(data), data, async = True)
 
 	agent.sync()
+
+	reader = agent.readahead(readahead())
+
+	print("get_chunk:", agent.get_chunk(hashfunc(b'foo')))
+
+	action = agent.get_chunk(hashfunc(b'foo'), async = True)
+
+	print("async get_chunk:", action.sync())
 
 	print("derp")
 
@@ -164,6 +165,8 @@ def fstest():
 	data = "derp".encode()
 	hashfunc = fbak.hashfunc
 	fbak.pool.agent().put_chunk(hashfunc(data), data)
+	del hashfunc
+	del fbak
 	sleep(1)
 
 @cli.command()

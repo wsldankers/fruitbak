@@ -74,10 +74,20 @@ class Fruitbak(Clarity):
 	def hashsize(self):
 		return len(self.hashfunc(b''))
 
+	@configurable
+	def chunksize(self):
+		return 2 ** 21
+
+	@chunksize.validate
+	def chunksize(self, value):
+		if value & value - 1:
+			raise RuntimeError("chunksize must be a power of two")
+		return int(value)
+
 	#@weakproperty
 	@initializer
 	def pool(self):
-		return Pool(fbak = self, config = {'pooldir': self.pooldir})
+		return Pool(fruitbak = self, config = {'pooldir': self.pooldir})
 
 	@initializer
 	def hostcache(self):
