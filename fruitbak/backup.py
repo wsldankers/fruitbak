@@ -29,17 +29,11 @@ class Backup(Clarity):
 
 	@initializer
 	def backupdir(self):
-		path = self.host.hostdir / str(self.index)
-		try:
-			path.mkdir(exist_ok = True)
-		except FileExistsError:
-			pass
-		return path
+		return self.host.hostdir / str(self.index)
 
 	@initializer
 	def sharedir(self):
 		return self.backupdir / 'share'
-
 
 	@initializer
 	def sharecache(self):

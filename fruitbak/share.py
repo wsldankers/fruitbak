@@ -48,12 +48,7 @@ class Share(Clarity):
 
 	@initializer
 	def sharedir(self):
-		path = self.backup.backupdir / 'share' / self.fruitbak.name_to_path(self.name)
-		try:
-			path.mkdir(exist_ok = True)
-		except FileExistsError:
-			pass
-		return path
+		return self.backup.backupdir / 'share' / self.fruitbak.name_to_path(self.name)
 
 	@initializer
 	def metadata(self):
