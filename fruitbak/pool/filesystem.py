@@ -16,6 +16,7 @@ from os import (
 	F_OK,
 	O_DIRECTORY, O_CLOEXEC, O_NOCTTY, O_RDONLY, O_WRONLY
 )
+from errno import EROFS
 from pathlib import Path
 
 from time import sleep
@@ -90,6 +91,10 @@ class Filesystem(Storage):
 				link(str(fd), name, src_dir_fd = self.proc_self_fd, dst_dir_fd = pooldir_fd)
 			unlink(name, dir_fd = pooldir_fd)
 			return True
+		except OSError as e:
+			# If the fs is read-only then pooldir_fd was successful and we can only
+			# do get_chunk anyway, so that should be enough:
+			return e.errno == EROFS
 		except:
 			return False
 
@@ -103,12 +108,30 @@ class Filesystem(Storage):
 
 		self.executor.submit(windshield)
 
+	def has_chunk(self, callback, hash):
+		path = self.hash2path(hash)
+
+		if self.have_linux_stuff:
+			pooldir_fd = self.pooldir_fd
+			def job():
+				try:
+					result = access(str(path), F_OK, dir_fd = pooldir_fd)
+					callback(result, None)
+				except:
+					callback(None, exc_info())
+		else:
+			def job():
+				try:
+					callback(path.exists(), None)
+				except:
+					callback(None, exc_info())
+
+		self.submit(job)
+
 	def get_chunk(self, callback, hash):
 		path = self.hash2path(hash)
 
 		if self.have_linux_stuff:
-			chunksize = self.fruitbak.chunksize
-			have_linux_stuff = self.have_linux_stuff
 			pooldir_fd = self.pooldir_fd
 			def job():
 				try:
@@ -146,13 +169,14 @@ class Filesystem(Storage):
 		self.submit(job)
 
 	def put_chunk(self, callback, hash, value):
+		path = self.hash2path(hash)
+		path_str = str(path)
+		parent = path.parent
+		parent_str = str(parent)
+
 		def job():
 			value_len = len(value)
 			try:
-				path = self.hash2path(hash)
-				path_str = str(path)
-				parent = path.parent
-				parent_str = str(parent)
 				if self.have_linux_stuff:
 					pooldir_fd = self.pooldir_fd
 					if not access(path_str, F_OK, dir_fd = pooldir_fd):
@@ -189,10 +213,7 @@ class Filesystem(Storage):
 						try:
 							tmp = NamedTemporaryFile(dir = parent_str, buffering = 0)
 						except FileNotFoundError:
-							try:
-								parent.mkdir()
-							except FileExistsError:
-								pass
+							parent.mkdir(exist_ok = True)
 							tmp = NamedTemporaryFile(dir = parent_str, buffering = 0)
 						with tmp as f:
 							offset = f.write(value)
