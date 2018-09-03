@@ -170,6 +170,12 @@ def fstest():
 	sleep(1)
 
 @cli.command()
+def listchunks():
+	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+	for hash in fbak.pool.agent().lister():
+		print(hash)
+
+@cli.command()
 def xyzzy():
 	"""Nothing happens"""
 

@@ -1,8 +1,11 @@
 from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.pool.handler import Storage
+from fruitbak.pool.agent import PoolReadahead, PoolAction
+
+from hashset import Hashset
 
 from weakref import ref as weakref
-from base64 import b64encode
+from base64 import b64encode, b64decode
 from traceback import print_exc
 from sys import stderr, exc_info
 from concurrent.futures import ThreadPoolExecutor
@@ -12,12 +15,14 @@ from os import (
 	open as os_open, close,
 	read, write, fsync,
 	mkdir, link, unlink,
+	listdir,
 	fsdecode,
 	F_OK,
 	O_DIRECTORY, O_CLOEXEC, O_NOCTTY, O_RDONLY, O_WRONLY
 )
 from errno import EROFS
 from pathlib import Path
+from re import compile as re
 
 from time import sleep
 from random import random, randrange
@@ -28,8 +33,15 @@ except ImportError:
 	O_PATH = None
 	O_TMPFILE = None
 
-# b64order = bytes(b64encode(bytes((i * 4,)), b'+_')[0] for i in range(64)).decode()
-# dirs.sort(key = lambda x: b64decode(x+'A=', b'+_'))
+#b64order = bytes(b64encode(bytes((i * 4,)), b'+_')[0] for i in range(64)).decode()
+#b64set = set(b64order)
+directory_re = re('[A-Za-z0-9+_]{2}')
+
+def my_b64encode(b):
+	return b64encode(b, b'+_').rstrip(b'=').decode()
+
+def my_b64decode(s):
+	return b64decode(s + '=' * (-len(s) % 4), b'+_')
 
 # garbage collected variant of os.open()
 class sysopen(int):
@@ -53,6 +65,46 @@ class sysopen(int):
 			self.closed = True
 			close(self)
 
+class FilesystemListAction(PoolAction):
+	directory = None
+	cursor = None
+
+	def sync(self):
+		super().sync()
+		return self.cursor
+
+class FilesystemListahead(PoolReadahead):
+	def dequeue(self):
+		cond = self.cond
+		agent = self.agent
+
+		iterator = self.iterator
+		if iterator is None:
+			self.agent.register_readahead(self)
+			return
+
+		directory = next(iterator, None)
+		if directory is None:
+			self.iterator = None
+			self.agent.register_readahead(self)
+			return
+
+		action = FilesystemListAction(directory = directory)
+		self.queue.append(action)
+
+		def when_done(cursor, exception):
+			with cond:
+				action.cursor = cursor
+				action.exception = exception
+				action.done = True
+				agent.pending_readaheads -= 1
+				agent.register_readahead(self)
+				cond.notify()
+		agent.pending_readaheads += 1
+		agent.pool.submit(self.filesystem.listdir, when_done, directory)
+
+		agent.register_readahead(self)
+
 class Filesystem(Storage):
 	@initializer
 	def pooldir(self):
@@ -63,7 +115,7 @@ class Filesystem(Storage):
 		self.executor = ThreadPoolExecutor(max_workers = 32)
 
 	def hash2path(self, hash):
-		b64 = b64encode(hash, b'+_').rstrip(b'=')
+		b64 = my_b64encode(hash)
 		path = Path(fsdecode(b64[:2])) / Path(fsdecode(b64[2:]))
 		if self.have_linux_stuff:
 			return path
@@ -116,15 +168,18 @@ class Filesystem(Storage):
 			def job():
 				try:
 					result = access(str(path), F_OK, dir_fd = pooldir_fd)
-					callback(result, None)
 				except:
 					callback(None, exc_info())
+				else:
+					callback(result, None)
 		else:
 			def job():
 				try:
-					callback(path.exists(), None)
+					result = path.exists()
 				except:
 					callback(None, exc_info())
+				else:
+					callback(result, None)
 
 		self.submit(job)
 
@@ -154,17 +209,19 @@ class Filesystem(Storage):
 					else:
 						buf = b''.join(results)
 
-					callback(buf, None)
 				except:
 					callback(None, exc_info())
+				else:
+					callback(buf, None)
 		else:
 			def job():
 				try:
 					with path.open(mode = 'rb', buffering = 0) as f:
 						buf = f.read()
-					callback(buf, None)
 				except:
 					callback(None, exc_info())
+				else:
+					callback(buf, None)
 
 		self.submit(job)
 
@@ -227,9 +284,10 @@ class Filesystem(Storage):
 								link(f.name, path_str)
 							except FileExistsError:
 								pass
-				callback(None)
 			except:
 				callback(exc_info())
+			else:
+				callback(None)
 
 		self.submit(job)
 
@@ -246,9 +304,34 @@ class Filesystem(Storage):
 				callback(None)
 			except:
 				callback(exc_info())
-			callback(None)
+			else:
+				callback(None)
 
 		self.submit(job)
 
-	def lister(self):
-		pass
+	def lister(self, agent):
+		dirs = listdir(str(self.pooldir))
+		dirs = list(filter(directory_re.fullmatch, dirs))
+		dirs.sort(key = lambda x: b64decode(x+'A=', b'+_'))
+		listahead = FilesystemListahead(filesystem = self, agent = agent, iterator = iter(dirs))
+		for action in listahead:
+			if action.exception:
+				raise action.exception[1]
+			yield from action.cursor
+
+	def listdir(self, callback, directory):
+		hashsize = self.fruitbak.hashsize
+		def job():
+			try:
+				files = listdir(str(self.pooldir / directory))
+				hashes = map(lambda x: my_b64decode(directory + x), files)
+				del files
+				hashbuf = b''.join(hashes)
+				del hashes
+				cursor = Hashset(hashbuf, hashsize)
+			except:
+				callback(None, exc_info())
+			else:
+				callback(cursor, None)
+
+		self.submit(job)

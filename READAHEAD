@@ -1,13 +1,5 @@
-indien mailhook of er zijn directe acties bezig of een van de readaheads is leeg:
-	rapporteer num(inflight)
-anders:
-	rapporteer num(inflight) + sum(voltooide readahead items)
-
-indien mailhook:
-	bied mailhook aan
-indien alle readaheads vol:
-	bied niks aan
-anders:
-	bied readahead aan met kleinste aantal (on)voltooide items
-
 let op dat in-flight operaties geen ref hebben naar de agent/readahead
+(anders blijft de readahead doorijlen als-ie georphand is)
+
+pool.get_chunk moet pool.submit_get_chunk worden
+agent moet ook een submit_get_chunk krijgen
