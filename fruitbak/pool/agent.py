@@ -7,6 +7,7 @@ from sys import stderr
 from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.heapmap import MinHeapMap
 from fruitbak.util.weakheapmap import MinWeakHeapMap
+from fruitbak.util.locking import lockeddescriptor
 
 class PoolAction(Clarity):
 	done = False
@@ -41,6 +42,10 @@ class PoolReadahead(Clarity):
 	serial = None
 
 	@initializer
+	def lock(self):
+		return self.agent.lock
+
+	@initializer
 	def cond(self):
 		return self.agent.cond
 
@@ -48,6 +53,7 @@ class PoolReadahead(Clarity):
 	def pool(self):
 		return self.agent.pool
 
+	@lockeddescriptor
 	@initializer
 	def queue(self):
 		return deque()
@@ -87,7 +93,8 @@ class PoolReadahead(Clarity):
 	def __del__(self):
 		agent = self.agent
 		if agent is not None:
-			agent.unregister_readahead(self)
+			with self.cond:
+				agent.unregister_readahead(self)
 
 	def __enter__(self):
 		return self
@@ -95,6 +102,20 @@ class PoolReadahead(Clarity):
 	def __exit__(self, exc_type, exc_value, traceback):
 		self.agent.unregister_readahead(self)
 		self.__dict__.clear()
+
+	def submit(self, func, callback, *args, **kwargs):
+		cond = self.cond
+		agent = self.agent
+		def when_done(*args, **kwargs):
+			with cond:
+				try:
+					callback(*args, **kwargs)
+				finally:
+					agent.pending_readaheads -= 1
+					agent.register_readahead(self)
+					cond.notify()
+		agent.pending_readaheads += 1
+		func(when_done, *args, **kwargs)
 
 	def dequeue(self):
 		agent = self.agent
@@ -118,15 +139,10 @@ class PoolReadahead(Clarity):
 		value = pool.chunk_registry.get(hash)
 		if value is None:
 			def when_done(value, exception):
-				with cond:
-					action.value = value
-					action.exception = exception
-					action.done = True
-					agent.pending_readaheads -= 1
-					agent.register_readahead(self)
-					cond.notify()
-			agent.pending_readaheads += 1
-			pool.get_chunk(when_done, hash)
+				action.value = value
+				action.exception = exception
+				action.done = True
+			self.submit(pool.get_chunk, when_done, hash)
 		else:
 			action.value = value
 			action.done = True
@@ -135,6 +151,10 @@ class PoolReadahead(Clarity):
 		agent.register_readahead(self)
 
 class PoolAgent(Clarity):
+	@initializer
+	def lock(self):
+		return self.pool.lock
+
 	@initializer
 	def cond(self):
 		return Condition(self.pool.lock)
@@ -180,14 +200,17 @@ class PoolAgent(Clarity):
 
 	def __exit__(self, exc_type, exc_value, traceback):
 		self.sync()
-		self.pool.unregister_agent(self)
+		with self.cond:
+			self.pool.unregister_agent(self)
 		self.__dict__.clear()
 
 	def readahead(self, iterator):
+		assert self.pool.locked
 		return PoolReadahead(agent = self, iterator = iterator)
 
 	@property
 	def avarice(self):
+		assert self.pool.locked
 		pending_writes = self.pending_writes
 		pending_reads = self.pending_reads
 		if self.mailhook or pending_writes or pending_reads:
@@ -205,6 +228,7 @@ class PoolAgent(Clarity):
 
 	@property
 	def eligible_readahead(self):
+		assert self.pool.locked
 		try:
 			readahead, (spent, length, serial) = self.readaheads.peekitem()
 		except IndexError:
@@ -217,6 +241,7 @@ class PoolAgent(Clarity):
 
 	def dequeue(self):
 		pool = self.pool
+		assert pool.locked
 
 		op = self.mailhook
 		if op:
@@ -238,6 +263,7 @@ class PoolAgent(Clarity):
 			readahead.dequeue()
 
 	def register_readahead(self, readahead):
+		assert self.pool.locked
 		new_serial = readahead.serial
 		if new_serial is None:
 			new_serial = self.next_readahead_serial
@@ -262,6 +288,7 @@ class PoolAgent(Clarity):
 		self.update_registration()
 
 	def unregister_readahead(self, readahead):
+		assert self.pool.locked
 		readaheads = self.readaheads
 		try:
 			spent, length, serial = readaheads[readahead]
@@ -273,6 +300,7 @@ class PoolAgent(Clarity):
 
 	def update_registration(self):
 		pool = self.pool
+		assert pool.locked
 		if self.mailhook:
 			pool.register_agent(self)
 		elif self.pending_reads or self.pending_writes:

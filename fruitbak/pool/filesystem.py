@@ -75,6 +75,8 @@ class FilesystemListAction(PoolAction):
 
 class FilesystemListahead(PoolReadahead):
 	def dequeue(self):
+		assert self.pool.locked
+
 		cond = self.cond
 		agent = self.agent
 
@@ -91,17 +93,14 @@ class FilesystemListahead(PoolReadahead):
 
 		action = FilesystemListAction(directory = directory)
 		self.queue.append(action)
+		pool = self.pool
 
 		def when_done(cursor, exception):
 			with cond:
 				action.cursor = cursor
 				action.exception = exception
 				action.done = True
-				agent.pending_readaheads -= 1
-				agent.register_readahead(self)
-				cond.notify()
-		agent.pending_readaheads += 1
-		agent.pool.submit(self.filesystem.listdir, when_done, directory)
+		self.submit(self.filesystem.listdir, when_done, directory)
 
 		agent.register_readahead(self)
 
@@ -153,7 +152,7 @@ class Filesystem(Storage):
 	def submit(self, job, *args, **kwargs):
 		def windshield():
 			try:
-				sleep(random() / 10.0)
+				#sleep(random() / 10.0)
 				job(*args, **kwargs)
 			except:
 				print_exc(file = stderr)

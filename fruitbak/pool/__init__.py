@@ -6,12 +6,14 @@ from sys import stderr
 from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.weakheapmap import MinWeakHeapMap
 from fruitbak.util.weak import weakproperty
+from fruitbak.util.locking import lockeddescriptor
 from fruitbak.pool.filesystem import Filesystem
 from fruitbak.pool.agent import PoolAgent
 
 class Pool(Clarity):
 	def __init__(self, *args, **kwargs):
-		super().__init__(lock = RLock(), *args, **kwargs)
+		self.lock = RLock()
+		super().__init__(*args, **kwargs)
 
 	max_queue_depth = 32
 	queue_depth = 0
@@ -24,18 +26,22 @@ class Pool(Clarity):
 	def config(self):
 		return self.fruitbak.config
 
+	@lockeddescriptor
 	@initializer
 	def root(self):
+		assert self.locked
 		return Filesystem(pool = self, config = self.config)
 
 	@initializer
 	def agents(self):
+		assert self.locked
 		return MinWeakHeapMap()
 
 	next_agent_serial = 0
 
 	@initializer
 	def chunk_registry(self):
+		assert self.locked
 		return WeakValueDictionary()
 
 	@property
@@ -48,6 +54,7 @@ class Pool(Clarity):
 			return True
 
 	def exchange_chunk(self, hash, new_chunk = None):
+		assert self.locked
 		# can't use setdefault(), it has weird corner cases
 		# involving None
 		chunk_registry = self.chunk_registry
@@ -69,6 +76,7 @@ class Pool(Clarity):
 		return PoolAgent(pool = self, serial = serial, *args, **kwargs)
 
 	def register_agent(self, agent):
+		assert self.locked
 		new = agent.avarice, agent.serial
 		agents = self.agents
 		try:
@@ -81,12 +89,14 @@ class Pool(Clarity):
 		self.agents[agent] = new
 
 	def unregister_agent(self, agent):
+		assert self.locked
 		try:
 			del self.agents[agent]
 		except KeyError:
 			pass
 
 	def replenish_queue(self):
+		assert self.locked
 		agents = self.agents
 		while agents and self.queue_depth < self.max_queue_depth:
 			agent = agents.peekitem()[0]
