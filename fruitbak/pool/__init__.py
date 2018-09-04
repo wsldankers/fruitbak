@@ -6,7 +6,7 @@ from sys import stderr
 from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.weakheapmap import MinWeakHeapMap
 from fruitbak.util.weak import weakproperty
-from fruitbak.util.locking import lockeddescriptor
+from fruitbak.util.locking import locked
 from fruitbak.pool.filesystem import Filesystem, LinuxFilesystem
 from fruitbak.pool.agent import PoolAgent
 
@@ -26,7 +26,7 @@ class Pool(Clarity):
 	def config(self):
 		return self.fruitbak.config
 
-	@lockeddescriptor
+	@locked
 	@initializer
 	def root(self):
 		assert self.locked
@@ -106,6 +106,9 @@ class Pool(Clarity):
 			self.next_agent_serial = serial + 1
 			agent.serial = serial
 			agent.dequeue()
+
+	def has_chunk(self, callback, hash):
+		return self.submit(self.root.has_chunk, callback, hash)
 
 	def get_chunk(self, callback, hash):
 		return self.submit(self.root.get_chunk, callback, hash)

@@ -1,4 +1,5 @@
 from fruitbak.util.clarity import Clarity, initializer
+from fruitbak.util.locking import locked
 from fruitbak.pool.handler import Storage
 from fruitbak.pool.agent import PoolReadahead, PoolAction
 
@@ -42,28 +43,6 @@ def my_b64encode(b):
 
 def my_b64decode(s):
 	return b64decode(s + '=' * (-len(s) % 4), b'+_')
-
-# garbage collected variant of os.open()
-class sysopen(int):
-	closed = False
-
-	def __new__(cls, *args, **kwargs):
-		return super().__new__(cls, os_open(*args, **kwargs))
-
-	def __del__(self):
-		if not self.closed:
-			try:
-				close(self)
-			except:
-				pass
-
-	def __enter__(self):
-		return self
-
-	def __exit__(self, exc_type, exc_value, traceback):
-		if not self.closed:
-			self.closed = True
-			close(self)
 
 class FilesystemListAction(PoolAction):
 	directory = None
@@ -111,7 +90,6 @@ class Filesystem(Storage):
 
 	def __init__(self, **kwargs):
 		super().__init__(**kwargs)
-		self.executor = ThreadPoolExecutor(max_workers = 32)
 
 	def hash2path(self, hash):
 		b64 = my_b64encode(hash)
@@ -230,6 +208,28 @@ class Filesystem(Storage):
 				callback(cursor, None)
 
 		self.submit(job)
+
+# garbage collected variant of os.open()
+class sysopen(int):
+	closed = False
+
+	def __new__(cls, *args, **kwargs):
+		return super().__new__(cls, os_open(*args, **kwargs))
+
+	def __del__(self):
+		if not self.closed:
+			try:
+				close(self)
+			except:
+				pass
+
+	def __enter__(self):
+		return self
+
+	def __exit__(self, exc_type, exc_value, traceback):
+		if not self.closed:
+			self.closed = True
+			close(self)
 
 def tempfile(self, pooldir_fd, path):
 	return sysopen(path, O_TMPFILE|O_WRONLY|O_CLOEXEC|O_NOCTTY, dir_fd = pooldir_fd)

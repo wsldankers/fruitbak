@@ -7,7 +7,7 @@ from sys import stderr
 from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.heapmap import MinHeapMap
 from fruitbak.util.weakheapmap import MinWeakHeapMap
-from fruitbak.util.locking import lockeddescriptor
+from fruitbak.util.locking import locked
 
 class PoolAction(Clarity):
 	done = False
@@ -25,15 +25,20 @@ class PoolAction(Clarity):
 		if self.exception:
 			raise exception[1]
 
-class PoolReadAction(PoolAction):
+class PoolGetAction(PoolAction):
 	def sync(self):
 		super().sync()
 		return self.value
 
-class PoolWriteAction(PoolAction):
+class PoolHasAction(PoolAction):
+	def sync(self):
+		super().sync()
+		return self.value
+
+class PoolPutAction(PoolAction):
 	pass
 
-class PoolDeleteAction(PoolAction):
+class PoolDelAction(PoolAction):
 	pass
 
 class PoolReadahead(Clarity):
@@ -53,7 +58,7 @@ class PoolReadahead(Clarity):
 	def pool(self):
 		return self.agent.pool
 
-	@lockeddescriptor
+	@locked
 	@initializer
 	def queue(self):
 		return deque()
@@ -132,7 +137,7 @@ class PoolReadahead(Clarity):
 			agent.register_readahead(self)
 			return
 
-		action = PoolReadAction(hash = hash)
+		action = PoolGetAction(hash = hash)
 		self.queue.append(action)
 
 		pool = self.pool
@@ -311,6 +316,42 @@ class PoolAgent(Clarity):
 			pool.register_agent(self)
 		pool.replenish_queue()
 
+	def has_chunk(self, hash, async = False):
+		cond = self.cond
+		pool = self.pool
+		with cond:
+			if self.mailhook:
+				raise RuntimeError("action already in progress")
+
+			action = PoolHasAction(hash = hash, cond = cond)
+			def when_done(value, exception):
+				with cond:
+					if exception:
+						action.exception = exception
+						self.exception = exception
+					else:
+						action.value = value
+					self.pending_reads -= 1
+					action.done = True
+					cond.notify()
+
+			def mailbag():
+				self.pending_reads += 1
+				self.update_registration()
+				pool.has_chunk(when_done, hash)
+
+			self.mailhook = mailbag
+			pool.register_agent(self)
+			pool.replenish_queue()
+
+			while self.mailhook is mailbag:
+				cond.wait()
+
+			if async:
+				return action
+
+			return action.sync()
+
 	def get_chunk(self, hash, async = False):
 		cond = self.cond
 		pool = self.pool
@@ -318,7 +359,7 @@ class PoolAgent(Clarity):
 			if self.mailhook:
 				raise RuntimeError("action already in progress")
 
-			action = PoolReadAction(hash = hash, cond = cond)
+			action = PoolGetAction(hash = hash, cond = cond)
 			def when_done(value, exception):
 				with cond:
 					if exception:
@@ -357,7 +398,7 @@ class PoolAgent(Clarity):
 			if self.exception:
 				raise RuntimeError("an operation has failed. call agent.sync() first") from self.exception[1]
 			
-			action = PoolWriteAction(hash = hash, value = value, cond = cond)
+			action = PoolPutAction(hash = hash, value = value, cond = cond)
 			def when_done(exception):
 				with cond:
 					del self.pending_writes[action]
@@ -397,7 +438,7 @@ class PoolAgent(Clarity):
 			if self.exception:
 				raise RuntimeError("an operation has failed. call agent.sync() first") from self.exception[1]
 
-			action = PoolDeleteAction(hash = hash, value = value, cond = cond)
+			action = PoolDelAction(hash = hash, value = value, cond = cond)
 			def when_done(exception):
 				with cond:
 					del self.pending_writes[action]

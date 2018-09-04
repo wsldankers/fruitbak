@@ -40,6 +40,24 @@ class unlockeddescriptor:
 	def __init__(self, descriptor):
 		self.descriptor = descriptor
 
+def locked(value):
+	if isinstance(value, type(locked)):
+		return lockedmethod(value)
+	elif hasattr(value, '__set__'):
+		return lockeddatadescriptor(value)
+	elif hasattr(value, '__get__'):
+		return lockednondatadescriptor(value)
+	else:
+		raise RuntimeError("don't know how to lock a %s" % repr(value))
+
+def unlocked(value):
+	if isinstance(value, type(unlocked)):
+		return unlockedmethod(value)
+	elif hasattr(value, '__get__'):
+		return unlockeddescriptor(value)
+	else:
+		return value
+
 def lockingclass(cls):
 	replacements = {}
 	function = type(lockingclass)

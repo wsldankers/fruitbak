@@ -1,6 +1,6 @@
 #! /usr/bin/python3
 
-from .locking import lockingclass, unlockedmethod
+from .locking import lockingclass, unlocked
 from collections.abc import Set
 
 class HeapMapNode:
@@ -107,23 +107,23 @@ class MinHeapMap:
 			ret += str(v.key) + " " + str(v.value) + " " + str(v.index) + " (" + str(k) + ")\n"
 		return ret
 
-	@unlockedmethod
+	@unlocked
 	def __bool__(self):
 		return bool(self.heap)
 
-	@unlockedmethod
+	@unlocked
 	def __iter__(self):
 		return iter(self.mapping)
 
-	@unlockedmethod
+	@unlocked
 	def __contains__(self, key):
 		return key in self.mapping
 
-	@unlockedmethod
+	@unlocked
 	def __len__(self):
 		return len(self.heap)
 
-	@unlockedmethod
+	@unlocked
 	def __getitem__(self, key):
 		return self.mapping[key].value
 
@@ -326,7 +326,7 @@ class MinHeapMap:
 		heap[index] = replacement
 		replacement.index = index
 
-	@unlockedmethod
+	@unlocked
 	def compare(self, a, b):
 		return a < b
 
@@ -348,25 +348,25 @@ class MinHeapMap:
 		del self[key]
 		return key, ret.value
 
-	@unlockedmethod
+	@unlocked
 	def peek(self):
 		return self.heap[0].value
 
-	@unlockedmethod
+	@unlocked
 	def peekitem(self):
 		item = self.heap[0]
 		return item.key, item.value
 
-	@unlockedmethod
+	@unlocked
 	def keys(self):
 		return self.mapping.keys()
 
-	@unlockedmethod
+	@unlocked
 	def values(self):
 		for i in self.heap:
 			yield i.value
 
-	@unlockedmethod
+	@unlocked
 	def items(self):
 		for i in self.heap:
 			yield i.key, i.value
@@ -375,15 +375,15 @@ class MinHeapMap:
 		self.heap.clear()
 		self.mapping.clear()
 
-	@unlockedmethod
+	@unlocked
 	def reversed(self):
 		return MaxHeapMap(self)
 
-	@unlockedmethod
+	@unlocked
 	def copy(self):
 		return type(self)(self.heap)
 
-	@unlockedmethod
+	@unlocked
 	@classmethod
 	def fromkeys(cls, keys, value = None):
 		return cls(dict.fromkeys(keys, value))

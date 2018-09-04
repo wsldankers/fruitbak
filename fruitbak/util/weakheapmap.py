@@ -1,6 +1,6 @@
 #! /usr/bin/python3
 
-from .locking import lockingclass, unlockedmethod
+from .locking import lockingclass, unlocked
 from weakref import ref as weakref
 from sys import stderr
 from collections.abc import Set
@@ -152,11 +152,11 @@ class MinWeakHeapMap:
 			ret += str(v.key) + " " + str(v.value) + " " + str(v.index) + "\n"
 		return ret
 
-	@unlockedmethod
+	@unlocked
 	def __bool__(self):
 		return bool(self.heap)
 
-	@unlockedmethod
+	@unlocked
 	def __iter__(self):
 		mapping = self.mapping
 		for node in mapping:
@@ -165,15 +165,15 @@ class MinWeakHeapMap:
 			if key is not None:
 				yield key
 
-	@unlockedmethod
+	@unlocked
 	def __contains__(self, key):
 		return FakeWeakHeapMapNode(id(key), hash(key)) in self.mapping
 
-	@unlockedmethod
+	@unlocked
 	def __len__(self):
 		return len(self.heap)
 
-	@unlockedmethod
+	@unlocked
 	def __getitem__(self, key):
 		return self.mapping[FakeWeakHeapMapNode(id(key), hash(key))].value
 
@@ -289,7 +289,7 @@ class MinWeakHeapMap:
 	def __delitem__(self, key):
 		self._delnode(self.mapping[FakeWeakHeapMapNode(id(key), hash(key))])
 
-	@unlockedmethod
+	@unlocked
 	def _delnode(self, victim):
 		index = victim.index
 
@@ -380,7 +380,7 @@ class MinWeakHeapMap:
 		heap[index] = replacement
 		replacement.index = index
 
-	@unlockedmethod
+	@unlocked
 	def compare(self, a, b):
 		return a < b
 
@@ -402,28 +402,28 @@ class MinWeakHeapMap:
 		del self[key]
 		return key, ret.value
 
-	@unlockedmethod
+	@unlocked
 	def peek(self):
 		return self.heap[0].value
 
-	@unlockedmethod
+	@unlocked
 	def peekkey(self):
 		return self.heap[0].weakkey()
 
-	@unlockedmethod
+	@unlocked
 	def peekitem(self):
 		item = self.heap[0]
 		return item.weakkey(), item.value
 
-	@unlockedmethod
+	@unlocked
 	def keys(self):
 		return self
 
-	@unlockedmethod
+	@unlocked
 	def values(self):
 		return WeakHeapMapValueView(self)
 
-	@unlockedmethod
+	@unlocked
 	def items(self):
 		return WeakHeapMapItemView(self)
 
@@ -431,15 +431,15 @@ class MinWeakHeapMap:
 		self.heap.clear()
 		self.mapping.clear()
 
-	@unlockedmethod
+	@unlocked
 	def reversed(self):
 		return MaxWeakHeapMap(self)
 
-	@unlockedmethod
+	@unlocked
 	def copy(self):
 		return type(self)(self)
 
-	@unlockedmethod
+	@unlocked
 	@classmethod
 	def fromkeys(cls, keys, value = None):
 		return cls(dict.fromkeys(keys, value))
