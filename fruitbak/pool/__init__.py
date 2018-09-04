@@ -7,7 +7,7 @@ from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.weakheapmap import MinWeakHeapMap
 from fruitbak.util.weak import weakproperty
 from fruitbak.util.locking import lockeddescriptor
-from fruitbak.pool.filesystem import Filesystem
+from fruitbak.pool.filesystem import Filesystem, LinuxFilesystem
 from fruitbak.pool.agent import PoolAgent
 
 class Pool(Clarity):
@@ -30,7 +30,7 @@ class Pool(Clarity):
 	@initializer
 	def root(self):
 		assert self.locked
-		return Filesystem(pool = self, config = self.config)
+		return LinuxFilesystem(pool = self, config = self.config)
 
 	@initializer
 	def agents(self):
