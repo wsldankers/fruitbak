@@ -46,9 +46,16 @@ class Host(Clarity):
 					backup = Backup(host = self, index = index, backupdir = entry)
 					backupcache[index] = backup
 				backups.append(backup)
-		return iter(sorted(backups, key = lambda b: b.index))
+		backups.sort(key = lambda b: b.index)
+		return iter(backups)
 
 	def __getitem__(self, index):
 		index = int(index)
+		if index < 0:
+			return tuple(self)[index]
 		backupcache = self.backupcache
-		return Backup(host = self, index = index)
+		backup = backupcache.get(index)
+		if backup is None:
+			backup = Backup(host = self, index = index)
+			backupcache[index] = backup
+		return backup

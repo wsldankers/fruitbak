@@ -58,9 +58,9 @@ class PoolReadahead(Clarity):
 	def pool(self):
 		return self.agent.pool
 
-	@locked
 	@initializer
 	def queue(self):
+		assert self.lock
 		return deque()
 
 	@property
@@ -210,12 +210,11 @@ class PoolAgent(Clarity):
 		self.__dict__.clear()
 
 	def readahead(self, iterator):
-		assert self.pool.locked
 		return PoolReadahead(agent = self, iterator = iterator)
 
 	@property
 	def avarice(self):
-		assert self.pool.locked
+		assert self.lock
 		pending_writes = self.pending_writes
 		pending_reads = self.pending_reads
 		if self.mailhook or pending_writes or pending_reads:
@@ -233,7 +232,7 @@ class PoolAgent(Clarity):
 
 	@property
 	def eligible_readahead(self):
-		assert self.pool.locked
+		assert self.lock
 		try:
 			readahead, (spent, length, serial) = self.readaheads.peekitem()
 		except IndexError:
@@ -245,8 +244,8 @@ class PoolAgent(Clarity):
 		return readahead
 
 	def dequeue(self):
+		assert self.lock
 		pool = self.pool
-		assert pool.locked
 
 		op = self.mailhook
 		if op:
@@ -268,7 +267,7 @@ class PoolAgent(Clarity):
 			readahead.dequeue()
 
 	def register_readahead(self, readahead):
-		assert self.pool.locked
+		assert self.lock
 		new_serial = readahead.serial
 		if new_serial is None:
 			new_serial = self.next_readahead_serial
@@ -293,7 +292,7 @@ class PoolAgent(Clarity):
 		self.update_registration()
 
 	def unregister_readahead(self, readahead):
-		assert self.pool.locked
+		assert self.lock
 		readaheads = self.readaheads
 		try:
 			spent, length, serial = readaheads[readahead]
@@ -304,8 +303,8 @@ class PoolAgent(Clarity):
 		self.update_registration()
 
 	def update_registration(self):
+		assert self.lock
 		pool = self.pool
-		assert pool.locked
 		if self.mailhook:
 			pool.register_agent(self)
 		elif self.pending_reads or self.pending_writes:
@@ -383,10 +382,10 @@ class PoolAgent(Clarity):
 			while self.mailhook is mailbag:
 				cond.wait()
 
-			if async:
-				return action
+		if async:
+			return action
 
-			return action.sync()
+		return action.sync()
 
 	def put_chunk(self, hash, value, async = False):
 		cond = self.cond
@@ -423,10 +422,10 @@ class PoolAgent(Clarity):
 			while self.mailhook is mailbag:
 				cond.wait()
 
-			if async:
-				return action
+		if async:
+			return action
 
-			action.sync()
+		action.sync()
 
 	def del_chunk(self, hash, value, async = False):
 		cond = self.cond
@@ -463,10 +462,10 @@ class PoolAgent(Clarity):
 			while self.mailhook is mailbag:
 				cond.wait()
 
-			if async:
-				return action
+		if async:
+			return action
 
-			action.sync()
+		action.sync()
 
 	def lister(self):
 		return self.pool.root.lister(self)

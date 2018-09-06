@@ -1,6 +1,6 @@
 #! /usr/bin/python3
 
-import threading
+from threading import RLock
 
 class unlockedmethod:
 	def __init__(self, function):
@@ -65,7 +65,7 @@ def lockingclass(cls):
 		if key == '__init__':
 			oldinit = value
 			def __init__(self, *args, **kwargs):
-				self.lock = threading.RLock()
+				self.lock = RLock()
 				return oldinit(self, *args, **kwargs)
 			replacements[key] = __init__
 		elif key == '__dict__':
@@ -83,3 +83,45 @@ def lockingclass(cls):
 		else:
 			replacements[key] = value
 	return type(cls.__name__, cls.__bases__, replacements)
+
+if __debug__:
+	class NLock(type(RLock())):
+		def __enter__(self):
+			ctx = super().__enter__()
+			try:
+				if " count=1 " not in repr(self):
+					raise RuntimeError("lock already held by same thread")
+			except:
+				self.__exit__(None, None, None)
+				raise
+			return ctx
+
+		def acquire(self, *args, **kwargs):
+			r = super().acquire(*args, **kwargs)
+			if r:
+				try:
+					if " count=1 " not in repr(self):
+						raise RuntimeError("lock already held by same thread")
+				except:
+					self.release()
+					raise
+			return r
+
+		def __bool__(self):
+			s = super()
+			if not s.acquire(False):
+				return False
+			try:
+				return " count=1 " not in repr(self)
+			finally:
+				s.release()
+else:
+	class NLock(type(RLock())):
+		def __bool__(self):
+			s = super()
+			if not s.acquire(False):
+				return False
+			try:
+				return " count=1 " not in repr(self)
+			finally:
+				s.release()

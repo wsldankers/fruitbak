@@ -4,10 +4,11 @@ from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.weak import weakproperty
 from fruitbak.share import Share
 
+from json import load as load_json
 from weakref import WeakValueDictionary
 
 class Backup(Clarity):
-	"""Represent a backup.
+	"""Represent a finished backup.
 
 	As time goes by hosts accrue backups. This class represents
 	one of these backups.
@@ -39,6 +40,28 @@ class Backup(Clarity):
 	def sharecache(self):
 		return WeakValueDictionary()
 
+	@initializer
+	def info(self):
+		info_path = self.backupdir / 'info.json'
+		with info_path.open('r') as fp:
+			return load_json(fp)
+
+	@initializer
+	def start_time(self):
+		return int(self.info['startTime']) * 1000000000
+
+	@initializer
+	def end_time(self):
+		return int(self.info['endTime']) * 1000000000
+
+	@initializer
+	def level(self):
+		return int(self.info['level'])
+
+	@initializer
+	def failed(self):
+		return bool(self.info.get('failed', False))
+
 	def __iter__(self):
 		shares = []
 		sharecache = self.sharecache
@@ -52,7 +75,8 @@ class Backup(Clarity):
 					share = Share(fruitbak = fruitbak, backup = self, name = name, sharedir = entry)
 					sharecache[name] = share
 				shares.append(share)
-		return iter(sorted(shares, key = lambda s: s.name))
+		shares.sort(key = lambda s: s.name)
+		return iter(shares)
 
 	def __getitem__(self, name):
 		name = str(name)

@@ -10,13 +10,11 @@ class configurable:
 		initializer = self._initializer
 		name = initializer.__name__
 		config = obj.config
-		configured = True
 		try:
 			value = config[name]
 		except KeyError:
 			value = initializer(obj)
-			configured = False
-		if configured:
+		else:
 			value = self._validate(obj, value)
 		value = self._prepare(obj, value)
 		setattr(obj, name, value)

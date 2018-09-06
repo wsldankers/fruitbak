@@ -1,17 +1,17 @@
 #! /usr/bin/env python3
 
 from fruitbak import Fruitbak
+from fruitbak.util.tabulate import tabulate
 
 from os import fsdecode
-from sys import stdout as text_stdout, stderr
+from sys import stdout as text_stdout, stderr, setswitchinterval
 from pathlib import Path
 from tarfile import TarInfo, REGTYPE, LNKTYPE, SYMTYPE, CHRTYPE, BLKTYPE, DIRTYPE, FIFOTYPE, GNU_FORMAT, BLOCKSIZE
-from time import sleep
+from time import sleep, localtime, strftime
+from concurrent.futures import ThreadPoolExecutor
 
 import click
 import gc, atexit
-
-stdout = text_stdout.buffer
 
 def check_for_loops():
 	if gc.collect() != 0:
@@ -30,17 +30,72 @@ def ls(host, backup, share, path):
 
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 
+	def format_time(t):
+		return strftime('%Y-%m-%d %H:%M:%S', localtime(t // 1000000000))
+
+	def format_interval(t):
+		if t >= 86400000000000:
+			d, s = divmod(t, 86400000000000)
+			return '%dd%dh' % (d, s // 3600000000000)
+		elif t >= 3600000000000:
+			h, s = divmod(t, 3600000000000)
+			return '%dh%dm' % (h, s // 60000000000)
+		elif t >= 60000000000:
+			m, s = divmod(t, 60000000000)
+			return '%dm%ds' % (m, s // 60000000000)
+		else:
+			s, ns = divmod(t, 1000000000)
+			if ns:
+				return '%d.%02ds' % (s, ns // 10000000)
+			else:
+				return '%ds' % s
+
+	map = ThreadPoolExecutor().map
+
 	if host is None:
-		for h in fbak:
-			print(h.name)
+		def info(h):
+			try:
+				b = h[-1]
+			except IndexError:
+				return h.name,
+			else:
+				start_time = b.start_time
+				time = format_time(b.start_time)
+				duration = format_interval(b.end_time - start_time)
+				level = b.level
+				type = 'incr' if level else 'full'
+				status = 'fail' if b.failed else 'done'
+				return h.name, time, duration, b.index, type, level, status
+		headings = ('Host name', 'Last backup', 'Duration', 'Index', 'Type', 'Level', 'Status')
+		print(tabulate(map(info, fbak), headings = headings, alignment = {2:True}))
 	elif backup is None:
-		for b in fbak[host]:
-			print(b.index)
+		def info(b):
+			start_time = b.start_time
+			end_time = b.end_time
+			start = format_time(start_time)
+			end = format_time(end_time)
+			duration = format_interval(end_time - start_time)
+			level = b.level
+			fullincr = 'incr' if level else 'full'
+			status = 'fail' if b.failed else 'ok'
+			return b.index, start, end, duration, fullincr, level, status
+		headings = ('Index', 'Start', 'End', 'Duration', 'Type', 'Level', 'Status')
+		print(tabulate(map(info, fbak[host]), headings = headings, alignment = {3:True}))
 	elif share is None:
-		for s in fbak[host][backup]:
-			print(s.name)
+		def info(s):
+			mountpoint = s.mountpoint
+			start_time = s.start_time
+			end_time = s.end_time
+			start = format_time(start_time)
+			end = format_time(end_time)
+			duration = format_interval(end_time - start_time)
+			status = 'fail' if s.error else 'done'
+			status = s.error or 'done'
+			return s.name, mountpoint, start, end, duration, status
+		headings = ('Name', 'Mount point', 'Start', 'End', 'Duration', 'Status')
+		print(tabulate(map(info, fbak[host][backup]), headings = headings, alignment = {4:True}))
 	else:
-		for dentry in fbak[host][backup][share].ls(path):
+		for dentry in fbak[host][backup][share].ls(path, parent = True):
 			print(fsdecode(dentry.name))
 
 @cli.command()
@@ -180,4 +235,9 @@ def xyzzy():
 	"""Nothing happens"""
 
 if __name__ == '__main__':
+	# up from default 0.005s
+	setswitchinterval(1)
+
+	stdout = text_stdout.buffer
+
 	cli()

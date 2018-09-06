@@ -6,17 +6,21 @@ from sys import stderr
 from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.weakheapmap import MinWeakHeapMap
 from fruitbak.util.weak import weakproperty
-from fruitbak.util.locking import locked
-from fruitbak.pool.filesystem import Filesystem, LinuxFilesystem
+from fruitbak.util.locking import locked, NLock
+from fruitbak.pool.filesystem import Filesystem
 from fruitbak.pool.agent import PoolAgent
+from fruitbak.config import configurable
 
 class Pool(Clarity):
 	def __init__(self, *args, **kwargs):
-		self.lock = RLock()
+		self.lock = NLock()
 		super().__init__(*args, **kwargs)
 
-	max_queue_depth = 32
 	queue_depth = 0
+
+	@configurable
+	def max_queue_depth(self):
+		return 32
 
 	@weakproperty
 	def fruitbak(self):
@@ -26,35 +30,25 @@ class Pool(Clarity):
 	def config(self):
 		return self.fruitbak.config
 
-	@locked
 	@initializer
 	def root(self):
-		assert self.locked
-		return LinuxFilesystem(pool = self, config = self.config)
+		assert self.lock
+		return Filesystem(pool = self, config = self.config)
 
 	@initializer
 	def agents(self):
-		assert self.locked
+		assert self.lock
 		return MinWeakHeapMap()
 
 	next_agent_serial = 0
 
 	@initializer
 	def chunk_registry(self):
-		assert self.locked
+		assert self.lock
 		return WeakValueDictionary()
 
-	@property
-	def locked(self):
-		try:
-			Condition(self.lock).notify()
-		except RuntimeError:
-			return False
-		else:
-			return True
-
 	def exchange_chunk(self, hash, new_chunk = None):
-		assert self.locked
+		assert self.lock
 		# can't use setdefault(), it has weird corner cases
 		# involving None
 		chunk_registry = self.chunk_registry
@@ -76,7 +70,7 @@ class Pool(Clarity):
 		return PoolAgent(pool = self, serial = serial, *args, **kwargs)
 
 	def register_agent(self, agent):
-		assert self.locked
+		assert self.lock
 		new = agent.avarice, agent.serial
 		agents = self.agents
 		try:
@@ -89,14 +83,14 @@ class Pool(Clarity):
 		self.agents[agent] = new
 
 	def unregister_agent(self, agent):
-		assert self.locked
+		assert self.lock
 		try:
 			del self.agents[agent]
 		except KeyError:
 			pass
 
 	def replenish_queue(self):
-		assert self.locked
+		assert self.lock
 		agents = self.agents
 		while agents and self.queue_depth < self.max_queue_depth:
 			agent = agents.peekitem()[0]
@@ -121,8 +115,10 @@ class Pool(Clarity):
 
 	def submit(self, func, callback, *args, **kwargs):
 		lock = self.lock
-		with lock:
-			self.queue_depth += 1
+		assert lock
+		#with lock:
+		self.queue_depth += 1
+
 		def when_done(*args, **kwargs):
 			try:
 				callback(*args, **kwargs)

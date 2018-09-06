@@ -3,8 +3,11 @@
 from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.weak import weakproperty
 from fruitbak.dentry import Dentry, HardlinkDentry
+
 from hardhat import Hardhat
+
 from struct import Struct
+from json import load as load_json
 from sys import stderr
 
 class ShareError(Exception):
@@ -49,6 +52,35 @@ class Share(Clarity):
 	@initializer
 	def sharedir(self):
 		return self.backup.backupdir / 'share' / self.fruitbak.name_to_path(self.name)
+
+	@initializer
+	def info(self):
+		info_path = self.sharedir / 'info.json'
+		with info_path.open('r') as fp:
+			return load_json(fp)
+
+	@initializer
+	def start_time(self):
+		return int(self.info['startTime']) * 1000000000
+
+	@initializer
+	def end_time(self):
+		return int(self.info['endTime']) * 1000000000
+
+	@initializer
+	def mountpoint(self):
+		return str(self.info['mountpoint'])
+
+	@initializer
+	def path(self):
+		return str(self.info['path'])
+
+	@initializer
+	def error(self):
+		try:
+			return str(self.info['error'])
+		except KeyError:
+			return None
 
 	@initializer
 	def metadata(self):

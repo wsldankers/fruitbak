@@ -54,7 +54,7 @@ class FilesystemListAction(PoolAction):
 
 class FilesystemListahead(PoolReadahead):
 	def dequeue(self):
-		assert self.pool.locked
+		assert self.lock
 
 		cond = self.cond
 		agent = self.agent
@@ -93,7 +93,7 @@ class Filesystem(Storage):
 
 	def hash2path(self, hash):
 		b64 = my_b64encode(hash)
-		path = self.pooldir / fsdecode(b64[:2]) / fsdecode(b64[2:])
+		return self.pooldir / fsdecode(b64[:2]) / fsdecode(b64[2:])
 
 	def submit(self, job, *args, **kwargs):
 		def windshield():
