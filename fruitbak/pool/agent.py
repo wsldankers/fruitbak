@@ -105,7 +105,8 @@ class PoolReadahead(Clarity):
 		return self
 
 	def __exit__(self, exc_type, exc_value, traceback):
-		self.agent.unregister_readahead(self)
+		with self.lock:
+			self.agent.unregister_readahead(self)
 		self.__dict__.clear()
 
 	def submit(self, func, callback, *args, **kwargs):

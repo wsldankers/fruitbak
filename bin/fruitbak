@@ -24,7 +24,7 @@ def cli(): pass
 @click.argument('host', required = False)
 @click.argument('backup', required = False)
 @click.argument('share', required = False)
-@click.argument('path', required = False, default = '')
+@click.argument('path', required = False)
 def ls(host, backup, share, path):
 	"""Lists hosts, backups, shares and paths"""
 
@@ -95,17 +95,28 @@ def ls(host, backup, share, path):
 		headings = ('Name', 'Mount point', 'Start', 'End', 'Duration', 'Status')
 		print(tabulate(map(info, fbak[host][backup]), headings = headings, alignment = {4:True}))
 	else:
-		for dentry in fbak[host][backup][share].ls(path, parent = True):
+		backup = fbak[host][backup]
+		if path is None:
+			share, path = backup.locate_path(share)
+		else:
+			share = backup[share]
+
+		for dentry in share.ls(path, parent = True):
 			print(fsdecode(dentry.name))
 
 @cli.command()
 @click.argument('host')
 @click.argument('backup')
 @click.argument('share')
-@click.argument('path')
+@click.argument('path', required = False)
 def cat(host, backup, share, path):
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
-	dentry = fbak[host][backup][share][path]
+	backup = fbak[host][backup]
+	if path is None:
+		share, path = backup.locate_path(share)
+	else:
+		share = backup[share]
+	dentry = share[path]
 	with fbak.pool.agent().readahead(dentry.digests) as reader:
 		for action in reader:
 			stdout.write(action.value)
@@ -114,10 +125,14 @@ def cat(host, backup, share, path):
 @click.argument('host')
 @click.argument('backup')
 @click.argument('share')
-@click.argument('path')
+@click.argument('path', required = False)
 def tar(host, backup, share, path):
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
-	share = fbak[host][backup][share]
+	backup = fbak[host][backup]
+	if path is None:
+		share, path = backup.locate_path(share)
+	else:
+		share = backup[share]
 
 	def iterator():
 		for dentry in share.find(path):

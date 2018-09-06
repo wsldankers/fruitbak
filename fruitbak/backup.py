@@ -4,8 +4,10 @@ from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.weak import weakproperty
 from fruitbak.share import Share
 
+from hardhat import normalize as hardhat_normalize
 from json import load as load_json
 from weakref import WeakValueDictionary
+from os import fsencode
 
 class Backup(Clarity):
 	"""Represent a finished backup.
@@ -61,6 +63,35 @@ class Backup(Clarity):
 	@initializer
 	def failed(self):
 		return bool(self.info.get('failed', False))
+
+	def locate_path(self, path):
+		original_path = path
+		try:
+			encode = path.encode
+		except AttributeError:
+			pass
+		else:
+			path = encode(errors = 'surrogateescape')
+		#print(repr(path))
+		path = hardhat_normalize(path)
+		path = path.split(b'/') if len(path) else []
+		path_len = len(path)
+		shares = tuple(self)
+		best = None
+		best_mp = None
+		best_len = -1
+		for share in shares:
+			mp = hardhat_normalize(share.mountpoint.encode(errors = 'surrogateescape'))
+			mp = mp.split(b'/') if len(mp) else []
+			mp_len = len(mp)
+			#print(best_len, mp_len, path_len, repr(mp), repr(path[:mp_len]))
+			if best_len < mp_len <= path_len and mp == path[:mp_len]:
+				best = share
+				best_mp = mp
+				best_len = mp_len
+		if best is None:
+			raise FileNotFoundError("no share found for '%s'" % original_path)
+		return best, b'/'.join(path[best_len:])
 
 	def __iter__(self):
 		shares = []
