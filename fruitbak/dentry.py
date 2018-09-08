@@ -2,6 +2,7 @@
 
 from fruitbak.util.clarity import Clarity, initializer
 from stat import *
+from io import RawIOBase
 
 class DentryError(Exception):
 	"""Something Dentry-related went wrong."""
@@ -36,6 +37,64 @@ def _to_bytes(value):
 		return value.encode()
 	else:
 		return bytes(value)
+
+class DentryIO(RawIOBase):
+	current_chunk = None # always a memoryview
+	current_offset = 0
+
+	def __init__(self, readahead):
+		self.readahead = readahead
+
+	def readall(self):
+		chunks = []
+		current_chunk = self.current_chunk
+		if current_chunk is not None:
+			chunks.append(current_chunk[self.current_offset:])
+			del self.current_chunk
+			del self.current_offset
+		chunks.extend(self.readahead)
+		return b''.join(chunks)
+
+	def read(size=-1):
+		if size is None or size < 0:
+			return self.readall()
+		if size == 0:
+			return b''
+
+		current_chunk = self.current_chunk
+		if current_chunk is None:
+			try:
+				current_chunk = next(self.readahead)
+			except StopIteration:
+				return b''
+			else:
+				current_chunk = memoryview(current_chunk)
+			self.current_chunk = current_chunk
+			current_offset = 0
+			next_offset = size
+		else:
+			current_offset = self.current_offset
+			next_offset = current_offset + size
+
+		if next_offset >= len(current_chunk):
+			del self.current_chunk
+			del self.current_offset
+			return current_chunk[self.current_offset:]
+		else:
+			self.current_offset = current_offset + size
+			return current_chunk[current_offset:next_offset]
+
+	def readinto(self, b):
+		if not isinstance(b, memoryview):
+			b = memoryview(b)
+		b = b.cast('B')
+
+		data = self.read(len(b))
+		n = len(data)
+
+		b[:n] = data
+
+		return n
 
 class Dentry(Clarity):
 	"""Represent entries in a filesystem.
@@ -88,8 +147,29 @@ class Dentry(Clarity):
 		return self.share.fruitbak
 
 	@initializer
+	def pool(self):
+		return self.fruitbak.pool
+
+	@initializer
+	def agent(self):
+		return self.pool.agent()
+
+	@initializer
 	def hashsize(self):
 		return self.fruitbak.hashsize
+
+	def open(self, mode='rb', agent=None):
+		if agent is None:
+			agent = self.agent
+		io = DentryIO(readahead = agent.readahead(self.digests))
+		if mode == 'rb':
+			return io
+		elif mode == 'r':
+			wrapper = TextIOWrapper(io)
+			wrapper._CHUNK_SIZE = self.fruitbak.chunk_size
+			return wrapper
+		else:
+			return RuntimeError("Unsupported open mode %r" % (mode,))
 
 	@property
 	def is_file(self):
