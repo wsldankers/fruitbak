@@ -4,11 +4,14 @@ from fruitbak import Fruitbak
 from fruitbak.util.tabulate import tabulate
 
 from os import fsdecode
-from sys import stdout as text_stdout, stderr, setswitchinterval
+from os.path import basename
+from sys import stdout, stderr, setswitchinterval
+from stat import *
 from pathlib import Path
 from tarfile import TarInfo, REGTYPE, LNKTYPE, SYMTYPE, CHRTYPE, BLKTYPE, DIRTYPE, FIFOTYPE, GNU_FORMAT, BLOCKSIZE
 from time import sleep, localtime, strftime
 from concurrent.futures import ThreadPoolExecutor
+from hardhat import normalize as hardhat_normalize
 
 import click
 import gc, atexit
@@ -50,7 +53,7 @@ def ls(host, backup, share, path):
 			else:
 				return '%ds' % s
 
-	map = ThreadPoolExecutor().map
+	pmap = ThreadPoolExecutor(max_workers = 32).map
 
 	if host is None:
 		def info(h):
@@ -67,7 +70,7 @@ def ls(host, backup, share, path):
 				status = 'fail' if b.failed else 'done'
 				return h.name, time, duration, b.index, type, level, status
 		headings = ('Host name', 'Last backup', 'Duration', 'Index', 'Type', 'Level', 'Status')
-		print(tabulate(map(info, fbak), headings = headings, alignment = {2:True}))
+		print(tabulate(pmap(info, fbak), headings = headings, alignment = {2:True}))
 	elif backup is None:
 		def info(b):
 			start_time = b.start_time
@@ -80,7 +83,7 @@ def ls(host, backup, share, path):
 			status = 'fail' if b.failed else 'ok'
 			return b.index, start, end, duration, fullincr, level, status
 		headings = ('Index', 'Start', 'End', 'Duration', 'Type', 'Level', 'Status')
-		print(tabulate(map(info, fbak[host]), headings = headings, alignment = {3:True}))
+		print(tabulate(pmap(info, fbak[host]), headings = headings, alignment = {3:True}))
 	elif share is None:
 		def info(s):
 			mountpoint = s.mountpoint
@@ -93,16 +96,84 @@ def ls(host, backup, share, path):
 			status = s.error or 'done'
 			return s.name, mountpoint, start, end, duration, status
 		headings = ('Name', 'Mount point', 'Start', 'End', 'Duration', 'Status')
-		print(tabulate(map(info, fbak[host][backup]), headings = headings, alignment = {4:True}))
+		print(tabulate(pmap(info, fbak[host][backup]), headings = headings, alignment = {4:True}))
 	else:
 		backup = fbak[host][backup]
 		if path is None:
 			share, path = backup.locate_path(share)
 		else:
 			share = backup[share]
+			path = hardhat_normalize(path)
 
-		for dentry in share.ls(path, parent = True):
-			print(fsdecode(dentry.name))
+		agent = fbak.pool.agent()
+
+		passwd = {}
+		try:
+			passwd_share, passwd_path = backup.locate_path('/etc/passwd')
+		except:
+			pass
+		else:
+			with passwd_share[passwd_path].open('r', agent = agent) as fh:
+				for line in fh:
+					entry = line.split(':')
+					try:
+						passwd[int(entry[2])] = entry[0]
+					except:
+						pass
+
+		groups = {}
+		try:
+			groups_share, groups_path = backup.locate_path('/etc/group')
+		except:
+			pass
+		else:
+			with passwd_share[groups_path].open('r', agent = agent) as fh:
+				for line in fh:
+					entry = line.split(':')
+					try:
+						groups[int(entry[2])] = entry[0]
+					except:
+						pass
+
+		total_blocks = 0
+
+		def info(dentry):
+			mode = dentry.mode
+			mode_chars = [dentry.type.lsl_char]
+			mode_chars.append('r' if mode & S_IRUSR else '-')
+			mode_chars.append('w' if mode & S_IWUSR else '-')
+			mode_chars.append(('s' if mode & S_IXUSR else 'S') if mode & S_ISUID else ('x' if mode & S_IXUSR else '-'))
+			mode_chars.append('r' if mode & S_IRGRP else '-')
+			mode_chars.append('w' if mode & S_IWGRP else '-')
+			mode_chars.append(('s' if mode & S_IXGRP else 'S') if mode & S_ISGID else ('x' if mode & S_IXGRP else '-'))
+			mode_chars.append('r' if mode & S_IROTH else '-')
+			mode_chars.append('w' if mode & S_IWOTH else '-')
+			mode_chars.append(('t' if mode & S_IXOTH else 'T') if mode & S_ISVTX else ('x' if mode & S_IXOTH else '-'))
+
+			uid = dentry.uid
+			user = passwd.get(uid, uid)
+			gid = dentry.gid
+			group = groups.get(gid, gid)
+
+			size = dentry.size
+			nonlocal total_blocks
+			total_blocks += (size + 4095) // 4096
+
+			description = [basename(fsdecode(dentry.name))]
+			if dentry.is_hardlink:
+				description.append("=>")
+				description.append(basename(fsdecode(bytes(dentry.hardlink))))
+			elif dentry.is_symlink:
+				description.append("->")
+				description.append(fsdecode(bytes(dentry.symlink)))
+			if dentry.is_device:
+				size = "%3d, %3d" % (dentry.rdev_major, dentry.rdev_minor)
+
+			return ''.join(mode_chars), user, group, size, format_time(dentry.mtime), ' '.join(description)
+
+		tabulated = tabulate(pmap(info, share.ls(path)))
+		print("total", total_blocks)
+		print(tabulated)
 
 @cli.command()
 @click.argument('host')
@@ -110,6 +181,8 @@ def ls(host, backup, share, path):
 @click.argument('share')
 @click.argument('path', required = False)
 def cat(host, backup, share, path):
+	stdout = stdout.buffer
+
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 	backup = fbak[host][backup]
 	if path is None:
@@ -127,6 +200,8 @@ def cat(host, backup, share, path):
 @click.argument('share')
 @click.argument('path', required = False)
 def tar(host, backup, share, path):
+	stdout = stdout.buffer
+
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 	backup = fbak[host][backup]
 	if path is None:
@@ -252,7 +327,5 @@ def xyzzy():
 if __name__ == '__main__':
 	# up from default 0.005s
 	setswitchinterval(1)
-
-	stdout = text_stdout.buffer
 
 	cli()

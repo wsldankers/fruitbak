@@ -1,6 +1,7 @@
 from numbers import Number
+from os import linesep
 
-def tabulate(rows, *, headings = None, alignment = (), tablefmt = None):
+def tabulate(rows, *, headings = None, alignment = (), tablefmt = None, linesep = linesep, columnsep = '  '):
 	if headings is not None:
 		rows = (headings, *rows)
 	else:
@@ -19,22 +20,17 @@ def tabulate(rows, *, headings = None, alignment = (), tablefmt = None):
 	output = []
 	for j, row in enumerate(rows):
 		if j:
-			output.append("\n")
+			output.append(linesep)
 		for i, column in enumerate(row):
 			if i:
-				output.append('  ')
+				output.append(columnsep)
 			w = widths[i]
 			try:
 				align = alignment[i]
-			except KeyError:
-				align = None
-			except IndexError:
+			except (KeyError, IndexError):
 				align = None
 			if align is None:
-				if not isinstance(column, Number):
-					w = -w
-			elif align:
-				w = -w
-			output.append(('%' + str(w) + 's') % str(column))
+				align = isinstance(column, Number)
+			output.append(str(column).rjust(w) if align else str(column).ljust(w))
 
 	return ''.join(output)

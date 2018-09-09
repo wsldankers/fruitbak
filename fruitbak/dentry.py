@@ -2,7 +2,8 @@
 
 from fruitbak.util.clarity import Clarity, initializer
 from stat import *
-from io import RawIOBase
+from io import RawIOBase, TextIOWrapper
+from struct import pack, unpack
 
 class DentryError(Exception):
 	"""Something Dentry-related went wrong."""
@@ -29,6 +30,61 @@ class NotABlockDeviceError(NotADeviceError):
 class NotACharacterDeviceError(NotADeviceError):
 	pass
 
+class DENTRY_TYPE(Clarity):
+	lsl_char = None
+	tar_char = None
+	stat_num = None
+
+class DENTRY_TYPE_UNKNOWN(DENTRY_TYPE):
+	lsl_char = '?'
+
+class DENTRY_TYPE_FILE(DENTRY_TYPE):
+	lsl_char = '-'
+	tar_char = b'0'
+	stat_num = S_IFREG
+
+class DENTRY_TYPE_SYMLINK(DENTRY_TYPE):
+	lsl_char = 'l'
+	tar_char = b'2'
+	stat_num = S_IFLNK
+
+class DENTRY_TYPE_DEVICE(DENTRY_TYPE):
+	pass
+
+class DENTRY_TYPE_CHARDEVICE(DENTRY_TYPE_DEVICE):
+	lsl_char = 'c'
+	tar_char = b'3'
+	stat_num = S_IFCHR
+
+class DENTRY_TYPE_BLOCKDEVICE(DENTRY_TYPE_DEVICE):
+	lsl_char = 'b'
+	tar_char = b'4'
+	stat_num = S_IFBLK
+
+class DENTRY_TYPE_DIRECTORY(DENTRY_TYPE):
+	lsl_char = 'd'
+	tar_char = b'5'
+	stat_num = S_IFDIR
+
+class DENTRY_TYPE_FIFO(DENTRY_TYPE):
+	lsl_char = 'p'
+	tar_char = b'6'
+	stat_num = S_IFIFO
+
+class DENTRY_TYPE_SOCKET(DENTRY_TYPE):
+	lsl_char = 'p'
+	stat_num = S_IFSOCK
+
+dentry_types_by_stat_num = dict(map(lambda t: (t.stat_num, t), (
+	DENTRY_TYPE_FILE,
+	DENTRY_TYPE_SYMLINK,
+	DENTRY_TYPE_CHARDEVICE,
+	DENTRY_TYPE_BLOCKDEVICE,
+	DENTRY_TYPE_DIRECTORY,
+	DENTRY_TYPE_FIFO,
+	DENTRY_TYPE_SOCKET
+)))
+
 def _to_bytes(value):
 	"""Convert various values to the format suitable for storing in Hardhats."""
 	if isinstance(value, bytes):
@@ -45,6 +101,9 @@ class DentryIO(RawIOBase):
 	def __init__(self, readahead):
 		self.readahead = readahead
 
+	def readable(self):
+		return True
+
 	def readall(self):
 		chunks = []
 		current_chunk = self.current_chunk
@@ -55,7 +114,7 @@ class DentryIO(RawIOBase):
 		chunks.extend(self.readahead)
 		return b''.join(chunks)
 
-	def read(size=-1):
+	def read(self, size=-1):
 		if size is None or size < 0:
 			return self.readall()
 		if size == 0:
@@ -68,7 +127,7 @@ class DentryIO(RawIOBase):
 			except StopIteration:
 				return b''
 			else:
-				current_chunk = memoryview(current_chunk)
+				current_chunk = memoryview(current_chunk.value)
 			self.current_chunk = current_chunk
 			current_offset = 0
 			next_offset = size
@@ -77,8 +136,14 @@ class DentryIO(RawIOBase):
 			next_offset = current_offset + size
 
 		if next_offset >= len(current_chunk):
-			del self.current_chunk
-			del self.current_offset
+			try:
+				del self.current_chunk
+			except AttributeError:
+				pass
+			try:
+				del self.current_offset
+			except AttributeError:
+				pass
 			return current_chunk[self.current_offset:]
 		else:
 			self.current_offset = current_offset + size
@@ -158,7 +223,7 @@ class Dentry(Clarity):
 	def hashsize(self):
 		return self.fruitbak.hashsize
 
-	def open(self, mode='rb', agent=None):
+	def open(self, mode = 'rb', agent = None):
 		if agent is None:
 			agent = self.agent
 		io = DentryIO(readahead = agent.readahead(self.digests))
@@ -166,10 +231,18 @@ class Dentry(Clarity):
 			return io
 		elif mode == 'r':
 			wrapper = TextIOWrapper(io)
-			wrapper._CHUNK_SIZE = self.fruitbak.chunk_size
+			wrapper._CHUNK_SIZE = self.fruitbak.chunksize
 			return wrapper
 		else:
 			return RuntimeError("Unsupported open mode %r" % (mode,))
+
+	@property
+	def type(self):
+		return dentry_types_by_stat_num.get(S_IFMT(self.mode), DENTRY_TYPE_UNKNOWN)
+
+	@property
+	def is_file(self):
+		return S_ISREG(self.mode)
 
 	@property
 	def is_file(self):
@@ -305,50 +378,37 @@ class Dentry(Clarity):
 
 	@property
 	def rdev_major(self):
-		if self.is_device:
-			major, minor = unpack('<LL', self.extra)
-			return major
-		raise NotADeviceError("'%s' is not a device" % self.name)
+		return self.rdev[0]
 
 	@rdev_major.setter
 	def rdev_major(self, major):
-		if self.is_device:
-			extra = self.extra
-			if extra:
-				old_major, minor = unpack('<LL', self.extra)
-			else:
-				minor = 0
-			self.extra[:] = pack('<LL', major, minor)
-		raise NotADeviceError("'%s' is not a device" % self.name)
+		minor = self.rdev[1] if self.extra else 0
+		self.extra = pack('<LL', major, minor)
 
 	@property
 	def rdev_minor(self):
-		if self.is_device:
-			major, minor = unpack('<LL', self.extra)
-			return minor
-		raise NotADeviceError("'%s' is not a device" % self.name)
+		return self.rdev[1]
 
 	@rdev_minor.setter
 	def rdev_minor(self, minor):
-		if self.is_device:
-			extra = self.extra
-			if extra:
-				major, old_minor = unpack('<LL', self.extra)
-			else:
-				major = 0
-			self.extra[:] = pack('<LL', major, minor)
-		raise NotADeviceError("'%s' is not a device" % self.name)
+		major = self.rdev[0] if self.extra else 0
+		self.extra = pack('<LL', major, minor)
 
 	@property
 	def rdev(self):
 		if self.is_device:
-			return unpack('<LL', self.extra)
+			major, minor = unpack('<LL', self.extra)
+			if not major and minor & ~0xFF:
+				# compensate for old bug:
+				return minor >> 8, minor & 0xFF
+			else:
+				return major, minor
 		raise NotADeviceError("'%s' is not a device" % self.name)
 
 	@rdev.setter
 	def rdev(self, majorminor):
 		if self.is_device:
-			self.extra[:] = pack('<LL', *majorminor)
+			self.extra = pack('<LL', *majorminor)
 		raise NotADeviceError("'%s' is not a device" % self.name)
 
 	@property
