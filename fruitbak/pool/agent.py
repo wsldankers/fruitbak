@@ -70,6 +70,7 @@ class PoolReadahead(Clarity):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		with self.cond:
+			self.iterator = iter(self.iterator)
 			self.agent.register_readahead(self)
 
 	def __len__(self):

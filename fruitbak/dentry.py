@@ -43,6 +43,10 @@ class DENTRY_TYPE_FILE(DENTRY_TYPE):
 	tar_char = b'0'
 	stat_num = S_IFREG
 
+class DENTRY_TYPE_HARDLINK(DENTRY_TYPE):
+	lsl_char = 'h'
+	tar_char = b'1'
+
 class DENTRY_TYPE_SYMLINK(DENTRY_TYPE):
 	lsl_char = 'l'
 	tar_char = b'2'
@@ -89,6 +93,12 @@ def _to_bytes(value):
 	"""Convert various values to the format suitable for storing in Hardhats."""
 	if isinstance(value, bytes):
 		return value
+	elif isinstance(value, bytearray):
+		return value
+	elif isinstance(value, memoryview):
+		return value
+	elif isinstance(value, DentryDigests):
+		return value.digests
 	elif isinstance(value, str):
 		return value.encode()
 	else:
@@ -160,6 +170,31 @@ class DentryIO(RawIOBase):
 		b[:n] = data
 
 		return n
+
+class DentryDigests(Clarity):
+	@initializer
+	def digestview(self):
+		m = self.digests
+		if isinstance(m, memoryview):
+			return m
+		return memoryview(m)
+
+	def __iter__(self):
+		hashsize = self.hashsize
+		def digestiterator(digests):
+			offset = 0
+			length = len(digests)
+			while offset < length:
+				next_offset = offset + hashsize
+				yield digests[offset:next_offset]
+				offset = next_offset
+		return digestiterator(self.digestview)
+
+	def __len__(self):
+		return len(self.digests) // self.hashsize
+
+	def __bytes__(self):
+		return self.digests
 
 class Dentry(Clarity):
 	"""Represent entries in a filesystem.
@@ -252,21 +287,13 @@ class Dentry(Clarity):
 	def digests(self):
 		"""The digests for this file.
 
-		Bytes, readwrite.
+		DentryDigests, readwrite.
 
 		Raises a NotAFileError exception if this dentry is not a regular file.
 		"""
 
 		if self.is_file:
-			hashsize = self.hashsize
-			def digestiterator(digests):
-				offset = 0
-				length = len(digests)
-				while offset < length:
-					next_offset = offset + hashsize
-					yield digests[offset:next_offset]
-					offset = next_offset
-			return digestiterator(self.extra)
+			return DentryDigests(digests = self.extra, hashsize = self.hashsize)
 
 		raise NotAFileError("'%s' is not a regular file" % self.name)
 
@@ -274,9 +301,9 @@ class Dentry(Clarity):
 	def digests(self, value):
 		if self.is_file:
 			try:
-				self.extra = b''.join(value)
-			except TypeError:
 				self.extra = _to_bytes(value)
+			except TypeError:
+				self.extra = b''.join(value)
 		else:
 			raise NotAFileError("'%s' is not a regular file" % self.name)
 
