@@ -37,15 +37,19 @@ class Host(Clarity):
 	def __iter__(self):
 		backups = []
 		backupcache = self.backupcache
-		for entry in self.hostdir.iterdir():
-			entry_name = entry.name
-			if numbers_re.match(entry_name) and entry.is_dir():
-				index = int(entry_name)
-				backup = backupcache.get(index)
-				if backup is None:
-					backup = Backup(host = self, index = index, backupdir = entry)
-					backupcache[index] = backup
-				backups.append(backup)
+		hostdir = self.hostdir
+		try:
+			for entry in hostdir.iterdir():
+				entry_name = entry.name
+				if numbers_re.match(entry_name) and entry.is_dir():
+					index = int(entry_name)
+					backup = backupcache.get(index)
+					if backup is None:
+						backup = Backup(host = self, index = index, backupdir = entry)
+						backupcache[index] = backup
+					backups.append(backup)
+		except FileNotFoundError:
+			return iter(())
 		backups.sort(key = lambda b: b.index)
 		return iter(backups)
 

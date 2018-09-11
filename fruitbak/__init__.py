@@ -89,32 +89,49 @@ class Fruitbak(Clarity):
 	def pool(self):
 		return Pool(fruitbak = self, config = {'pooldir': self.pooldir})
 
+	def discover_hosts(self):
+		hostconfdir = self.confdir / 'host'
+		hostcache = self.hostcache
+		path_to_name = self.path_to_name
+
+		hosts = {}
+
+		for entry in self.hostdir.iterdir():
+			entry_name = entry.name
+			if not entry_name.startswith('.') and entry.is_dir():
+				name = path_to_name(entry_name)
+				host = hostcache.get(name)
+				if host is None:
+					host = Host(fruitbak = self, name = name, backupdir = entry)
+					hostcache[name] = host
+				hosts[name] = host
+
+		for entry in hostconfdir.iterdir():
+			entry_name = entry.name
+			if not entry_name.startswith('.') and entry_name.endswith('.py') and entry.is_file():
+				name = path_to_name(entry_name[:-3])
+				if name in hosts:
+					continue
+				host = hostcache.get(name)
+				if host is None:
+					host = Host(fruitbak = self, name = name)
+					hostcache[name] = host
+				hosts[name] = host
+
+		return hosts
+
 	@initializer
 	def hostcache(self):
 		return WeakValueDictionary()
 
 	def __iter__(self):
-		hosts = []
-		hostcache = self.hostcache
-		for entry in self.hostdir.iterdir():
-			entry_name = entry.name
-			if not entry_name.startswith('.') and entry.is_dir():
-				name = self.path_to_name(entry_name)
-				host = hostcache.get(name)
-				if host is None:
-					host = Host(fruitbak = self, name = name, hostdir = entry)
-					hostcache[name] = host
-				hosts.append(host)
-		return iter(sorted(hosts, key = lambda h: h.name))
+		hosts = list(self.discover_hosts().values())
+		hosts.sort(key = lambda h: h.name)
+		return iter(hosts)
 
 	def __getitem__(self, name):
-		name = str(name)
-		hostcache = self.hostcache
-		host = hostcache.get(name)
-		if host is None:
-			host = Host(fruitbak = self, name = name)
-			hostcache[name] = host
-		return host
+		hosts = self.discover_hosts()
+		return hosts[name]
 
 	def name_to_path(self, name):
 		return Path(quote(name[0], errors = 'strict', safe = '+=_,%@')

@@ -181,7 +181,7 @@ def ls(host, backup, share, path):
 @click.argument('share')
 @click.argument('path', required = False)
 def cat(host, backup, share, path):
-	stdout = stdout.buffer
+	binary_stdout = stdout.buffer
 
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 	backup = fbak[host][backup]
@@ -192,7 +192,7 @@ def cat(host, backup, share, path):
 	dentry = share[path]
 	with fbak.pool.agent().readahead(dentry.digests) as reader:
 		for action in reader:
-			stdout.write(action.value)
+			binary_stdout.write(action.value)
 
 @cli.command()
 @click.argument('host')
@@ -200,7 +200,7 @@ def cat(host, backup, share, path):
 @click.argument('share')
 @click.argument('path', required = False)
 def tar(host, backup, share, path):
-	stdout = stdout.buffer
+	binary_stdout = stdout.buffer
 
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 	backup = fbak[host][backup]
@@ -245,19 +245,19 @@ def tar(host, backup, share, path):
 			else:
 				continue
 
-			stdout.write(i.tobuf(GNU_FORMAT))
+			binary_stdout.write(i.tobuf(GNU_FORMAT))
 
 			if dentry.is_file and not dentry.is_hardlink:
 				for digest in dentry.digests:
 					action = next(reader)
 					if action.exception:
 						raise action.exception
-					stdout.write(action.value)
+					binary_stdout.write(action.value)
 				padding = -i.size % BLOCKSIZE
 				if padding:
-					stdout.write(b'\0' * padding)
+					binary_stdout.write(b'\0' * padding)
 
-	stdout.write(b'\0' * (BLOCKSIZE*2))
+	binary_stdout.write(b'\0' * (BLOCKSIZE*2))
 
 @cli.command()
 def pooltest():
