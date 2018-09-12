@@ -22,7 +22,7 @@ class Fruitbak(Clarity):
 
 	@initializer
 	def config(self):
-		return Config(self.confdir, 'global')
+		return Config(self.confdir / 'global')
 
 	@configurable
 	def confdir(self):

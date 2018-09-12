@@ -124,7 +124,7 @@ class DentryIO(RawIOBase):
 		chunks.extend(self.readahead)
 		return b''.join(chunks)
 
-	def read(self, size=-1):
+	def read(self, size = -1):
 		if size is None or size < 0:
 			return self.readall()
 		if size == 0:

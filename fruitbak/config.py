@@ -1,4 +1,9 @@
 from pathlib import Path
+from subprocess import run as subprocess_run
+from weakref import ref as weakref
+from os import environ, fsencode
+from threading import local
+
 from fruitbak.util.clarity import initializer
 
 class configurable:
@@ -61,9 +66,38 @@ class delayed:
 import builtins as builtins_module
 builtins = vars(builtins_module)
 
+class ConfigEnvironment:
+	def __init__(config, *args, **kwargs):
+		self.tls = config.tls
+		self.history = []
+		env = {}
+		for a in args:
+			env.update(a)
+		env.update(kwargs)
+
+	def __enter__(self):
+		tls = self.tls
+		oldenv = tls.env
+		env = dict(oldenv)
+		env.update(self.env)
+		tls.env = env
+		self.history.append(oldenv)
+
+	def __exit__(self, exc_type, exc_value, traceback):
+		tls.env = self.history.pop()
+
 class Config:
-	def __init__(self, basepath, path, **kwargs):
-		basepath = Path(basepath)
+	def __init__(self, path, *paths, *, basepath = None, preseed = None):
+		if basepath is None:
+			path = Path(path)
+			basepath = path.parent
+			path = path.name
+		else:
+			basepath = Path(basepath)
+
+		# thread-local storage
+		tls = local()
+		self.tls = tls
 
 		globals = dict(kwargs)
 		self.globals = globals
@@ -71,20 +105,46 @@ class Config:
 		extra_builtins = dict(builtins)
 		extra_builtins['delayed'] = delayed
 		globals['__builtins__'] = extra_builtins
+		weak_globals = weakref(globals)
 
-		try:
-			def include(path):
-				with open(str(basepath / path) + '.py') as f:
-					content = f.read()
-				exec(content, globals)
+		def include(path):
+			with open(str(basepath / path) + '.py') as f:
+				content = f.read()
+			exec(content, weak_globals())
+		extra_builtins['include'] = include
 
-			extra_builtins['include'] = include
+		def run(*args, env = None, **kwargs):
+			try:
+				tlsenv = tls.env
+			except AttributeError:
+				pass
+			else:
+				newenv = {}
+				if env is None:
+					for k, v in environ.items():
+						newenv[fsencode(k)] = fsencode(v)
+				else:
+					for k, v in env.items():
+						newenv[fsencode(k)] = fsencode(v)
 
-			include(path)
-		finally:
-			# break reference loops
-			globals = None
-			del extra_builtins['include']
+				for k, v in tlsenv.items():
+					k = fsencode(k)
+					if k in newenv:
+						continue
+					try:
+						v = fsencode(v)
+					except:
+						pass
+					else:
+						newenv[k] = v
+
+				kwargs = dict(kwargs, env = newenv)
+			return subprocess_run(*args, **kwargs)
+		extra_builtins['run'] = run
+
+		include(path)
+		for p in paths:
+			include(p)
 
 	def __getitem__(self, key):
 		value = self.globals[key]
@@ -104,3 +164,7 @@ class Config:
 			else:
 				rep.append("%s = %s\n" % (key, repr(value)))
 		return "".join(rep)
+
+	@property
+	def env(self):
+		return self.tls.env
