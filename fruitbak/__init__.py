@@ -1,7 +1,6 @@
 """Top-level object for a Fruitbak installation"""
 
 from fruitbak.util.clarity import Clarity, initializer
-from fruitbak.util.weak import weakproperty
 from fruitbak.host import Host
 from fruitbak.config import Config, configurable, configurable_function
 from fruitbak.pool import Pool
@@ -84,7 +83,6 @@ class Fruitbak(Clarity):
 			raise RuntimeError("chunksize must be a power of two")
 		return int(value)
 
-	#@weakproperty
 	@initializer
 	def pool(self):
 		return Pool(fruitbak = self, config = {'pooldir': self.pooldir})

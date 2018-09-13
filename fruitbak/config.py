@@ -77,14 +77,24 @@ class ConfigEnvironment:
 
 	def __enter__(self):
 		tls = self.tls
-		oldenv = tls.env
-		env = dict(oldenv)
-		env.update(self.env)
+		try:
+			oldenv = tls.env
+		except AttributeError:
+			oldenv = {}
+			tls.env = oldenv
+			env = dict(self.env)
+		else:
+			env = dict(oldenv)
+			env.update(self.env)
+			self.history.append(oldenv)
 		tls.env = env
-		self.history.append(oldenv)
 
 	def __exit__(self, exc_type, exc_value, traceback):
-		tls.env = self.history.pop()
+		history = self.history
+		if history:
+			tls.env = self.history.pop()
+		else:
+			del tls.env
 
 class Config:
 	def __init__(self, path, *paths, *, basepath = None, preseed = None):
@@ -164,6 +174,9 @@ class Config:
 			else:
 				rep.append("%s = %s\n" % (key, repr(value)))
 		return "".join(rep)
+
+	def setenv(self, *args, **kwargs):
+		return ConfigEnvironment(self, *args, **kwargs)
 
 	@property
 	def env(self):

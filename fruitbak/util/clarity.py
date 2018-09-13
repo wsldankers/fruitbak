@@ -1,7 +1,5 @@
 # https://docs.python.org/3/howto/descriptor.html
 
-import inspect
-
 class getinitializer:
 	def __init__(self, getfunction):
 		self.getfunction = getfunction
@@ -101,6 +99,9 @@ def initializer(getfunction, setfunction=None, delfunction=None):
 	if delfunction:
 		return getdelinitializer(getfunction, delfunction)
 	return getinitializer(getfunction)
+
+def xyzzy(*args, **kwargs):
+	"""Nothing happens."""
 
 def stub(f):
 	def toe():

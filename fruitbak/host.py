@@ -1,7 +1,6 @@
 """Represent hosts to back up"""
 
 from fruitbak.util.clarity import Clarity, initializer
-from fruitbak.util.weak import weakproperty
 from fruitbak.backup import Backup
 
 from weakref import WeakValueDictionary
@@ -33,6 +32,10 @@ class Host(Clarity):
 	@initializer
 	def backupcache(self):
 		return WeakValueDictionary()
+
+	@initializer
+	def env(self):
+		return dict(name = self.name)
 
 	def __iter__(self):
 		backups = []

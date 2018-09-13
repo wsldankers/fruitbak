@@ -1,7 +1,6 @@
 """Represent hosts to back up"""
 
 from fruitbak.util.clarity import Clarity, initializer
-from fruitbak.util.weak import weakproperty
 from fruitbak.dentry import Dentry, HardlinkDentry
 
 from hardhat import Hardhat
