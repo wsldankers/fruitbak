@@ -3,3 +3,9 @@ let op dat in-flight operaties geen ref hebben naar de agent/readahead
 
 pool.get_chunk moet pool.submit_get_chunk worden
 agent moet ook een submit_get_chunk krijgen
+
+dequeue de action-methode aan laten roepen met volgende item als argument
+action-methode een Action-object laten returnen
+Action-objecten krijgen submit/callback-methodes
+de aanroeper van dequeue roept submit aan met een (nieuwe) callback als
+argument
