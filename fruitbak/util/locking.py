@@ -60,7 +60,6 @@ def unlocked(value):
 
 def lockingclass(cls):
 	replacements = {}
-	function = type(lockingclass)
 	for key, value in cls.__dict__.items():
 		if key == '__init__':
 			oldinit = value
@@ -74,7 +73,7 @@ def lockingclass(cls):
 			replacements[key] = value.function
 		elif isinstance(value, unlockeddescriptor):
 			replacements[key] = value.descriptor
-		elif isinstance(value, function):
+		elif callable(value):
 			replacements[key] = lockedmethod(value)
 		elif hasattr(value, '__set__'):
 			replacements[key] = lockeddatadescriptor(value)
