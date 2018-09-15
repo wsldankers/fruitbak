@@ -35,7 +35,7 @@ class Host(Clarity):
 
 	@initializer
 	def env(self):
-		return dict(name = self.name)
+		return dict(host = self.name)
 
 	def __iter__(self):
 		backups = []

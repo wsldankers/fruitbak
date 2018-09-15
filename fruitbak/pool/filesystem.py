@@ -1,5 +1,6 @@
 from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.locking import locked
+from fruitbak.util.sysopen import sysopen
 from fruitbak.pool.handler import Storage
 from fruitbak.pool.agent import PoolReadahead, PoolAction
 
@@ -208,28 +209,6 @@ class Filesystem(Storage):
 				callback(cursor, None)
 
 		self.submit(job)
-
-# garbage collected variant of os.open()
-class sysopen(int):
-	closed = False
-
-	def __new__(cls, *args, **kwargs):
-		return super().__new__(cls, os_open(*args, **kwargs))
-
-	def __del__(self):
-		if not self.closed:
-			try:
-				close(self)
-			except:
-				pass
-
-	def __enter__(self):
-		return self
-
-	def __exit__(self, exc_type, exc_value, traceback):
-		if not self.closed:
-			self.closed = True
-			close(self)
 
 def tempfile(self, pooldir_fd, path):
 	return sysopen(path, O_TMPFILE|O_WRONLY|O_CLOEXEC|O_NOCTTY, dir_fd = pooldir_fd)

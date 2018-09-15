@@ -1,10 +1,22 @@
-from fruitbak.util.clarity import Clarity, initializer, xyzzy
+from os import O_DIRECTORY, O_RDONLY, O_NOCTTY, O_CLOEXEC, fwalk as tree_walk, unlink, rmdir, mkdir
+from fcntl import flock, LOCK_EX, LOCK_NB
+
 from fruitbak.config import configurable
+from fruitbak.util.clarity import Clarity, initializer, xyzzy
+from fruitbak.util.sysopen import sysopen
 
 class NewBackup(Clarity):
 	@initializer
 	def fruitbak(self):
 		return self.host.fruitbak
+
+	@initializer
+	def pool(self):
+		return self.fruitbak.pool
+
+	@initializer
+	def agent(self):
+		return self.pool.agent()
 
 	@initializer
 	def config(self):
@@ -21,6 +33,10 @@ class NewBackup(Clarity):
 	@configurable_function
 	def post_command(self):
 		return xyzzy
+
+	@initializer
+	def backupdir(self):
+		return self.host.hostdir / 'new'
 
 	@initializer
 	def predecessor(self):
@@ -48,12 +64,37 @@ class NewBackup(Clarity):
 
 	@initializer
 	def env(self):
-		return dict(self.host.env, share = str(self.index))
+		env = dict(self.host.env, backup = str(self.index))
+		predecessor = self.predecessor
+		if predecessor is None:
+			env['mode'] = 'full'
+		else:
+			env['mode'] = 'incr'
+			env['predecessor'] = self.predecessor
+		return env
 
 	def backup(self):
-		with self.config.env(self.env):
-			self.pre_command(fruitbak = self.fruitbak, host = self.host, index = self.index)
-		for share_config in self.shares:
-			NewShare(**share_config, backup = self).backup()
-		with self.config.env(self.env):
-			self.post_command(fruitbak = self.fruitbak, host = self.host, index = self.index)
+		backupdir = self.backupdir
+		backupdir.mkdir(exist_ok = True)
+		with sysopen(str(backupdir), O_DIRECTORY|O_RDONLY|O_NOCTTY|O_CLOEXEC) as backupdir_fd:
+			flock(backupdir_fd, LOCK_EX|LOCK_NB)
+
+			def onerror(exc):
+				raise exc
+
+			for root, dirs, files, root_fd in tree_walk(dir_fd = backupdir_fd, topdown = False, onerror = onerror):
+				for name in files:
+					unlink(name, dir_fd = rootfd)
+				for name in dirs:
+					rmdir(name, dir_fd = rootfd)
+
+			mkdir('share', dir_fd = backupdir_fd)
+
+			with self.config.env(self.env):
+				self.pre_command(fruitbak = self.fruitbak, host = self.host, index = self.index)
+
+			for share_config in self.shares:
+				NewShare(config = share_config, newbackup = self).backup()
+
+			with self.config.env(self.env):
+				self.post_command(fruitbak = self.fruitbak, host = self.host, index = self.index)

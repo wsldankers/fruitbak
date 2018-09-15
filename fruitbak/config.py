@@ -97,7 +97,7 @@ class ConfigEnvironment:
 			del tls.env
 
 class Config:
-	def __init__(self, path, *paths, *, basepath = None, preseed = None):
+	def __init__(self, path, *paths, basepath = None, preseed = None):
 		if basepath is None:
 			path = Path(path)
 			basepath = path.parent
