@@ -90,11 +90,14 @@ class NewBackup(Clarity):
 
 			mkdir('share', dir_fd = backupdir_fd)
 
-			with self.config.env(self.env):
-				self.pre_command(fruitbak = self.fruitbak, host = self.host, index = self.index)
+			env = self.env
+			config = self.config
+
+			with config.env(env):
+				self.pre_command(fruitbak = self.fruitbak, host = self.host, newbackup = self)
 
 			for share_config in self.shares:
 				NewShare(config = share_config, newbackup = self).backup()
 
-			with self.config.env(self.env):
-				self.post_command(fruitbak = self.fruitbak, host = self.host, index = self.index)
+			with config.env(self.env):
+				self.post_command(fruitbak = self.fruitbak, host = self.host, newbackup = self)

@@ -110,5 +110,5 @@ def stub(f):
 
 class Clarity:
 	def __init__(self, **kwargs):
-		for (k, v) in kwargs.items():
-			setattr(self, k, v)
+		for pair in kwargs.items():
+			setattr(self, *pair)

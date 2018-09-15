@@ -68,9 +68,9 @@ class NewShare(Clarity):
 		transfer.newshare = self
 
 		with self.config.env(self.env):
-			self.pre_command(fruitbak = self.fruitbak, host = self.host, index = self.index)
+			self.pre_command(fruitbak = self.fruitbak, host = self.host, backup = self.newbackup, newshare = self)
 
 		transfer.transfer()
 
 		with self.config.env(self.env):
-			self.post_command(fruitbak = self.fruitbak, host = self.host, index = self.index)
+			self.post_command(fruitbak = self.fruitbak, host = self.host, backup = self.newbackup, newshare = self)

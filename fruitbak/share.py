@@ -94,7 +94,6 @@ class Share(Clarity):
 			hardlink = data[dentry_layout_size:]
 			original = Dentry(
 				name = path,
-				flags = flags,
 				mode = mode,
 				size = size,
 				mtime = mtime,
@@ -112,7 +111,6 @@ class Share(Clarity):
 			extra = data[dentry_layout_size:]
 			target = Dentry(
 				name = hardlink,
-				flags = flags,
 				mode = mode,
 				size = size,
 				mtime = mtime,
@@ -127,7 +125,6 @@ class Share(Clarity):
 			extra = data[dentry_layout_size:]
 			return Dentry(
 				name = path,
-				flags = flags,
 				mode = mode,
 				size = size,
 				mtime = mtime,
@@ -175,7 +172,6 @@ class Share(Clarity):
 
 				original = Dentry(
 					name = path,
-					flags = flags,
 					mode = mode,
 					size = size,
 					mtime = mtime,
@@ -189,7 +185,6 @@ class Share(Clarity):
 				flags, mode, size, mtime, uid, gid = dentry_layout.unpack_from(remapped)
 				target = Dentry(
 					name = remapped_path,
-					flags = flags & ~FORMAT_FLAG_HARDLINK,
 					mode = mode,
 					size = size,
 					mtime = mtime,
@@ -218,7 +213,6 @@ class Share(Clarity):
 
 					original = Dentry(
 						name = path,
-						flags = flags & ~FORMAT_FLAG_HARDLINK,
 						mode = mode,
 						size = size,
 						mtime = mtime,
@@ -233,10 +227,8 @@ class Share(Clarity):
 					if flags & FORMAT_FLAG_HARDLINK:
 						raise NestedHardlinkError("'%s' is a hardlink pointing to '%s', but that is also a hardlink" % (path, extra))
 
-
 					target = Dentry(
 						name = target_path,
-						flags = flags,
 						mode = mode,
 						size = size,
 						mtime = mtime,
@@ -252,7 +244,6 @@ class Share(Clarity):
 
 					yield Dentry(
 						name = path,
-						flags = flags & ~FORMAT_FLAG_HARDLINK,
 						mode = mode,
 						size = size,
 						mtime = mtime,
@@ -266,7 +257,6 @@ class Share(Clarity):
 
 			yield Dentry(
 				name = path,
-				flags = flags,
 				mode = mode,
 				size = size,
 				mtime = mtime,

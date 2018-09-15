@@ -3,7 +3,7 @@
 from fruitbak.util.clarity import Clarity, initializer
 from stat import *
 from io import RawIOBase, TextIOWrapper
-from struct import pack, unpack
+from struct import pack, unpack, Struct
 
 class DentryError(Exception):
 	"""Something Dentry-related went wrong."""
@@ -29,6 +29,15 @@ class NotABlockDeviceError(NotADeviceError):
 
 class NotACharacterDeviceError(NotADeviceError):
 	pass
+
+class DentryUnsupportedFlag(DentryError):
+	pass
+
+dentry_layout = Struct('<LLQQLL')
+dentry_layout_size = dentry_layout.size
+
+DENTRY_FORMAT_FLAG_HARDLINK = 0x1
+DENTRY_FORMAT_SUPPORTED_FLAGS = DENTRY_FORMAT_FLAG_HARDLINK
 
 class DENTRY_TYPE(Clarity):
 	lsl_char = None
@@ -234,9 +243,30 @@ class Dentry(Clarity):
 	data from the hardlink target instead.
 	"""
 
-	MAXNAMELEN = 65535
-	FORMAT_FLAG_HARDLINK = 0x1 
-	FORMAT_MASK = FORMAT_FLAG_HARDLINK
+	def __init__(self, encoded = None, **kwargs):
+		if encoded is not None:
+			flags, self.mode, self.size, self.mtime, self.uid, self.gid = dentry_layout.unpack_from(encoded)
+			unsupported_flags = flags & ~DENTRY_FORMAT_SUPPORTED_FLAGS
+			if unsupported_flags:
+				raise DentryUnsupportedFlag('unsupported flag in encoded entry: %x' % unsupported_flags)
+			if flags & DENTRY_FORMAT_HARDLINK:
+				self.is_hardlink = True
+			self.extra = encoded[dentry_layout_size:],
+
+		super().__init__(**kwargs)
+
+	def __bytes__(self):
+		flags = 0
+		if self.is_hardlink:
+			flags |= DENTRY_FORMAT_HARDLINK
+		return dentry_layout.pack(
+			flags,
+			self.mode,
+			self.size,
+			self.mtime,
+			self.uid,
+			self.gid,
+		) + self.extra
 
 	@initializer
 	def extra(self):
@@ -457,8 +487,8 @@ class Dentry(Clarity):
 		return S_ISSOCK(self.mode)
 
 class HardlinkDentry(Dentry):
-	def __init__(self, original, target):
-		super().__init__(original = original, target = target)
+	def __init__(self, original, target, **kwargs):
+		super().__init__(original = original, target = target, **kwargs)
 
 	@property
 	def name(self):
