@@ -1,4 +1,4 @@
-from os import O_DIRECTORY, O_RDONLY, O_NOCTTY, O_CLOEXEC, fwalk as tree_walk, unlink, rmdir, mkdir
+from os import O_DIRECTORY, O_RDONLY, O_NOCTTY, O_CLOEXEC, fwalk, unlink, rmdir, mkdir
 from fcntl import flock, LOCK_EX, LOCK_NB
 
 from fruitbak.config import configurable
@@ -82,7 +82,7 @@ class NewBackup(Clarity):
 			def onerror(exc):
 				raise exc
 
-			for root, dirs, files, root_fd in tree_walk(dir_fd = backupdir_fd, topdown = False, onerror = onerror):
+			for root, dirs, files, root_fd in fwalk(dir_fd = backupdir_fd, topdown = False, onerror = onerror):
 				for name in files:
 					unlink(name, dir_fd = rootfd)
 				for name in dirs:
