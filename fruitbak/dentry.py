@@ -262,16 +262,16 @@ class Dentry(Clarity):
 			unsupported_flags = flags & ~DENTRY_FORMAT_SUPPORTED_FLAGS
 			if unsupported_flags:
 				raise DentryUnsupportedFlag('unsupported flag in encoded entry: %x' % unsupported_flags)
-			if flags & DENTRY_FORMAT_HARDLINK:
+			if flags & DENTRY_FORMAT_FLAG_HARDLINK:
 				self.is_hardlink = True
-			self.extra = encoded[dentry_layout_size:],
+			self.extra = encoded[dentry_layout_size:]
 
 		super().__init__(**kwargs)
 
 	def __bytes__(self):
 		flags = 0
 		if self.is_hardlink:
-			flags |= DENTRY_FORMAT_HARDLINK
+			flags |= DENTRY_FORMAT_FLAG_HARDLINK
 		return dentry_layout.pack(
 			flags,
 			self.mode,
@@ -345,7 +345,6 @@ class Dentry(Clarity):
 
 		if not self.is_file:
 			raise NotAFileError("'%s' is not a regular file" % dentry_decode(self.name))
-
 		return DentryDigests(digests = self.extra, hashsize = self.hashsize)
 
 	@digests.setter
@@ -423,8 +422,8 @@ class Dentry(Clarity):
 			raise NotASymlinkError("'%s' is not a hardlink" % dentry_decode(self.name))
 		return self.extra
 
-	@hardlink.setter
-	def hardlink(self, value):
+	@symlink.setter
+	def symlink(self, value):
 		if not self.is_symlink:
 			raise NotASymlinkError("'%s' is not a hardlink" % dentry_decode(self.name))
 
