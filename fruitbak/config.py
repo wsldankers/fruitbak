@@ -48,7 +48,8 @@ class configurable_function(configurable):
 		def _initializer(self):
 			return initializer
 		_initializer.__name__ = initializer.__name__
-		return super().__init__(_initializer)
+		_initializer.__doc__ = initializer.__doc__
+		super().__init__(_initializer)
 
 class delayed:
 	def __init__(self, f):
@@ -67,13 +68,14 @@ import builtins as builtins_module
 builtins = vars(builtins_module)
 
 class ConfigEnvironment:
-	def __init__(config, *args, **kwargs):
+	def __init__(self, config, *args, **kwargs):
 		self.tls = config.tls
 		self.history = []
 		env = {}
 		for a in args:
 			env.update(a)
 		env.update(kwargs)
+		self.env = env
 
 	def __enter__(self):
 		tls = self.tls
@@ -91,10 +93,14 @@ class ConfigEnvironment:
 
 	def __exit__(self, exc_type, exc_value, traceback):
 		history = self.history
+		tls = self.tls
 		if history:
 			tls.env = self.history.pop()
 		else:
 			del tls.env
+
+class subdict(dict):
+	"""Subclass dict so that we can weakref it"""
 
 class Config:
 	def __init__(self, path, *paths, basepath = None, preseed = None):
@@ -109,7 +115,10 @@ class Config:
 		tls = local()
 		self.tls = tls
 
-		globals = dict(kwargs)
+		if preseed is None:
+			globals = subdict()
+		else:
+			globals = subdict(preseed)
 		self.globals = globals
 
 		extra_builtins = dict(builtins)

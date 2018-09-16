@@ -5,6 +5,34 @@ from stat import *
 from io import RawIOBase, TextIOWrapper
 from struct import pack, unpack, Struct
 
+def dentry_encode(filename):
+	"""
+	Encode filename to UTF-8 encoding with 'surrogateescape' error handler,
+	return bytes-like ojects unchanged.
+	"""
+	if isinstance(filename, str):
+		return filename.encode(errors = 'surrogateescape')
+	try:
+		memoryview(filename)
+	except:
+		raise TypeError("expect bytes or str, not %s" % type(filename).__name__) from None
+	else:
+		return filename
+
+def dentry_decode(filename):
+	"""
+	Decode filename from UTF-8 encoding with 'surrogateescape' error handler,
+	return str unchanged.
+	"""
+	if isinstance(filename, str):
+		return filename
+	try:
+		decode = filename.decode
+	except AttributeError:
+		raise TypeError("expect bytes or str, not %s" % type(filename).__name__)
+	else:
+		return filename.decode(errors = 'surrogateescape')
+
 class DentryError(Exception):
 	"""Something Dentry-related went wrong."""
 	pass
@@ -97,21 +125,6 @@ dentry_types_by_stat_num = dict(map(lambda t: (t.stat_num, t), (
 	DENTRY_TYPE_FIFO,
 	DENTRY_TYPE_SOCKET
 )))
-
-def _to_bytes(value):
-	"""Convert various values to the format suitable for storing in Hardhats."""
-	if isinstance(value, bytes):
-		return value
-	elif isinstance(value, bytearray):
-		return value
-	elif isinstance(value, memoryview):
-		return value
-	elif isinstance(value, DentryDigests):
-		return value.digests
-	elif isinstance(value, str):
-		return value.encode()
-	else:
-		return bytes(value)
 
 class DentryIO(RawIOBase):
 	current_chunk = None # always a memoryview
@@ -269,6 +282,14 @@ class Dentry(Clarity):
 		) + self.extra
 
 	@initializer
+	def name(self):
+		raise AttributeError("attempt to access 'name' attribute before it is set")
+
+	@name.setter
+	def name(self, value):
+		return dentry_encode(value)
+
+	@initializer
 	def extra(self):
 		return bytearray()
 
@@ -322,20 +343,25 @@ class Dentry(Clarity):
 		Raises a NotAFileError exception if this dentry is not a regular file.
 		"""
 
-		if self.is_file:
-			return DentryDigests(digests = self.extra, hashsize = self.hashsize)
+		if not self.is_file:
+			raise NotAFileError("'%s' is not a regular file" % dentry_decode(self.name))
 
-		raise NotAFileError("'%s' is not a regular file" % self.name)
+		return DentryDigests(digests = self.extra, hashsize = self.hashsize)
 
 	@digests.setter
 	def digests(self, value):
-		if self.is_file:
-			try:
-				self.extra = _to_bytes(value)
-			except TypeError:
-				self.extra = b''.join(value)
+		if not self.is_file:
+			raise NotAFileError("'%s' is not a regular file" % dentry_decode(self.name))
+
+		if isinstance(value, DentryDigests):
+			self.extra = value.digests
 		else:
-			raise NotAFileError("'%s' is not a regular file" % self.name)
+			try:
+				memoryview(value)
+			except:
+				self.extra = b''.join(value)
+			else:
+				self.extra = value
 
 	@initializer
 	def is_hardlink(self):
@@ -361,16 +387,17 @@ class Dentry(Clarity):
 		Raises a NotAHardlinkError exception if this dentry is not a hardlink.
 		"""
 
-		if self.is_hardlink:
-			return self.extra
-		raise NotAHardlinkError("'%s' is not a hardlink" % self.name)
+		if not self.is_hardlink:
+			raise NotAHardlinkError("'%s' is not a hardlink" % dentry_decode(self.name))
+
+		return self.extra
 
 	@hardlink.setter
 	def hardlink(self, value):
-		if self.is_hardlink:
-			self.extra = _to_bytes(value)
-		else:
-			raise NotAHardlinkError("'%s' is not a hardlink" % self.name)
+		if not self.is_hardlink:
+			raise NotAHardlinkError("'%s' is not a hardlink" % dentry_decode(self.name))
+
+		self.extra = dentry_encode(value)
 
 	@property
 	def is_symlink(self):
@@ -392,9 +419,16 @@ class Dentry(Clarity):
 		Raises a NotASymlinkError exception if this dentry is not a symlink.
 		"""
 
-		if self.is_symlink:
-			return self.extra
-		raise NotASymlinkError("'%s' is not a hardlink" % self.name)
+		if not self.is_symlink:
+			raise NotASymlinkError("'%s' is not a hardlink" % dentry_decode(self.name))
+		return self.extra
+
+	@hardlink.setter
+	def hardlink(self, value):
+		if not self.is_symlink:
+			raise NotASymlinkError("'%s' is not a hardlink" % dentry_decode(self.name))
+
+		self.extra = dentry_encode(value)
 
 	@property
 	def is_directory(self):
@@ -453,20 +487,20 @@ class Dentry(Clarity):
 
 	@property
 	def rdev(self):
-		if self.is_device:
-			major, minor = unpack('<LL', self.extra)
-			if not major and minor & ~0xFF:
-				# compensate for old bug:
-				return minor >> 8, minor & 0xFF
-			else:
-				return major, minor
-		raise NotADeviceError("'%s' is not a device" % self.name)
+		if not self.is_device:
+			raise NotADeviceError("'%s' is not a device" % dentry_decode(self.name))
+		major, minor = unpack('<LL', self.extra)
+		if not major and minor & ~0xFF:
+			# compensate for old bug:
+			return minor >> 8, minor & 0xFF
+		else:
+			return major, minor
 
 	@rdev.setter
 	def rdev(self, majorminor):
-		if self.is_device:
-			self.extra = pack('<LL', *majorminor)
-		raise NotADeviceError("'%s' is not a device" % self.name)
+		if not self.is_device:
+			raise NotADeviceError("'%s' is not a device" % dentry_decode(self.name))
+		self.extra = pack('<LL', *majorminor)
 
 	@property
 	def is_fifo(self):

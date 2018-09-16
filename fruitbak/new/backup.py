@@ -1,9 +1,10 @@
 from os import O_DIRECTORY, O_RDONLY, O_NOCTTY, O_CLOEXEC, fwalk, unlink, rmdir, mkdir
 from fcntl import flock, LOCK_EX, LOCK_NB
 
-from fruitbak.config import configurable
+from fruitbak.config import configurable, configurable_function
 from fruitbak.util.clarity import Clarity, initializer, xyzzy
 from fruitbak.util.sysopen import sysopen
+from fruitbak.new.share import NewShare
 
 class NewBackup(Clarity):
 	@initializer
@@ -24,13 +25,13 @@ class NewBackup(Clarity):
 
 	@configurable
 	def shares(self):
-		return [dict(name = 'root', path => '/')]
+		return [dict(name = 'root', path = '/')]
 
-	@configurable_function
+	@configurable
 	def pre_command(self):
 		return xyzzy
 
-	@configurable_function
+	@configurable
 	def post_command(self):
 		return xyzzy
 
@@ -84,20 +85,20 @@ class NewBackup(Clarity):
 
 			for root, dirs, files, root_fd in fwalk(dir_fd = backupdir_fd, topdown = False, onerror = onerror):
 				for name in files:
-					unlink(name, dir_fd = rootfd)
+					unlink(name, dir_fd = root_fd)
 				for name in dirs:
-					rmdir(name, dir_fd = rootfd)
+					rmdir(name, dir_fd = root_fd)
 
 			mkdir('share', dir_fd = backupdir_fd)
 
 			env = self.env
 			config = self.config
 
-			with config.env(env):
+			with config.setenv(env):
 				self.pre_command(fruitbak = self.fruitbak, host = self.host, newbackup = self)
 
 			for share_config in self.shares:
 				NewShare(config = share_config, newbackup = self).backup()
 
-			with config.env(self.env):
+			with config.setenv(self.env):
 				self.post_command(fruitbak = self.fruitbak, host = self.host, newbackup = self)

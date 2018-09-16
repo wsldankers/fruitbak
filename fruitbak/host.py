@@ -1,9 +1,12 @@
 """Represent hosts to back up"""
 
 from fruitbak.util.clarity import Clarity, initializer
+from fruitbak.config import Config
 from fruitbak.backup import Backup
+from fruitbak.new.backup import NewBackup
 
 from weakref import WeakValueDictionary
+from pathlib import Path
 import re
 
 numbers_re = re.compile('0|[1-9][0-9]*')
@@ -36,6 +39,14 @@ class Host(Clarity):
 	@initializer
 	def env(self):
 		return dict(host = self.name)
+
+	@initializer
+	def config(self):
+		return Config(Path('host') / self.name, basepath = self.fruitbak.confdir)
+
+	def backup(self):
+		self.hostdir.mkdir(exist_ok = True)
+		NewBackup(host = self).backup()
 
 	def __iter__(self):
 		backups = []

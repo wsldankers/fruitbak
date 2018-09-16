@@ -53,7 +53,8 @@ def ls(host, backup, share, path):
 			else:
 				return '%ds' % s
 
-	pmap = ThreadPoolExecutor(max_workers = 32).map
+	#pmap = ThreadPoolExecutor(max_workers = 32).map
+	pmap = map
 
 	if host is None:
 		def info(h):
@@ -258,6 +259,13 @@ def tar(host, backup, share, path):
 					binary_stdout.write(b'\0' * padding)
 
 	binary_stdout.write(b'\0' * (BLOCKSIZE*2))
+
+@cli.command()
+@click.argument('host')
+def backup(host):
+	"""Run a backup for a host"""
+	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+	fbak[host].backup()
 
 @cli.command()
 def pooltest():

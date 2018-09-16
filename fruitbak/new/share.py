@@ -15,11 +15,11 @@ class NewShare(Clarity):
 	def mountpoint(self):
 		return self.path
 
-	@configurable_function
+	@configurable
 	def pre_command(self):
 		return xyzzy
 
-	@configurable_function
+	@configurable
 	def post_command(self):
 		return xyzzy
 
@@ -66,11 +66,12 @@ class NewShare(Clarity):
 	def backup(self):
 		transfer = self.transfer
 		transfer.newshare = self
+		config = self.newbackup.config
 
-		with self.config.env(self.env):
+		with config.setenv(self.env):
 			self.pre_command(fruitbak = self.fruitbak, host = self.host, backup = self.newbackup, newshare = self)
 
 		transfer.transfer()
 
-		with self.config.env(self.env):
+		with config.setenv(self.env):
 			self.post_command(fruitbak = self.fruitbak, host = self.host, backup = self.newbackup, newshare = self)
