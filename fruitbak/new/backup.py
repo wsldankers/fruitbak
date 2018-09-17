@@ -40,6 +40,10 @@ class NewBackup(Clarity):
 		return self.host.hostdir / 'new'
 
 	@initializer
+	def sharedir(self):
+		return self.backupdir / 'share'
+
+	@initializer
 	def predecessor(self):
 		try:
 			last = self.host[-1]
@@ -102,3 +106,6 @@ class NewBackup(Clarity):
 
 			with config.setenv(self.env):
 				self.post_command(fruitbak = self.fruitbak, host = self.host, newbackup = self)
+
+		hostdir_fd = self.host.hostdir_fd
+		rename('new', str(self.index), src_dir_fd = hostdir_fd, dst_dir_fd = hostdir_fd)

@@ -31,11 +31,19 @@ class Backup(Clarity):
 
 	@initializer
 	def backupdir(self):
-		return self.host.hostdir / str(self.index)
+		return Path(str(self.index))
+
+	@initializer
+	def backupdir_fd(self):
+		return sysopendir(self.backupdir, dir_fd = self.host.hostdir_fd)
 
 	@initializer
 	def sharedir(self):
-		return self.backupdir / 'share'
+		return Path('share')
+
+	@initializer
+	def sharedir_fd(self):
+		return sysopendir(self.sharedir, dir_fd = self.hostdir_fd)
 
 	@initializer
 	def sharecache(self):
@@ -96,7 +104,7 @@ class Backup(Clarity):
 		shares = []
 		sharecache = self.sharecache
 		fruitbak = self.fruitbak
-		for entry in self.sharedir.iterdir():
+		for entry in iterdir(self.sharedir_fd):
 			entry_name = entry.name
 			if not entry_name.startswith('.') and entry.is_dir():
 				name = fruitbak.path_to_name(entry_name)

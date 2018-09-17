@@ -2,6 +2,8 @@ from fruitbak.util.clarity import Clarity, initializer, xyzzy
 from fruitbak.config import configurable
 from fruitbak.transfer.local import LocalTransfer
 
+from hardhat import HardhatMaker
+
 class NewShare(Clarity):
 	@configurable
 	def name(self):
@@ -45,7 +47,7 @@ class NewShare(Clarity):
 
 	@initializer
 	def sharedir(self):
-		return self.newbackup.backupdir / 'share' / self.fruitbak.name_to_path(self.name)
+		return self.newbackup.sharedir / self.fruitbak.name_to_path(self.name)
 
 	@initializer
 	def fruitbak(self):
@@ -63,15 +65,25 @@ class NewShare(Clarity):
 	def pool(self):
 		return self.fruitbak.pool
 
+	@initializer
+	def hardhat_maker(self):
+		return HardhatMaker(str(self.sharedir / 'metadata.hh'))
+
+	def add_dentry(self, dentry):
+		self.hardhat_maker.add(dentry.name, bytes(dentry))
+
 	def backup(self):
 		transfer = self.transfer
 		transfer.newshare = self
 		config = self.newbackup.config
 
+		self.sharedir.mkdir()
+
 		with config.setenv(self.env):
 			self.pre_command(fruitbak = self.fruitbak, host = self.host, backup = self.newbackup, newshare = self)
 
-		transfer.transfer()
+		with self.hardhat_maker:
+			transfer.transfer()
 
 		with config.setenv(self.env):
 			self.post_command(fruitbak = self.fruitbak, host = self.host, backup = self.newbackup, newshare = self)

@@ -5,6 +5,7 @@ from fruitbak.config import Config
 from fruitbak.backup import Backup
 from fruitbak.new.backup import NewBackup
 
+from os import mkdir, iterdir
 from weakref import WeakValueDictionary
 from pathlib import Path
 import re
@@ -29,8 +30,11 @@ class Host(Clarity):
 
 	@initializer
 	def hostdir(self):
-		fruitbak = self.fruitbak
-		return fruitbak.hostdir / fruitbak.name_to_path(self.name)
+		return self.fruitbak.name_to_path(self.name)
+
+	@initializer
+	def hostdir_fd(self):
+		return sysopendir(self.hostdir, dir_fd = self.fruitbak.hostdir_fd)
 
 	@initializer
 	def backupcache(self):
@@ -42,18 +46,17 @@ class Host(Clarity):
 
 	@initializer
 	def config(self):
-		return Config(Path('host') / self.name, basepath = self.fruitbak.confdir)
+		return Config(Path('host') / self.name, dir_fd = self.fruitbak.confdir_fd)
 
 	def backup(self):
-		self.hostdir.mkdir(exist_ok = True)
+		mkdir(self.hostdir, dir_fd = self.fruitbak.hostdir_fd, exist_ok = True)
 		NewBackup(host = self).backup()
 
 	def __iter__(self):
 		backups = []
 		backupcache = self.backupcache
-		hostdir = self.hostdir
 		try:
-			for entry in hostdir.iterdir():
+			for entry in iterdir(self.hostdir_fd):
 				entry_name = entry.name
 				if numbers_re.match(entry_name) and entry.is_dir():
 					index = int(entry_name)

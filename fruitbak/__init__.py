@@ -1,6 +1,7 @@
 """Top-level object for a Fruitbak installation"""
 
 from fruitbak.util.clarity import Clarity, initializer
+from fruitbak.util.sysopen import sysopendir
 from fruitbak.host import Host
 from fruitbak.config import Config, configurable, configurable_function
 from fruitbak.pool import Pool
@@ -21,23 +22,35 @@ class Fruitbak(Clarity):
 
 	@initializer
 	def config(self):
-		return Config(self.confdir / 'global')
+		return Config('global', dir_fd = self.confdir_fd)
 
-	@configurable
+	@initializer
 	def confdir(self):
-		return self.rootdir / 'conf'
+		CONF = getenv('FRUITBAK_CONF')
+		if CONF is not None:
+			return Path(CONF)
+		return Path('conf')
 
-	@confdir.validate
-	def confdir(self, value):
-		return Path(value)
+	@initializer
+	def confdir_fd(self):
+		return sysopendir(self.confdir, dir_fd = self.rootdir_fd)
 
 	@configurable
 	def rootdir(self):
-		return getenv('HOME')
+		ROOT = getenv('FRUITBAK_ROOT')
+		if ROOT is not None:
+			return ROOT
+		HOME = getenv('HOME')
+		if HOME is not None:
+			raise RuntimeError("$FRUITBAK_ROOT not set")
 
 	@rootdir.prepare
 	def rootdir(self, value):
 		return Path(value)
+
+	@initializer
+	def rootdir_fd(self):
+		return sysopendir(self.rootdir)
 
 	@configurable
 	def hostdir(self):
@@ -47,13 +60,9 @@ class Fruitbak(Clarity):
 	def hostdir(self, value):
 		return Path(value)
 
-	@configurable
-	def pooldir(self):
-		return self.rootdir / 'pool'
-
-	@pooldir.prepare
-	def pooldir(self, value):
-		return Path(value)
+	@initializer
+	def hostdir_fd(self):
+		return sysopendir(self.hostdir, dir_fd = self.rootdir_fd)
 
 	@configurable
 	def hashalgo(data):

@@ -103,14 +103,7 @@ class subdict(dict):
 	"""Subclass dict so that we can weakref it"""
 
 class Config:
-	def __init__(self, path, *paths, basepath = None, preseed = None):
-		if basepath is None:
-			path = Path(path)
-			basepath = path.parent
-			path = path.name
-		else:
-			basepath = Path(basepath)
-
+	def __init__(self, path, *paths, dir_fd = None, preseed = None):
 		# thread-local storage
 		tls = local()
 		self.tls = tls
@@ -127,7 +120,7 @@ class Config:
 		weak_globals = weakref(globals)
 
 		def include(path):
-			with open(str(basepath / path) + '.py') as f:
+			with open(str(path) + '.py', dir_fd = dir_fd) as f:
 				content = f.read()
 			exec(content, weak_globals())
 		extra_builtins['include'] = include

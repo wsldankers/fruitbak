@@ -44,7 +44,11 @@ class Share(Clarity):
 
 	@initializer
 	def sharedir(self):
-		return self.backup.backupdir / 'share' / self.fruitbak.name_to_path(self.name)
+		return self.fruitbak.name_to_path(self.name)
+
+	@initializer
+	def hostdir_fd(self):
+		return sysopendir(self.sharedir, dir_fd = self.backup.sharedir)
 
 	@initializer
 	def info(self):

@@ -1,4 +1,36 @@
-from os import open as os_open, close as os_close, read as os_read, write as os_write
+from os import (
+	open as os_open,
+	close as os_close,
+	read as os_read,
+	write as os_write,
+	O_DIRECTORY,
+	O_CLOEXEC,
+	O_RDONLY,
+	O_NOCTTY,
+	O_NOFOLLOW,
+)
+from pathlib import Path
+
+try:
+	from os import O_PATH
+except ImportError:
+	def sysopendir(path, dir_fd = None, follow_symlinks = True):
+		if instanceof(path, Path):
+			path = str(path)
+		flags = O_DIRECTORY|O_CLOEXEC|O_RDONLY|O_NOCTTY
+		if not follow_symlinks:
+			flags |= O_NOFOLLOW
+		return sysopen(path, flags, dir_fd = dir_fd)
+else:
+	def sysopendir(path, dir_fd = None, path_only = None, follow_symlinks = True):
+		if instanceof(path, Path):
+			path = str(path)
+		flags = O_DIRECTORY|O_CLOEXEC|O_RDONLY|O_NOCTTY
+		if path_only:
+			flags |= O_PATH
+		if not follow_symlinks:
+			flags |= O_NOFOLLOW
+		return sysopen(path, flags, dir_fd = dir_fd)
 
 class sysopen(int):
 	"""Wrapper for os.open() with some amenities such as garbage collection,
@@ -44,9 +76,9 @@ class sysopen(int):
 				results.append(buf)
 
 		if len(results) == 1:
-			buf, = results
+			return results[0]
 		else:
-			buf = b''.join(results)
+			return b''.join(results)
 
 	def write(self, buffer):
 		buffer_len = len(buffer)
