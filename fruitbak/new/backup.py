@@ -1,10 +1,12 @@
-from os import O_DIRECTORY, O_RDONLY, O_NOCTTY, O_CLOEXEC, fwalk, unlink, rmdir, mkdir
+from os import fwalk, unlink, rmdir, mkdir, rename
 from fcntl import flock, LOCK_EX, LOCK_NB
+from pathlib import Path
+from json import dump as dump_json
 
 from fruitbak.config import configurable, configurable_function
 from fruitbak.util.clarity import Clarity, initializer, xyzzy
-from fruitbak.util.sysopen import sysopen
-from fruitbak.new.share import NewShare
+from fruitbak.util.sysopen import sysopendir, opener
+from fruitbak.new.share import NewShare, time_ns
 
 class NewBackup(Clarity):
 	@initializer
@@ -37,11 +39,19 @@ class NewBackup(Clarity):
 
 	@initializer
 	def backupdir(self):
-		return self.host.hostdir / 'new'
+		return Path('new')
+
+	@initializer
+	def backupdir_fd(self):
+		return sysopendir(self.backupdir, dir_fd = self.host.hostdir_fd, create_ok = True)
 
 	@initializer
 	def sharedir(self):
-		return self.backupdir / 'share'
+		return Path('share')
+
+	@initializer
+	def sharedir_fd(self):
+		return sysopendir(self.sharedir, dir_fd = self.backupdir_fd, create_ok = True)
 
 	@initializer
 	def predecessor(self):
@@ -52,6 +62,7 @@ class NewBackup(Clarity):
 		else:
 			return last
 
+	@initializer
 	def index(self):
 		pred = self.predecessor
 		if pred is None:
@@ -68,6 +79,14 @@ class NewBackup(Clarity):
 			return pred.index + 1
 
 	@initializer
+	def level(self):
+		pred = self.predecessor
+		if pred is None:
+			return 0
+		else:
+			return pred.level + 1
+
+	@initializer
 	def env(self):
 		env = dict(self.host.env, backup = str(self.index))
 		predecessor = self.predecessor
@@ -80,32 +99,42 @@ class NewBackup(Clarity):
 
 	def backup(self):
 		backupdir = self.backupdir
-		backupdir.mkdir(exist_ok = True)
-		with sysopen(str(backupdir), O_DIRECTORY|O_RDONLY|O_NOCTTY|O_CLOEXEC) as backupdir_fd:
-			flock(backupdir_fd, LOCK_EX|LOCK_NB)
+		backupdir_fd = self.backupdir_fd
 
-			def onerror(exc):
-				raise exc
+		flock(backupdir_fd, LOCK_EX|LOCK_NB)
 
-			for root, dirs, files, root_fd in fwalk(dir_fd = backupdir_fd, topdown = False, onerror = onerror):
-				for name in files:
-					unlink(name, dir_fd = root_fd)
-				for name in dirs:
-					rmdir(name, dir_fd = root_fd)
+		def onerror(exc):
+			raise exc
 
-			mkdir('share', dir_fd = backupdir_fd)
+		for root, dirs, files, root_fd in fwalk(dir_fd = backupdir_fd, topdown = False, onerror = onerror):
+			for name in files:
+				unlink(name, dir_fd = root_fd)
+			for name in dirs:
+				rmdir(name, dir_fd = root_fd)
 
-			env = self.env
-			config = self.config
+		env = self.env
+		config = self.config
+		shares_info = {}
+		info = dict(level = self.level, failed = False, shares = shares_info)
 
-			with config.setenv(env):
-				self.pre_command(fruitbak = self.fruitbak, host = self.host, newbackup = self)
+		with config.setenv(env):
+			self.pre_command(fruitbak = self.fruitbak, host = self.host, newbackup = self)
 
-			for share_config in self.shares:
-				NewShare(config = share_config, newbackup = self).backup()
+		info['startTime'] = time_ns()
 
-			with config.setenv(self.env):
-				self.post_command(fruitbak = self.fruitbak, host = self.host, newbackup = self)
+		for share_config in self.shares:
+			share = NewShare(config = share_config, newbackup = self)
+			shares_info[share.name] = share.backup()
+
+		info['endTime'] = time_ns()
+
+		with config.setenv(self.env):
+			self.post_command(fruitbak = self.fruitbak, host = self.host, newbackup = self)
+
+		with open('info.json', 'w', opener = opener(dir_fd = backupdir_fd, mode = 0o666)) as fp:
+			dump_json(info, fp)
 
 		hostdir_fd = self.host.hostdir_fd
 		rename('new', str(self.index), src_dir_fd = hostdir_fd, dst_dir_fd = hostdir_fd)
+
+		return info

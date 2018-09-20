@@ -18,6 +18,10 @@ class Pool(Clarity):
 
 	queue_depth = 0
 
+	@initializer
+	def config(self):
+		return self.fruitbak.config
+
 	@configurable
 	def max_queue_depth(self):
 		return 32

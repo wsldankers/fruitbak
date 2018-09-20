@@ -10,7 +10,7 @@ from weakref import WeakValueDictionary
 from pathlib import Path
 from urllib.parse import quote, unquote
 from sys import stderr
-from os import getenv
+from os import getenv, scandir
 
 class Fruitbak(Clarity):
 	"""Top-level object for a Fruitbak installation.
@@ -35,18 +35,20 @@ class Fruitbak(Clarity):
 	def confdir_fd(self):
 		return sysopendir(self.confdir, dir_fd = self.rootdir_fd)
 
-	@configurable
+	@initializer
 	def rootdir(self):
-		ROOT = getenv('FRUITBAK_ROOT')
-		if ROOT is not None:
-			return ROOT
-		HOME = getenv('HOME')
-		if HOME is not None:
-			raise RuntimeError("$FRUITBAK_ROOT not set")
-
-	@rootdir.prepare
-	def rootdir(self, value):
-		return Path(value)
+		dir = getenv('FRUITBAK_ROOT')
+		if dir is None:
+			dir = getenv('HOME')
+			if dir is None:
+				raise RuntimeError("$HOME not set")
+		self.rootdir = dir
+		config = self.config
+		try:
+			dir = config['rootdir']
+		except KeyError:
+			pass
+		return Path(dir)
 
 	@initializer
 	def rootdir_fd(self):
@@ -54,7 +56,7 @@ class Fruitbak(Clarity):
 
 	@configurable
 	def hostdir(self):
-		return self.rootdir / 'host'
+		return 'host'
 
 	@hostdir.prepare
 	def hostdir(self, value):
@@ -94,36 +96,36 @@ class Fruitbak(Clarity):
 
 	@initializer
 	def pool(self):
-		return Pool(fruitbak = self, config = {'pooldir': self.pooldir})
+		return Pool(fruitbak = self)
 
 	def discover_hosts(self):
-		hostconfdir = self.confdir / 'host'
 		hostcache = self.hostcache
 		path_to_name = self.path_to_name
 
 		hosts = {}
 
-		for entry in self.hostdir.iterdir():
+		for entry in self.hostdir_fd.scandir():
 			entry_name = entry.name
 			if not entry_name.startswith('.') and entry.is_dir():
 				name = path_to_name(entry_name)
 				host = hostcache.get(name)
 				if host is None:
-					host = Host(fruitbak = self, name = name, backupdir = entry)
+					host = Host(fruitbak = self, name = name, backupdir = Path(entry_name))
 					hostcache[name] = host
 				hosts[name] = host
 
-		for entry in hostconfdir.iterdir():
-			entry_name = entry.name
-			if not entry_name.startswith('.') and entry_name.endswith('.py') and entry.is_file():
-				name = path_to_name(entry_name[:-3])
-				if name in hosts:
-					continue
-				host = hostcache.get(name)
-				if host is None:
-					host = Host(fruitbak = self, name = name)
-					hostcache[name] = host
-				hosts[name] = host
+		with sysopendir('host', dir_fd = self.confdir_fd) as hostconfdir_fd:
+			for entry in hostconfdir_fd.scandir():
+				entry_name = entry.name
+				if not entry_name.startswith('.') and entry_name.endswith('.py') and entry.is_file():
+					name = path_to_name(entry_name[:-3])
+					if name in hosts:
+						continue
+					host = hostcache.get(name)
+					if host is None:
+						host = Host(fruitbak = self, name = name)
+						hostcache[name] = host
+					hosts[name] = host
 
 		return hosts
 

@@ -3,6 +3,7 @@ from fruitbak.util.locking import locked
 from fruitbak.util.sysopen import sysopen, sysopendir
 from fruitbak.pool.handler import Storage
 from fruitbak.pool.agent import PoolReadahead, PoolAction
+from fruitbak.config import configurable
 
 from hashset import Hashset
 
@@ -90,8 +91,8 @@ class Filesystem(Storage):
 	def pooldir(self):
 		return 'pool'
 
-	@configurable.prepare
-	def pooldir(self, value)
+	@pooldir.prepare
+	def pooldir(self, value):
 		return Path(value)
 
 	@initializer

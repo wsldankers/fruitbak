@@ -1,6 +1,7 @@
 """Represent hosts to back up"""
 
 from fruitbak.util.clarity import Clarity, initializer
+from fruitbak.util.sysopen import sysopendir, opener
 from fruitbak.dentry import Dentry, HardlinkDentry, dentry_layout_size
 
 from hardhat import Hardhat
@@ -47,22 +48,29 @@ class Share(Clarity):
 		return self.fruitbak.name_to_path(self.name)
 
 	@initializer
-	def hostdir_fd(self):
-		return sysopendir(self.sharedir, dir_fd = self.backup.sharedir)
+	def sharedir_fd(self):
+		return sysopendir(str(self.sharedir), dir_fd = self.backup.sharedir_fd)
 
 	@initializer
 	def info(self):
-		info_path = self.sharedir / 'info.json'
-		with info_path.open('r') as fp:
+		with open('info.json', 'r', opener = opener(dir_fd = self.sharedir_fd)) as fp:
 			return load_json(fp)
 
 	@initializer
 	def start_time(self):
-		return int(self.info['startTime']) * 1000000000
+		t = int(self.info['startTime'])
+		if t < 1000000000000000000:
+			return t * 1000000000
+		else:
+			return t
 
 	@initializer
 	def end_time(self):
-		return int(self.info['endTime']) * 1000000000
+		t = int(self.info['endTime'])
+		if t < 1000000000000000000:
+			return t * 1000000000
+		else:
+			return t
 
 	@initializer
 	def mountpoint(self):
@@ -81,7 +89,7 @@ class Share(Clarity):
 
 	@initializer
 	def metadata(self):
-		return Hardhat(str(self.sharedir / 'metadata.hh'))
+		return Hardhat('metadata.hh', dir_fd = self.sharedir_fd)
 
 	def parse_dentry(self, path, data):
 		dentry = Dentry(data, name = path, share = self)
@@ -105,7 +113,6 @@ class Share(Clarity):
 		first_inode = None
 		metadata = self.metadata
 		for path, data in c:
-
 			inode = c.inode
 			if first_inode is None:
 				first_inode = inode

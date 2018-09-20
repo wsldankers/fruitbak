@@ -3,34 +3,120 @@ from os import (
 	close as os_close,
 	read as os_read,
 	write as os_write,
+	scandir as os_scandir,
+	listdir,
+	mkdir,
+	stat,
+	fsencode,
+	fsdecode,
 	O_DIRECTORY,
 	O_CLOEXEC,
 	O_RDONLY,
 	O_NOCTTY,
 	O_NOFOLLOW,
 )
+from os.path import samestat
+from stat import S_ISDIR, S_ISREG, S_ISLNK
 from pathlib import Path
+
+from fruitbak.util.clarity import Clarity, initializer
 
 try:
 	from os import O_PATH
 except ImportError:
-	def sysopendir(path, dir_fd = None, follow_symlinks = True):
-		if instanceof(path, Path):
-			path = str(path)
-		flags = O_DIRECTORY|O_CLOEXEC|O_RDONLY|O_NOCTTY
-		if not follow_symlinks:
-			flags |= O_NOFOLLOW
-		return sysopen(path, flags, dir_fd = dir_fd)
-else:
-	def sysopendir(path, dir_fd = None, path_only = None, follow_symlinks = True):
-		if instanceof(path, Path):
-			path = str(path)
-		flags = O_DIRECTORY|O_CLOEXEC|O_RDONLY|O_NOCTTY
-		if path_only:
-			flags |= O_PATH
-		if not follow_symlinks:
-			flags |= O_NOFOLLOW
-		return sysopen(path, flags, dir_fd = dir_fd)
+	# that's ok, O_PATH is just advisory
+	O_PATH = 0
+
+def sysopendir(path, dir_fd = None, path_only = None, follow_symlinks = True, create_ok = False):
+	if isinstance(path, Path):
+		path = str(path)
+	flags = O_DIRECTORY|O_CLOEXEC|O_RDONLY|O_NOCTTY
+	if path_only:
+		flags |= O_PATH
+	if not follow_symlinks:
+		flags |= O_NOFOLLOW
+	if create_ok:
+		try:
+			return sysopen(path, flags, dir_fd = dir_fd)
+		except FileNotFoundError:
+			try:
+				mkdir(path, dir_fd = dir_fd)
+			except FileExistsError:
+				pass
+	return sysopen(path, flags, dir_fd = dir_fd)
+
+def opener(**kwargs):
+	def opener(path, flags):
+		return os_open(path, flags|O_CLOEXEC|O_NOCTTY, **kwargs)
+	return opener
+
+class DirEntry(Clarity):
+	@property
+	def path(self):
+		return self.name
+
+	def __fspath__(self):
+		return self.name
+
+	def __str__(self):
+		return fsdecode(self.name)
+
+	def __bytes__(self):
+		return fsencode(self.name)
+
+	_stat_exception = None
+
+	@initializer
+	def _stat_result(self):
+		e = self._stat_exception
+		if e is None:
+			try:
+				return stat(self.name, dir_fd = self.dir_fd, follow_symlinks = True)
+			except Exception as e:
+				self._stat_exception = e
+		raise e
+
+	_lstat_exception = None
+
+	@initializer
+	def _lstat_result(self):
+		e = self._lstat_exception
+		if e is None:
+			try:
+				return stat(self.name, dir_fd = self.dir_fd, follow_symlinks = False)
+			except Exception as e:
+				self._lstat_exception = e
+		raise e
+
+	def stat(self, *, follow_symlinks = True):
+		return self._stat_result if follow_symlinks else self._lstat_result
+
+	def inode(self):
+		return self.stat(follow_symlinks = False).st_ino
+
+	def is_dir(self, follow_symlinks = True):
+		try:
+			st = self.stat(follow_symlinks = follow_symlinks)
+		except FileNotFoundError:
+			return False
+		else:
+			return S_ISDIR(st.st_mode)
+
+	def is_file(self, *, follow_symlinks = True):
+		try:
+			st = self.stat(follow_symlinks = follow_symlinks)
+		except FileNotFoundError:
+			return False
+		else:
+			return S_ISREG(st.st_mode)
+
+	def is_symlink(self):
+		try:
+			st = self.stat(follow_symlinks = False)
+		except FileNotFoundError:
+			return False
+		else:
+			return S_ISLNK(st.st_mode)
 
 class sysopen(int):
 	"""Wrapper for os.open() with some amenities such as garbage collection,
@@ -38,7 +124,12 @@ class sysopen(int):
 	closed = False
 
 	def __new__(cls, *args, **kwargs):
-		return super().__new__(cls, os_open(*args, **kwargs))
+		fd = os_open(*args, **kwargs)
+		try:
+			return super().__new__(cls, fd)
+		except:
+			close(fd)
+			raise
 
 	def __del__(self):
 		if not self.closed:
@@ -97,3 +188,10 @@ class sysopen(int):
 					offset += write(fd, buffer[offset:])
 				except InterruptedError:
 					pass
+
+	def scandir(self):
+		try:
+			yield from os_scandir(self)
+		except TypeError:
+			for name in listdir(self):
+				yield DirEntry(name = name, dir_fd = self)

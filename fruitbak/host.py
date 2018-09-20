@@ -1,11 +1,12 @@
 """Represent hosts to back up"""
 
 from fruitbak.util.clarity import Clarity, initializer
+from fruitbak.util.sysopen import sysopendir
 from fruitbak.config import Config
 from fruitbak.backup import Backup
 from fruitbak.new.backup import NewBackup
 
-from os import mkdir, iterdir
+from os import mkdir, listdir
 from weakref import WeakValueDictionary
 from pathlib import Path
 import re
@@ -49,24 +50,29 @@ class Host(Clarity):
 		return Config(Path('host') / self.name, dir_fd = self.fruitbak.confdir_fd)
 
 	def backup(self):
-		mkdir(self.hostdir, dir_fd = self.fruitbak.hostdir_fd, exist_ok = True)
+		try:
+			mkdir(str(self.hostdir), dir_fd = self.fruitbak.hostdir_fd)
+		except FileExistsError:
+			pass
 		NewBackup(host = self).backup()
 
 	def __iter__(self):
-		backups = []
-		backupcache = self.backupcache
 		try:
-			for entry in iterdir(self.hostdir_fd):
-				entry_name = entry.name
-				if numbers_re.match(entry_name) and entry.is_dir():
-					index = int(entry_name)
-					backup = backupcache.get(index)
-					if backup is None:
-						backup = Backup(host = self, index = index, backupdir = entry)
-						backupcache[index] = backup
-					backups.append(backup)
+			hostdir_fd = self.hostdir_fd
 		except FileNotFoundError:
 			return iter(())
+
+		backups = []
+		backupcache = self.backupcache
+		for entry in hostdir_fd.scandir():
+			entry_name = entry.name
+			if numbers_re.match(entry_name) and entry.is_dir():
+				index = int(entry_name)
+				backup = backupcache.get(index)
+				if backup is None:
+					backup = Backup(host = self, index = index, backupdir = Path(entry_name))
+					backupcache[index] = backup
+				backups.append(backup)
 		backups.sort(key = lambda b: b.index)
 		return iter(backups)
 

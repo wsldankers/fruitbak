@@ -1,5 +1,5 @@
 from fruitbak.util.clarity import Clarity, initializer
-from fruitbak.util.sysopen import sysopen
+from fruitbak.util.sysopen import sysopen, sysopendir
 from fruitbak.dentry import Dentry
 
 from os import fwalk, stat, readlink, listdir, major, minor, O_RDONLY, O_DIRECTORY, O_NOFOLLOW, O_CLOEXEC, O_NOCTTY, O_NOATIME
@@ -32,7 +32,7 @@ def _fruitwalk(dir_fd, path, topdown, onerror):
 			fd = None
 			try:
 				if S_ISDIR(st.st_mode):
-					fd = sysopen(name, O_DIRECTORY|O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NOCTTY, dir_fd = dir_fd) 
+					fd = sysopendir(name, dir_fd = dir_fd, follow_symlinks = False) 
 			except Exception as e:
 				onerror(e)
 
@@ -61,7 +61,7 @@ def fruitwalk(top = '.', topdown = True, onerror = None, *, dir_fd = None):
 	try:
 		st = stat(top, dir_fd = dir_fd, follow_symlinks = False)
 		if S_ISDIR(st.st_mode):
-			fd = sysopen(top, O_DIRECTORY|O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NOCTTY, dir_fd = dir_fd)
+			fd = sysopendir(top, dir_fd = dir_fd, follow_symlinks = False)
 	except Exception as e:
 		onerror(e)
 
@@ -116,18 +116,24 @@ class LocalTransfer(Clarity):
 							print_exc(file = stderr)
 						else:
 							with fd:
-								digests = []
-								size = 0
-								while True:
-									buf = fd.read(chunksize)
-									if not buf:
-										break
-									agent.put_chunk(hashfunc(buf), buf, async = True)
-									digests.append(hashfunc(buf))
-									buf_len = len(buf)
-									size += buf_len
-									if buf_len < chunksize:
-										break
+								try:
+									is_same = samestat(st, stat(fd))
+								except:
+									print_exc(file = stderr)
+								else:
+									if is_same:
+										digests = []
+										size = 0
+										while True:
+											buf = fd.read(chunksize)
+											if not buf:
+												break
+											agent.put_chunk(hashfunc(buf), buf, async = True)
+											digests.append(hashfunc(buf))
+											buf_len = len(buf)
+											size += buf_len
+											if buf_len < chunksize:
+												break
 							dentry.size = size
 							dentry.digests = digests
 					elif dentry.is_symlink:

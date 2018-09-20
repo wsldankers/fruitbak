@@ -1,7 +1,7 @@
 from pathlib import Path
 from subprocess import run as subprocess_run
 from weakref import ref as weakref
-from os import environ, fsencode
+from os import environ, fsencode, open as os_open, O_CLOEXEC, O_NOCTTY
 from threading import local
 
 from fruitbak.util.clarity import initializer
@@ -119,8 +119,11 @@ class Config:
 		globals['__builtins__'] = extra_builtins
 		weak_globals = weakref(globals)
 
+		def opener(file, flags):
+			return os_open(file, flags|O_CLOEXEC|O_NOCTTY, dir_fd = dir_fd)
+
 		def include(path):
-			with open(str(path) + '.py', dir_fd = dir_fd) as f:
+			with open(str(path) + '.py', opener = opener) as f:
 				content = f.read()
 			exec(content, weak_globals())
 		extra_builtins['include'] = include

@@ -1,12 +1,14 @@
 """Represent a backup"""
 
 from fruitbak.util.clarity import Clarity, initializer
+from fruitbak.util.sysopen import sysopendir, opener
 from fruitbak.share import Share
 
 from hardhat import normalize as hardhat_normalize
 from json import load as load_json
 from weakref import WeakValueDictionary
 from os import fsencode
+from pathlib import Path
 
 class Backup(Clarity):
 	"""Represent a finished backup.
@@ -43,7 +45,7 @@ class Backup(Clarity):
 
 	@initializer
 	def sharedir_fd(self):
-		return sysopendir(self.sharedir, dir_fd = self.hostdir_fd)
+		return sysopendir(self.sharedir, dir_fd = self.backupdir_fd)
 
 	@initializer
 	def sharecache(self):
@@ -51,17 +53,24 @@ class Backup(Clarity):
 
 	@initializer
 	def info(self):
-		info_path = self.backupdir / 'info.json'
-		with info_path.open('r') as fp:
+		with open('info.json', 'r', opener = opener(dir_fd = self.backupdir_fd)) as fp:
 			return load_json(fp)
 
 	@initializer
 	def start_time(self):
-		return int(self.info['startTime']) * 1000000000
+		t = int(self.info['startTime'])
+		if t < 1000000000000000000:
+			return t * 1000000000
+		else:
+			return t
 
 	@initializer
 	def end_time(self):
-		return int(self.info['endTime']) * 1000000000
+		t = int(self.info['endTime'])
+		if t < 1000000000000000000:
+			return t * 1000000000
+		else:
+			return t
 
 	@initializer
 	def level(self):
@@ -104,7 +113,7 @@ class Backup(Clarity):
 		shares = []
 		sharecache = self.sharecache
 		fruitbak = self.fruitbak
-		for entry in iterdir(self.sharedir_fd):
+		for entry in self.sharedir_fd.scandir():
 			entry_name = entry.name
 			if not entry_name.startswith('.') and entry.is_dir():
 				name = fruitbak.path_to_name(entry_name)

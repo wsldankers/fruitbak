@@ -1,8 +1,18 @@
 from fruitbak.util.clarity import Clarity, initializer, xyzzy
+from fruitbak.util.sysopen import sysopendir, opener
 from fruitbak.config import configurable
 from fruitbak.transfer.local import LocalTransfer
 
 from hardhat import HardhatMaker
+
+from json import dump as dump_json
+
+try:
+	from time import time_ns
+except ImportError:
+	from time import time
+	def time_ns():
+		return int(time() * 1000000000.0)
 
 class NewShare(Clarity):
 	@configurable
@@ -47,7 +57,11 @@ class NewShare(Clarity):
 
 	@initializer
 	def sharedir(self):
-		return self.newbackup.sharedir / self.fruitbak.name_to_path(self.name)
+		return self.fruitbak.name_to_path(self.name)
+
+	@initializer
+	def sharedir_fd(self):
+		return sysopendir(self.sharedir, dir_fd = self.newbackup.sharedir_fd, create_ok = True)
 
 	@initializer
 	def fruitbak(self):
@@ -67,7 +81,7 @@ class NewShare(Clarity):
 
 	@initializer
 	def hardhat_maker(self):
-		return HardhatMaker(str(self.sharedir / 'metadata.hh'))
+		return HardhatMaker('metadata.hh', dir_fd = self.sharedir_fd)
 
 	def add_dentry(self, dentry):
 		self.hardhat_maker.add(dentry.name, bytes(dentry))
@@ -75,15 +89,29 @@ class NewShare(Clarity):
 	def backup(self):
 		transfer = self.transfer
 		transfer.newshare = self
-		config = self.newbackup.config
+		hostconfig = self.host.config
 
-		self.sharedir.mkdir()
+		info = dict(
+			failed = False,
+			name = self.name,
+			path = self.path,
+			mountpoint = self.mountpoint,
+		)
 
-		with config.setenv(self.env):
+		with hostconfig.setenv(self.env):
 			self.pre_command(fruitbak = self.fruitbak, host = self.host, backup = self.newbackup, newshare = self)
+
+		info['startTime'] = time_ns()
 
 		with self.hardhat_maker:
 			transfer.transfer()
 
-		with config.setenv(self.env):
+		info['endTime'] = time_ns()
+
+		with hostconfig.setenv(self.env):
 			self.post_command(fruitbak = self.fruitbak, host = self.host, backup = self.newbackup, newshare = self)
+
+		with open('info.json', 'w', opener = opener(dir_fd = self.sharedir_fd, mode = 0o666)) as fp:
+			dump_json(info, fp)
+
+		return info
