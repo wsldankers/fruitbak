@@ -73,7 +73,7 @@ def fruitwalk(top = '.', topdown = True, onerror = None, *, dir_fd = None):
 			except Exception as e:
 				onerror(e)
 			if is_same:
-				yield from _fruitwalk(fd, Path(top), topdown, onerror)
+				yield from _fruitwalk(fd, Path(), topdown, onerror)
 		finally:
 			fd.close()
 
