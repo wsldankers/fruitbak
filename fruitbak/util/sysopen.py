@@ -17,7 +17,7 @@ from os import (
 )
 from os.path import samestat
 from stat import S_ISDIR, S_ISREG, S_ISLNK
-from pathlib import Path
+from pathlib import PurePath
 
 from fruitbak.util.clarity import Clarity, initializer
 
@@ -27,23 +27,27 @@ except ImportError:
 	# that's ok, O_PATH is just advisory
 	O_PATH = 0
 
-def sysopendir(path, dir_fd = None, path_only = None, follow_symlinks = True, create_ok = False):
-	if isinstance(path, Path):
+try:
+	from os import O_LARGEFILE
+except ImportError:
+	# that's ok, O_LARGEFILE is just advisory
+	O_LARGEFILE = 0
+
+def sysopendir(path, dir_fd = None, mode = 0o777, path_only = None, follow_symlinks = True, create_ok = False):
+	flags = O_DIRECTORY|O_RDONLY
+	if isinstance(path, PurePath):
 		path = str(path)
-	flags = O_DIRECTORY|O_CLOEXEC|O_RDONLY|O_NOCTTY
 	if path_only:
 		flags |= O_PATH
-	if not follow_symlinks:
-		flags |= O_NOFOLLOW
 	if create_ok:
 		try:
-			return sysopen(path, flags, dir_fd = dir_fd)
+			return sysopen(path, flags, dir_fd = dir_fd, follow_symlinks = follow_symlinks)
 		except FileNotFoundError:
 			try:
-				mkdir(path, dir_fd = dir_fd)
+				mkdir(path, mode, dir_fd = dir_fd)
 			except FileExistsError:
 				pass
-	return sysopen(path, flags, dir_fd = dir_fd)
+	return sysopen(path, flags, dir_fd = dir_fd, follow_symlinks = follow_symlinks)
 
 def opener(**kwargs):
 	def opener(path, flags):
@@ -123,8 +127,17 @@ class sysopen(int):
 	context methods, utility methods for reading and writing reliably"""
 	closed = False
 
-	def __new__(cls, *args, **kwargs):
-		fd = os_open(*args, **kwargs)
+	def __new__(cls, path, flags, mode = 0o666, follow_symlinks = True, controlling_tty = False, close_on_exec = True, **kwargs):
+		flags |= O_LARGEFILE
+		if not follow_symlinks:
+			flags |= O_NOFOLLOW
+		if not controlling_tty:
+			flags |= O_NOCTTY
+		if close_on_exec:
+			flags |= O_CLOEXEC
+		if isinstance(path, PurePath):
+			path = str(path)
+		fd = os_open(path, flags, mode, **kwargs)
 		try:
 			return super().__new__(cls, fd)
 		except:
@@ -175,7 +188,7 @@ class sysopen(int):
 		buffer_len = len(buffer)
 		while True:
 			try:
-				offset = write(fd, buffer)
+				offset = os_write(self, buffer)
 			except InterruptedError:
 				pass
 			else:
@@ -185,7 +198,7 @@ class sysopen(int):
 				buffer = memoryview(buffer)
 			while offset < buffer_len:
 				try:
-					offset += write(fd, buffer[offset:])
+					offset += os_write(self, buffer[offset:])
 				except InterruptedError:
 					pass
 

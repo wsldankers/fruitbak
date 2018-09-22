@@ -2,7 +2,7 @@ from fruitbak.util.clarity import Clarity, initializer
 from fruitbak.util.sysopen import sysopen, sysopendir
 from fruitbak.dentry import Dentry
 
-from os import fwalk, stat, readlink, listdir, major, minor, O_RDONLY, O_DIRECTORY, O_NOFOLLOW, O_CLOEXEC, O_NOCTTY, O_NOATIME
+from os import fwalk, stat, readlink, listdir, major, minor, O_RDONLY, O_NOATIME
 from os.path import join as path_join, split as path_split, samestat
 from pathlib import Path
 from sys import stderr
@@ -111,7 +111,7 @@ class LocalTransfer(Clarity):
 						seen[ino] = path
 					if dentry.is_file:
 						try:
-							fd = sysopen(name, O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NOCTTY, dir_fd = root_fd)
+							fd = sysopen(name, O_RDONLY, dir_fd = root_fd, follow_symlinks = False)
 						except:
 							print_exc(file = stderr)
 						else:

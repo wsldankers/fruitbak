@@ -33,22 +33,23 @@ class Fruitbak(Clarity):
 
 	@initializer
 	def confdir_fd(self):
-		return sysopendir(self.confdir, dir_fd = self.rootdir_fd)
+		if 'rootdir' in self.__dict__:
+			return sysopendir(self.confdir, dir_fd = self.rootdir_fd)
+		else:
+			return sysopendir(self.confdir)
 
-	@initializer
+	@configurable
 	def rootdir(self):
-		dir = getenv('FRUITBAK_ROOT')
-		if dir is None:
-			dir = getenv('HOME')
-			if dir is None:
-				raise RuntimeError("$HOME not set")
-		self.rootdir = dir
-		config = self.config
-		try:
-			dir = config['rootdir']
-		except KeyError:
-			pass
-		return Path(dir)
+		assert False
+		for envvar in ('FRUITBAK_ROOT', 'HOME'):
+			dir = getenv(envvar)
+			if dir is not None:
+				return dir
+		raise RuntimeError("$HOME not set")
+
+	@rootdir.prepare
+	def rootdir(self, value):
+		return Path(value)
 
 	@initializer
 	def rootdir_fd(self):

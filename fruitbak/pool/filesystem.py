@@ -1,5 +1,4 @@
 from fruitbak.util.clarity import Clarity, initializer
-from fruitbak.util.locking import locked
 from fruitbak.util.sysopen import sysopen, sysopendir
 from fruitbak.pool.handler import Storage
 from fruitbak.pool.agent import PoolReadahead, PoolAction
@@ -7,12 +6,11 @@ from fruitbak.config import configurable
 
 from hashset import Hashset
 
-from weakref import ref as weakref
 from base64 import b64encode, b64decode
 from traceback import print_exc
 from sys import stderr, exc_info
 from concurrent.futures import ThreadPoolExecutor
-from tempfile import NamedTemporaryFile
+from threading import get_ident as get_thread_id
 from os import (
 	access, fstat,
 	open as os_open, close,
@@ -21,14 +19,14 @@ from os import (
 	listdir,
 	fsdecode,
 	F_OK,
-	O_DIRECTORY, O_CLOEXEC, O_NOCTTY, O_RDONLY, O_WRONLY
+	O_RDONLY, O_WRONLY, O_EXCL, O_CREAT
 )
-from errno import EROFS
+
 from pathlib import Path
 from re import compile as re
 
 from time import sleep
-from random import random, randrange
+from random import getrandbits
 
 #b64order = bytes(b64encode(bytes((i * 4,)), b'+_')[0] for i in range(64)).decode()
 #b64set = set(b64order)
@@ -109,6 +107,48 @@ class Filesystem(Storage):
 
 		self.executor.submit(windshield)
 
+	class NamedTemporaryFile(sysopen):
+		def __new__(cls, path, mode = 0o666, *, dir_fd = None):
+			name = 'tmp@' + str(get_thread_id()) + '@' + my_b64encode(getrandbits(128).to_bytes(16, 'big'))
+			path = Path(path) / name
+			self = super().__new__(cls, path, O_WRONLY|O_EXCL|O_CREAT, dir_fd = dir_fd)
+			self.path = path
+			self.dir_fd = dir_fd
+			return self
+
+		@property
+		def xpath(self):
+			raise RuntimeError("this temporary file is already closed")
+
+		@property
+		def xdir_fd(self):
+			raise RuntimeError("this temporary file is already closed")
+
+		def close(self):
+			path = self.path
+			dir_fd = self.dir_fd
+			del self.path
+			del self.dir_fd
+			try:
+				unlink(str(path), dir_fd = dir_fd)
+			except FileNotFoundError:
+				pass
+
+		def __enter__(self):
+			return self
+
+		def __exit__(self, exc_type, exc_value, traceback):
+			self.close()
+
+		def __del__(self):
+			try:
+				self.close()
+			except:
+				pass
+
+	def tmpfile(self, path):
+		return self.NamedTemporaryFile(path, dir_fd = self.pooldir_fd)
+
 	def has_chunk(self, callback, hash):
 		path = self.hash2path(hash)
 		pooldir_fd = self.pooldir_fd
@@ -128,7 +168,7 @@ class Filesystem(Storage):
 		def job():
 			try:
 				results = []
-				with sysopen(str(path), O_RDONLY|O_CLOEXEC|O_NOCTTY, dir_fd = pooldir_fd) as fd:
+				with sysopen(path, O_RDONLY, dir_fd = pooldir_fd) as fd:
 					size = fstat(fd).st_size
 					bytes_read = 0
 					while bytes_read < size:
@@ -157,27 +197,26 @@ class Filesystem(Storage):
 		path = self.hash2path(hash)
 		path_str = str(path)
 		parent = path.parent
-		parent_str = str(parent)
+		tmpfile = self.tmpfile
+		pooldir_fd = self.pooldir_fd
 
 		def job():
 			value_len = len(value)
 			try:
-				if not path.exists():
+				if not access(path_str, F_OK, dir_fd = pooldir_fd):
 					try:
-						tmp = NamedTemporaryFile(dir = parent_str, buffering = 0)
+						tmp = tmpfile(parent)
 					except FileNotFoundError:
-						parent.mkdir(exist_ok = True)
-						tmp = NamedTemporaryFile(dir = parent_str, buffering = 0)
-					with tmp as f:
-						offset = f.write(value)
-						if offset < value_len:
-							m = memoryview(value)
-							while offset < value_len:
-								offset += f.write(m[offset:])
-						f.flush()
-						fsync(f.fileno())
 						try:
-							link(f.name, path_str)
+							mkdir(str(parent), dir_fd = pooldir_fd)
+						except FileExistsError:
+							pass
+						tmp = tmpfile(parent)
+					with tmp:
+						tmp.write(value)
+						fsync(tmp)
+						try:
+							link(str(tmp.path), path_str, src_dir_fd = pooldir_fd, dst_dir_fd = pooldir_fd)
 						except FileExistsError:
 							pass
 			except:
