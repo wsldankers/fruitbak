@@ -127,13 +127,13 @@ class sysopen(int):
 	context methods, utility methods for reading and writing reliably"""
 	closed = False
 
-	def __new__(cls, path, flags, mode = 0o666, follow_symlinks = True, controlling_tty = False, close_on_exec = True, **kwargs):
+	def __new__(cls, path, flags, mode = 0o666, follow_symlinks = True, controlling_tty = False, inheritable = True, **kwargs):
 		flags |= O_LARGEFILE
 		if not follow_symlinks:
 			flags |= O_NOFOLLOW
 		if not controlling_tty:
 			flags |= O_NOCTTY
-		if close_on_exec:
+		if inheritable:
 			flags |= O_CLOEXEC
 		if isinstance(path, PurePath):
 			path = str(path)
