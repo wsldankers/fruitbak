@@ -1,5 +1,4 @@
-from fruitbak.util.clarity import Clarity, initializer
-from fruitbak.util.sysopen import sysopen, sysopendir
+from fruitbak.util import Clarity, initializer, sysopen, sysopendir
 from fruitbak.dentry import Dentry
 
 from os import fwalk, stat, readlink, listdir, major, minor, O_RDONLY, O_NOATIME

@@ -1,7 +1,6 @@
 """Represent a backup"""
 
-from fruitbak.util.clarity import Clarity, initializer
-from fruitbak.util.sysopen import sysopendir, opener
+from fruitbak.util import Clarity, initializer, sysopendir, opener
 from fruitbak.share import Share
 
 from hardhat import normalize as hardhat_normalize

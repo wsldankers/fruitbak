@@ -1,7 +1,6 @@
 """Represent hosts to back up"""
 
-from fruitbak.util.clarity import Clarity, initializer
-from fruitbak.util.sysopen import sysopendir, opener
+from fruitbak.util import Clarity, initializer, sysopendir, opener
 from fruitbak.dentry import Dentry, HardlinkDentry, dentry_layout_size
 
 from hardhat import Hardhat

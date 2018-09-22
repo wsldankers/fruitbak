@@ -1,10 +1,9 @@
 """Top-level object for a Fruitbak installation"""
 
-from fruitbak.util.clarity import Clarity, initializer
-from fruitbak.util.sysopen import sysopendir
+from fruitbak.util import Clarity, initializer, sysopendir
 from fruitbak.host import Host
-from fruitbak.config import Config, configurable, configurable_function
 from fruitbak.pool import Pool
+from fruitbak.config import Config, configurable, configurable_function
 
 from weakref import WeakValueDictionary
 from pathlib import Path

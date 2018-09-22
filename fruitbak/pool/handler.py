@@ -1,6 +1,4 @@
-from fruitbak.util.clarity import Clarity, stub, initializer
-from fruitbak.util.locking import locked
-from fruitbak.util.weak import weakproperty
+from fruitbak.util import Clarity, stub, initializer, locked, weakproperty
 
 from threading import RLock
 from concurrent.futures import ThreadPoolExecutor

@@ -1,5 +1,4 @@
-from fruitbak.util.clarity import Clarity, initializer, xyzzy
-from fruitbak.util.sysopen import sysopendir, opener
+from fruitbak.util import Clarity, initializer, xyzzy, sysopendir, opener
 from fruitbak.config import configurable
 from fruitbak.transfer.local import LocalTransfer
 
@@ -61,7 +60,7 @@ class NewShare(Clarity):
 
 	@initializer
 	def sharedir_fd(self):
-		return sysopendir(self.sharedir, dir_fd = self.newbackup.sharedir_fd, create_ok = True)
+		return sysopendir(self.sharedir, dir_fd = self.newbackup.sharedir_fd, create_ok = True, path_only = True)
 
 	@initializer
 	def fruitbak(self):

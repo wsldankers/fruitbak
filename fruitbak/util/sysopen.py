@@ -19,7 +19,7 @@ from os.path import samestat
 from stat import S_ISDIR, S_ISREG, S_ISLNK
 from pathlib import PurePath
 
-from fruitbak.util.clarity import Clarity, initializer
+from fruitbak.util import Clarity, initializer
 
 try:
 	from os import O_PATH

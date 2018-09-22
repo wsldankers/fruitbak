@@ -1,5 +1,4 @@
-from fruitbak.util.clarity import Clarity, initializer
-from fruitbak.util.sysopen import sysopen, sysopendir
+from fruitbak.util import Clarity, initializer, sysopen, sysopendir
 from fruitbak.pool.handler import Storage
 from fruitbak.pool.agent import PoolReadahead, PoolAction
 from fruitbak.config import configurable
@@ -282,7 +281,7 @@ else:
 			return sysopendir("/proc/self/fd", path_only = True)
 
 		def tmpfile(self, path):
-			return sysopen(path, O_TMPFILE|O_WRONLY|O_CLOEXEC|O_NOCTTY, dir_fd = self.pooldir_fd)
+			return sysopen(path, O_TMPFILE|O_WRONLY, dir_fd = self.pooldir_fd)
 
 		def put_chunk(self, callback, hash, value):
 			path = self.hash2path(hash)

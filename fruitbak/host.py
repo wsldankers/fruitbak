@@ -1,7 +1,6 @@
 """Represent hosts to back up"""
 
-from fruitbak.util.clarity import Clarity, initializer
-from fruitbak.util.sysopen import sysopendir
+from fruitbak.util import Clarity, initializer, sysopendir
 from fruitbak.config import Config
 from fruitbak.backup import Backup
 from fruitbak.new.backup import NewBackup

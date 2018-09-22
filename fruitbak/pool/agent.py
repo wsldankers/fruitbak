@@ -4,10 +4,7 @@ from threading import Condition
 from collections import deque
 from sys import stderr
 
-from fruitbak.util.clarity import Clarity, initializer
-from fruitbak.util.heapmap import MinHeapMap
-from fruitbak.util.weakheapmap import MinWeakHeapMap
-from fruitbak.util.locking import locked
+from fruitbak.util import Clarity, initializer, MinHeapMap, MinWeakHeapMap
 
 class PoolAction(Clarity):
 	done = False

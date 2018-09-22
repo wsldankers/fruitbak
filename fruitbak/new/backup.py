@@ -3,9 +3,8 @@ from fcntl import flock, LOCK_EX, LOCK_NB
 from pathlib import Path
 from json import dump as dump_json
 
+from fruitbak.util import Clarity, initializer, sysopendir, opener, xyzzy
 from fruitbak.config import configurable, configurable_function
-from fruitbak.util.clarity import Clarity, initializer, xyzzy
-from fruitbak.util.sysopen import sysopendir, opener
 from fruitbak.new.share import NewShare, time_ns
 
 class NewBackup(Clarity):
@@ -51,7 +50,7 @@ class NewBackup(Clarity):
 
 	@initializer
 	def sharedir_fd(self):
-		return sysopendir(self.sharedir, dir_fd = self.backupdir_fd, create_ok = True)
+		return sysopendir(self.sharedir, dir_fd = self.backupdir_fd, create_ok = True, path_only = True)
 
 	@initializer
 	def predecessor(self):

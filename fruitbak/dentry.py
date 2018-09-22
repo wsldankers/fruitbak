@@ -1,6 +1,6 @@
 """Represent entries in a filesystem."""
 
-from fruitbak.util.clarity import Clarity, initializer
+from fruitbak.util import Clarity, initializer
 from stat import *
 from io import RawIOBase, TextIOWrapper
 from struct import pack, unpack, Struct
