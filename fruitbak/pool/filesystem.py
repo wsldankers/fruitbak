@@ -168,23 +168,7 @@ class Filesystem(Storage):
 			try:
 				results = []
 				with sysopen(path, O_RDONLY, dir_fd = pooldir_fd) as fd:
-					size = fstat(fd).st_size
-					bytes_read = 0
-					while bytes_read < size:
-						try:
-							buf = read(fd, size - bytes_read)
-						except InterruptedError:
-							pass
-						else:
-							if not buf:
-								break
-							bytes_read += len(buf)
-							results.append(buf)
-				if len(results) == 1:
-					buf, = results
-				else:
-					buf = b''.join(results)
-
+					buf = fd.read(fstat(fd).st_size)
 			except:
 				callback(None, exc_info())
 			else:
@@ -304,20 +288,7 @@ else:
 								pass
 							tmp = self.tmpfile(parent_str)
 						with tmp as fd:
-							while True:
-								try:
-									offset = write(fd, value)
-								except InterruptedError:
-									pass
-								else:
-									break
-							if offset < value_len:
-								m = memoryview(value)
-								while offset < value_len:
-									try:
-										offset += write(fd, m[offset:])
-									except InterruptedError:
-										pass
+							fd.write(value)
 							fsync(fd)
 							try:
 								link(str(fd), path_str, src_dir_fd = proc_self_fd, dst_dir_fd = pooldir_fd)

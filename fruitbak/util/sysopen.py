@@ -169,15 +169,11 @@ class sysopen(int):
 			raise ValueError("I/O operation on closed file.")
 		results = []
 		while size > 0:
-			try:
-				buf = os_read(self, size)
-			except InterruptedError:
-				pass
-			else:
-				if not buf:
-					break
-				size -= len(buf)
-				results.append(buf)
+			buf = os_read(self, size)
+			if not buf:
+				break
+			size -= len(buf)
+			results.append(buf)
 
 		if len(results) == 1:
 			return results[0]
@@ -186,21 +182,12 @@ class sysopen(int):
 
 	def write(self, buffer):
 		buffer_len = len(buffer)
-		while True:
-			try:
-				offset = os_write(self, buffer)
-			except InterruptedError:
-				pass
-			else:
-				break
+		offset = os_write(self, buffer)
 		if offset < buffer_len:
 			if not isinstance(buffer, memoryview):
 				buffer = memoryview(buffer)
 			while offset < buffer_len:
-				try:
-					offset += os_write(self, buffer[offset:])
-				except InterruptedError:
-					pass
+				offset += os_write(self, buffer[offset:])
 
 	def scandir(self):
 		try:
