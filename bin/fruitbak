@@ -267,18 +267,30 @@ def backup(host):
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 	fbak[host].backup()
 
-
 @cli.command()
 def gc():
 	"""Clean up"""
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 
 	# delete root/hashes
-	# delete old backups
-	# generate new root/hashes
-	# clean up the pool
+	fbak.remove_hashes()
 
-	print(repr(fbak.generate_hashes()))
+	# delete old backups
+	for host in fbak:
+		for backup in host:
+			if backup.expired:
+				print("removing", host.name, backup.index)
+				backup.remove()
+
+	# generate new root/hashes
+	hashes = fbak.generate_hashes()
+
+	# clean up the pool
+	agent = fbak.pool.agent()
+	for hash in agent.lister():
+		if hash not in hashes:
+			agent.del_chunk(hash, async = True)
+	agent.sync()
 
 @cli.command()
 def pooltest():

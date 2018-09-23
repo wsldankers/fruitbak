@@ -47,20 +47,20 @@ class FilesystemListAction(PoolAction):
 
 class FilesystemListahead(PoolReadahead):
 	def dequeue(self):
-		assert self.lock
+		lock = self.lock
+		assert lock
 
-		cond = self.cond
 		agent = self.agent
 
 		iterator = self.iterator
 		if iterator is None:
-			self.agent.register_readahead(self)
+			agent.register_readahead(self)
 			return
 
 		directory = next(iterator, None)
 		if directory is None:
 			self.iterator = None
-			self.agent.register_readahead(self)
+			agent.register_readahead(self)
 			return
 
 		action = FilesystemListAction(directory = directory)
@@ -68,10 +68,10 @@ class FilesystemListahead(PoolReadahead):
 		pool = self.pool
 
 		def when_done(cursor, exception):
-			with cond:
-				action.cursor = cursor
-				action.exception = exception
-				action.done = True
+			assert lock
+			action.cursor = cursor
+			action.exception = exception
+			action.done = True
 		self.submit(self.filesystem.listdir, when_done, directory)
 
 		agent.register_readahead(self)

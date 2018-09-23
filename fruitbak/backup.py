@@ -8,8 +8,17 @@ from hashset import Hashset
 
 from json import load as load_json
 from weakref import WeakValueDictionary
-from os import fsencode, rename
+from os import fsencode, rename, unlink, rmdir, fwalk
 from pathlib import Path
+
+from time import localtime, mktime, struct_time
+
+try:
+	from time import time_ns
+except ImportError:
+	from time import time
+	def time_ns():
+		return int(time() * 1000000000.0)
 
 class Backup(Clarity):
 	"""Represent a finished backup.
@@ -95,6 +104,89 @@ class Backup(Clarity):
 	@initializer
 	def failed(self):
 		return bool(self.info.get('failed', False))
+
+	def remove(self):
+		def onerror(exc):
+			raise exc
+
+		for root, dirs, files, root_fd in fwalk(dir_fd = self.backupdir_fd, topdown = False, onerror = onerror):
+			for name in files:
+				unlink(name, dir_fd = root_fd)
+			for name in dirs:
+				rmdir(name, dir_fd = root_fd)
+
+		rmdir(str(self.backupdir), dir_fd = self.host.hostdir_fd)
+
+	@property
+	def age_seconds(self):
+		return self.start_time / 1000000000
+
+	@property
+	def age_minutes(self):
+		return self.start_time / 60000000000
+
+	@property
+	def age_hours(self):
+		return self.start_time / 3600000000000
+
+	@property
+	def age_days(self):
+		return self.start_time / 86400000000000
+
+	@property
+	def age_weeks(self):
+		return self.start_time / 604800000000000
+
+	@property
+	def age_months(self):
+		start_time = self.start_time
+		start_timestruct = localtime(start_time // 1000000000)
+		beginning_of_start_month = int(mktime((
+			start_timestruct.tm_year,
+			start_timestruct.tm_mon,
+			1, 0, 0, 0, 0, 0, -1,
+		)) * 1000000000)
+		ending_of_start_month = int(mktime((
+			start_timestruct.tm_year,
+			start_timestruct.tm_mon + 1,
+			1, 0, 0, 0, 0, 0, -1,
+		)) * 1000000000)
+		start_month_ratio = (start_time - beginning_of_start_month) \
+			/ (ending_of_start_month - beginning_of_start_month)
+
+		current_time = time_ns()
+		current_timestruct = localtime(current_time // 1000000000)
+		beginning_of_current_month = int(mktime((
+			current_timestruct.tm_year,
+			current_timestruct.tm_mon,
+			1, 0, 0, 0, 0, 0, -1,
+		)) * 1000000000)
+		ending_of_current_month = int(mktime((
+			current_timestruct.tm_year,
+			current_timestruct.tm_mon + 1,
+			1, 0, 0, 0, 0, 0, -1,
+		)) * 1000000000)
+		current_month_ratio = (current_time - beginning_of_current_month) \
+			/ (ending_of_current_month - beginning_of_current_month)
+
+		return (current_timestruct.tm_year * 12 + current_timestruct.tm_mon) \
+			- (start_timestruct.tm_year * 12 + start_timestruct.tm_mon) \
+			+ current_month_ratio - start_month_ratio
+
+	@property
+	def expired(self):
+		try:
+			configured = self.host.config['expired']
+		except KeyError:
+			return self.age_months > 3
+		else:
+			return configured(self)
+
+	@property
+	def log_tier(self):
+		# abuse the side effect:
+		iter(self.host)
+		return self.__dict__['log_tier']
 
 	def locate_path(self, path):
 		original_path = path

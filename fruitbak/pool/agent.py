@@ -426,7 +426,7 @@ class PoolAgent(Clarity):
 
 		action.sync()
 
-	def del_chunk(self, hash, value, async = False):
+	def del_chunk(self, hash, async = False):
 		cond = self.cond
 		pool = self.pool
 		with cond:
@@ -436,7 +436,7 @@ class PoolAgent(Clarity):
 			if self.exception:
 				raise RuntimeError("an operation has failed. call agent.sync() first") from self.exception[1]
 
-			action = PoolDelAction(hash = hash, value = value, cond = cond)
+			action = PoolDelAction(hash = hash, cond = cond)
 			def when_done(exception):
 				with cond:
 					del self.pending_writes[action]
@@ -452,7 +452,7 @@ class PoolAgent(Clarity):
 				self.next_action_serial = serial + 1
 				self.pending_writes[action] = serial
 				self.update_registration()
-				pool.del_chunk(when_done, hash, value)
+				pool.del_chunk(when_done, hash)
 
 			self.mailhook = mailbag
 			pool.register_agent(self)
@@ -467,7 +467,8 @@ class PoolAgent(Clarity):
 		action.sync()
 
 	def lister(self):
-		return self.pool.root.lister(self)
+		with self.cond:
+			return self.pool.root.lister(self)
 
 	def sync(self):
 		pending_writes = self.pending_writes

@@ -135,6 +135,12 @@ class Fruitbak(Clarity):
 		except FileNotFoundError:
 			return self.generate_hashes()
 
+	def remove_hashes(self):
+		try:
+			unlink('hashes', dir_fd = self.rootdir_fd)
+		except FileNotFoundError:
+			pass
+
 	@initializer
 	def pool(self):
 		return Pool(fruitbak = self)

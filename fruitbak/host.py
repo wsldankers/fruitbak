@@ -12,6 +12,41 @@ import re
 
 numbers_re = re.compile('0|[1-9][0-9]*')
 
+def ffs(x):
+	"""Calculate the number of trailing zero bits of an int"""
+
+	if x <= 0:
+		return 0
+	chunk = 1
+
+	# Double the speed with which we attempt to find a 1.
+	# Stop when we find it.
+	while x & ((1 << chunk) - 1) == 0:
+		chunk <<= 1
+
+	# Our last attempt found a 1, so apparently that was too much.
+	chunk >>= 1
+
+	# Ok, so chunk number of bits are confirmed to be 0. Shift those
+	# out so we can focus on the rest.
+	x >>= chunk
+	total = chunk
+
+	# Now that we adjusted x, we know we could never have this many
+	# zeros left (otherwise chunk would be double the value).
+	chunk >>= 1
+
+	# Now halve our speed each time.
+	# We know we can't have the same number of bits twice in a row
+	# because then we would have caught it in the previous iteration.
+	while chunk:
+		if x & ((1 << chunk) - 1) == 0:
+			x >>= chunk
+			total += chunk
+		chunk >>= 1
+
+	return total
+
 class Host(Clarity):
 	"""Represent hosts to back up.
 
@@ -73,6 +108,16 @@ class Host(Clarity):
 					backupcache[index] = backup
 				backups.append(backup)
 		backups.sort(key = lambda b: b.index)
+		log_indices = {}
+		for backup in reversed(backups):
+			index = backup.index
+			if index == 0:
+				backup.__dict__['log_tier'] = 0
+			else:
+				log_tier = ffs(index)
+				# can't set the attribute directly because it's a property
+				backup.__dict__['log_tier'] = log_indices.setdefault(log_tier, 0)
+				log_indices[log_tier] += 1
 		return iter(backups)
 
 	def __getitem__(self, index):
