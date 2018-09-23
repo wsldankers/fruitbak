@@ -33,10 +33,23 @@ except ImportError:
 	# that's ok, O_LARGEFILE is just advisory
 	O_LARGEFILE = 0
 
+def unpath(path):
+	if isinstance(path, PurePath):
+		return str(path)
+	else:
+		return path
+
+def is_bytes_like(obj):
+	try:
+		memoryview(obj)
+	except TypeError:
+		return False
+	else:
+		return True
+
 def sysopendir(path, dir_fd = None, mode = 0o777, path_only = None, follow_symlinks = True, create_ok = False):
 	flags = O_DIRECTORY|O_RDONLY
-	if isinstance(path, PurePath):
-		path = str(path)
+	path = unpath(path)
 	if path_only:
 		flags |= O_PATH
 	if create_ok:
@@ -135,9 +148,7 @@ class sysopen(int):
 			flags |= O_NOCTTY
 		if inheritable:
 			flags |= O_CLOEXEC
-		if isinstance(path, PurePath):
-			path = str(path)
-		fd = os_open(path, flags, mode, **kwargs)
+		fd = os_open(unpath(path), flags, mode, **kwargs)
 		try:
 			return super().__new__(cls, fd)
 		except:
@@ -195,3 +206,113 @@ class sysopen(int):
 		except TypeError:
 			for name in listdir(self):
 				yield DirEntry(name = name, dir_fd = self)
+
+	def listdir(self):
+		return listdir(self)
+
+	def fstat(self, **kwargs):
+		return os_stat(self, dir_fd = None, **kwargs)
+
+
+	def truncate(self, arg, *args, **kwargs):
+		if args:
+			# arg is a path, args contains length
+			if isinstance(arg, int):
+				raise RuntimeError("to truncate the fd itself, omit the parameter")
+			return os_truncate(unpath(arg), *args, dir_fd = self, **kwargs)
+		else:
+			# arg is the length
+			return os_truncate(self, arg, dir_fd = None, **kwargs)
+
+	def stat(self, *args, **kwargs):
+		if args:
+			path = args.pop[0]
+			if isinstance(path, int):
+				raise RuntimeError("to stat the fd itself, use fstat")
+			return os_stat(unpath(path), *args, dir_fd = self, **kwargs)
+		else:
+			return os_stat(self, dir_fd = None, **kwargs)
+
+	def utime(self, *args, **kwargs):
+		if args:
+			arg = args[0]
+			if isinstance(arg, int):
+				raise RuntimeError("to utime the fd itself, omit the parameter")
+			if isinstance(arg, str) or isinstance(arg, PurePath) or is_bytes_like(arg):
+				args.pop(0)
+				return os_utime(unpath(arg), *args, dir_fd = self, **kwargs)
+		return os_utime(self, *args, dir_fd = None, **kwargs)
+
+
+	def open(self, path, flags, *args, **kwargs):
+		os_open(unpath(path), flags, *args, dir_fd = self, **kwargs)
+
+	def sysopen(self, path, *args, **kwargs):
+		return sysopen(path, *args, dir_fd = self, **kwargs)
+
+	def sysdiropen(self, path, **kwargs):
+		return sysdiropen(path, dir_fd = self, **kwargs)
+
+	def mkdir(self, path, *args, exist_ok = False, **kwargs):
+		try:
+			return os_mkdir(unpath(path), *args, dir_fd = self, **kwargs)
+		except FileExistsError:
+			if not exist_ok:
+				raise
+
+	def mkpipe(self, path, *args, exist_ok = False, **kwargs):
+		try:
+			return os_mkpipe(unpath(path), *args, dir_fd = self, **kwargs)
+		except FileExistsError:
+			if not exist_ok:
+				raise
+
+	def mknod(self, path, *args, exist_ok = False, **kwargs):
+		try:
+			return os_mknod(unpath(path), *args, dir_fd = self, **kwargs)
+		except FileExistsError:
+			if not exist_ok:
+				raise
+
+	def symlink(self, src, *args, exist_ok = False, **kwargs):
+		try:
+			return os_symlink(unpath(path), *args, dir_fd = self, **kwargs)
+		except FileExistsError:
+			if not exist_ok:
+				raise
+
+	def unlink(self, path, *, missing_ok = False, **kwargs):
+		try:
+			return os_unlink(unpath(path), dir_fd = self, **kwargs)
+		except FileNotFoundError:
+			if not missing_ok:
+				raise
+
+	def remove(self, path, *, missing_ok = False, **kwargs):
+		try:
+			return os_remove(unpath(path), dir_fd = self, **kwargs)
+		except FileNotFoundError:
+			if not missing_ok:
+				raise
+
+	def rmdir(self, path, **kwargs):
+		try:
+			return os_rmdir(unpath(path), dir_fd = self, **kwargs)
+		except FileNotFoundError:
+			if not missing_ok:
+				raise
+
+	def rename(self, src, dst, *, dir_fd = None, **kwargs):
+		if dir_fd is None:
+			dir_fd = self
+		return os_rename(unpath(src), unpath(dst), src_dir_fd = self, dst_dir_fd = dir_fd, **kwargs)
+
+	def replace(self, src, dst, *, dir_fd = None, **kwargs):
+		if dir_fd is None:
+			dir_fd = self
+		return os_replace(unpath(src), unpath(dst), src_dir_fd = self, dst_dir_fd = dir_fd, **kwargs)
+
+	def link(self, src, dst, *, dir_fd = None, **kwargs):
+		if dir_fd is None:
+			dir_fd = self
+		return os_link(unpath(src), unpath(dst), src_dir_fd = self, dst_dir_fd = dir_fd, **kwargs)
