@@ -152,7 +152,7 @@ class sysopen(int):
 		try:
 			return super().__new__(cls, fd)
 		except:
-			close(fd)
+			os_close(fd)
 			raise
 
 	def __del__(self):
@@ -212,6 +212,14 @@ class sysopen(int):
 
 	def fstat(self, **kwargs):
 		return os_stat(self, dir_fd = None, **kwargs)
+
+	def sysdup(self):
+		fd = dup(self)
+		try:
+			return super(sysopen, sysopen).__new__(sysopen, fd)
+		except:
+			os_close(fd)
+			raise
 
 
 	def truncate(self, arg, *args, **kwargs):
