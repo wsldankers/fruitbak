@@ -14,6 +14,7 @@ from sys import stderr
 from os import getenv, getpid, scandir, rename, unlink
 from threading import get_ident as gettid
 from concurrent.futures import ThreadPoolExecutor
+from itertools import chain
 
 class Fruitbak(Clarity):
 	"""Top-level object for a Fruitbak installation.
@@ -107,9 +108,10 @@ class Fruitbak(Clarity):
 	def generate_digests(self):
 		pmap = self.executor.map
 
-		backups = []
-		for bb in pmap(tuple, self):
-			backups.extend(bb)
+		# iterate over self, which gives a list of hosts
+		# then apply tuple() to each host, giving lists of backups
+		# then chain to concatenate those tuples
+		backups = chain(*pmap(tuple, self))
 
 		digests = pmap(lambda s: s.digests, backups)
 
@@ -119,7 +121,7 @@ class Fruitbak(Clarity):
 		try:
 			Hashset.merge(*digests, path = tempname, dir_fd = rootdir_fd)
 			rename(tempname, 'hashes', src_dir_fd = rootdir_fd, dst_dir_fd = rootdir_fd)
-		finally:
+		except:
 			try:
 				unlink(tempname, dir_fd = rootdir_fd)
 			except FileNotFoundError:

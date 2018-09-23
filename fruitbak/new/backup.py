@@ -3,6 +3,8 @@ from fcntl import flock, LOCK_EX, LOCK_NB
 from pathlib import Path
 from json import dump as dump_json
 
+from hashset import Hashset
+
 from fruitbak.util import Clarity, initializer, sysopendir, opener, xyzzy
 from fruitbak.config import configurable, configurable_function
 from fruitbak.new.share import NewShare, time_ns
@@ -86,6 +88,10 @@ class NewBackup(Clarity):
 			return pred.level + 1
 
 	@initializer
+	def hashes_fp(self):
+		 return open('hashes', 'wb', opener = opener(dir_fd = self.backupdir_fd))
+
+	@initializer
 	def env(self):
 		env = dict(self.host.env, backup = str(self.index))
 		predecessor = self.predecessor
@@ -134,6 +140,10 @@ class NewBackup(Clarity):
 			dump_json(info, fp)
 
 		hostdir_fd = self.host.hostdir_fd
+
+		self.hashes_fp.close()
+		Hashset.sortfile('hashes', self.fruitbak.hashsize, dir_fd = backupdir_fd)
+
 		rename('new', str(self.index), src_dir_fd = hostdir_fd, dst_dir_fd = hostdir_fd)
 
 		return info

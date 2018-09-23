@@ -82,7 +82,13 @@ class NewShare(Clarity):
 	def hardhat_maker(self):
 		return HardhatMaker('metadata.hh', dir_fd = self.sharedir_fd)
 
+	@initializer
+	def hashes_fp(self):
+		return self.newbackup.hashes_fp
+
 	def add_dentry(self, dentry):
+		if dentry.is_file and not dentry.is_hardlink:
+			self.hashes_fp.write(dentry.extra)
 		self.hardhat_maker.add(dentry.name, bytes(dentry))
 
 	def backup(self):
