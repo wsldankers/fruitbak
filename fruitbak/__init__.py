@@ -105,7 +105,7 @@ class Fruitbak(Clarity):
 			raise RuntimeError("chunksize must be a power of two")
 		return int(value)
 
-	def generate_digests(self):
+	def generate_hashes(self):
 		pmap = self.executor.map
 
 		# iterate over self, which gives a list of hosts
@@ -113,13 +113,13 @@ class Fruitbak(Clarity):
 		# then chain to concatenate those tuples
 		backups = chain(*pmap(tuple, self))
 
-		digests = pmap(lambda s: s.digests, backups)
+		hashes = pmap(lambda s: s.hashes, backups)
 
 		rootdir_fd = self.rootdir_fd
 
 		tempname = 'hashes.%d.%d' % (getpid(), gettid())
 		try:
-			Hashset.merge(*digests, path = tempname, dir_fd = rootdir_fd)
+			Hashset.merge(*hashes, path = tempname, dir_fd = rootdir_fd)
 			rename(tempname, 'hashes', src_dir_fd = rootdir_fd, dst_dir_fd = rootdir_fd)
 		except:
 			try:
@@ -129,11 +129,11 @@ class Fruitbak(Clarity):
 		return Hashset.load('hashes', self.hashsize, dir_fd = rootdir_fd)
 
 	@initializer
-	def stale_digests(self):
+	def stale_hashes(self):
 		try:
 			return Hashset.load('hashes', self.hashsize, dir_fd = self.rootdir_fd)
 		except FileNotFoundError:
-			return self.generate_digests()
+			return self.generate_hashes()
 
 	@initializer
 	def pool(self):

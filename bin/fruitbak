@@ -191,7 +191,7 @@ def cat(host, backup, share, path):
 	else:
 		share = backup[share]
 	dentry = share[path]
-	with fbak.pool.agent().readahead(dentry.digests) as reader:
+	with fbak.pool.agent().readahead(dentry.hashes) as reader:
 		for action in reader:
 			binary_stdout.write(action.value)
 
@@ -213,7 +213,7 @@ def tar(host, backup, share, path):
 	def iterator():
 		for dentry in share.find(path):
 			if dentry.is_file and not dentry.is_hardlink:
-				yield from dentry.digests
+				yield from dentry.hashes
 
 	with fbak.pool.agent().readahead(iterator()) as reader:
 		for dentry in share.find(path):
@@ -249,7 +249,7 @@ def tar(host, backup, share, path):
 			binary_stdout.write(i.tobuf(GNU_FORMAT))
 
 			if dentry.is_file and not dentry.is_hardlink:
-				for digest in dentry.digests:
+				for hash in dentry.hashes:
 					action = next(reader)
 					if action.exception:
 						raise action.exception
@@ -278,7 +278,7 @@ def gc():
 	# generate new root/hashes
 	# clean up the pool
 
-	print(repr(fbak.generate_digests()))
+	print(repr(fbak.generate_hashes()))
 
 @cli.command()
 def pooltest():

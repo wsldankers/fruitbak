@@ -121,20 +121,20 @@ class LocalTransfer(Clarity):
 									print_exc(file = stderr)
 								else:
 									if is_same:
-										digests = []
+										hashes = []
 										size = 0
 										while True:
 											buf = fd.read(chunksize)
 											if not buf:
 												break
 											agent.put_chunk(hashfunc(buf), buf, async = True)
-											digests.append(hashfunc(buf))
+											hashes.append(hashfunc(buf))
 											buf_len = len(buf)
 											size += buf_len
 											if buf_len < chunksize:
 												break
 							dentry.size = size
-							dentry.digests = digests
+							dentry.hashes = hashes
 					elif dentry.is_symlink:
 						try:
 							symlink = readlink(name, dir_fd = root_fd)

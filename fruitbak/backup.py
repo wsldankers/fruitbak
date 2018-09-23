@@ -53,7 +53,7 @@ class Backup(Clarity):
 		return WeakValueDictionary()
 
 	@initializer
-	def digests(self):
+	def hashes(self):
 		backupdir_fd = self.backupdir_fd
 		hashsize = self.fruitbak.hashsize
 		try:

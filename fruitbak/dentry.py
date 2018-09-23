@@ -193,30 +193,30 @@ class DentryIO(RawIOBase):
 
 		return n
 
-class DentryDigests(Clarity):
+class DentryHashes(Clarity):
 	@initializer
-	def digestview(self):
-		m = self.digests
+	def hashview(self):
+		m = self.hashes
 		if isinstance(m, memoryview):
 			return m
 		return memoryview(m)
 
 	def __iter__(self):
 		hashsize = self.hashsize
-		def digestiterator(digests):
+		def hashiterator(hashes):
 			offset = 0
-			length = len(digests)
+			length = len(hashes)
 			while offset < length:
 				next_offset = offset + hashsize
-				yield digests[offset:next_offset]
+				yield hashes[offset:next_offset]
 				offset = next_offset
-		return digestiterator(self.digestview)
+		return hashiterator(self.hashview)
 
 	def __len__(self):
-		return len(self.digests) // self.hashsize
+		return len(self.hashes) // self.hashsize
 
 	def __bytes__(self):
-		return self.digests
+		return self.hashes
 
 class Dentry(Clarity):
 	"""Represent entries in a filesystem.
@@ -230,12 +230,12 @@ class Dentry(Clarity):
 	when they are stored as part of the process of creating a backup, and when
 	listing or retrieving files in an existing backup.
 
-	Specific to Fruitbak is the digests information: the list of digests of the
+	Specific to Fruitbak is the hashes information: the list of hashes of the
 	data chunks that when concatenated form the contents of the file.
 
 	Hardlinks in Fruitbak are handled in a way that is more similar to symlinks
 	than the usual unix system of inode indirection. Hardlinks do not have
-	target file type specific information (such as digest lists) themselves; to
+	target file type specific information (such as hash lists) themselves; to
 	get that information you need to retrieve the entry using the name returned
 	by the hardlink function.
 
@@ -312,7 +312,7 @@ class Dentry(Clarity):
 	def open(self, mode = 'rb', agent = None):
 		if agent is None:
 			agent = self.agent
-		io = DentryIO(readahead = agent.readahead(self.digests))
+		io = DentryIO(readahead = agent.readahead(self.hashes))
 		if mode == 'rb':
 			return io
 		elif mode == 'r':
@@ -335,25 +335,25 @@ class Dentry(Clarity):
 		return S_ISREG(self.mode)
 
 	@property
-	def digests(self):
-		"""The digests for this file.
+	def hashes(self):
+		"""The hashes for this file.
 
-		DentryDigests, readwrite.
+		DentryHashes, readwrite.
 
 		Raises a NotAFileError exception if this dentry is not a regular file.
 		"""
 
 		if not self.is_file:
 			raise NotAFileError("'%s' is not a regular file" % dentry_decode(self.name))
-		return DentryDigests(digests = self.extra, hashsize = self.hashsize)
+		return DentryHashes(hashes = self.extra, hashsize = self.hashsize)
 
-	@digests.setter
-	def digests(self, value):
+	@hashes.setter
+	def hashes(self, value):
 		if not self.is_file:
 			raise NotAFileError("'%s' is not a regular file" % dentry_decode(self.name))
 
-		if isinstance(value, DentryDigests):
-			self.extra = value.digests
+		if isinstance(value, DentryHashes):
+			self.extra = value.hashes
 		else:
 			try:
 				memoryview(value)
@@ -556,8 +556,8 @@ class HardlinkDentry(Dentry):
 		return self.target.gid
 
 	@property
-	def digests(self):
-		return self.target.digests
+	def hashes(self):
+		return self.target.hashes
 
 	@property
 	def hardlink(self):
