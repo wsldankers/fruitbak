@@ -4,9 +4,11 @@ from fruitbak.util import Clarity, initializer, sysopendir, opener
 from fruitbak.share import Share
 
 from hardhat import normalize as hardhat_normalize
+from hashset import Hashset
+
 from json import load as load_json
 from weakref import WeakValueDictionary
-from os import fsencode
+from os import fsencode, rename
 from pathlib import Path
 
 class Backup(Clarity):
@@ -49,6 +51,21 @@ class Backup(Clarity):
 	@initializer
 	def sharecache(self):
 		return WeakValueDictionary()
+
+	@initializer
+	def digests(self):
+		backupdir_fd = self.backupdir_fd
+		hashsize = self.fruitbak.hashsize
+		try:
+			return Hashset.load('hashes', hashsize, dir_fd = backupdir_fd)
+		except FileNotFoundError:
+			with open('hashes.new', 'wb', opener = opener(dir_fd = backupdir_fd)) as fp:
+				for share in self:
+					for blob in share.hashes():
+						fp.write(blob)
+			Hashset.sortfile('hashes.new', hashsize, dir_fd = backupdir_fd)
+			rename('hashes.new', 'hashes', src_dir_fd = backupdir_fd, dst_dir_fd = backupdir_fd)
+			return Hashset.load('hashes', hashsize, dir_fd = backupdir_fd)
 
 	@initializer
 	def info(self):

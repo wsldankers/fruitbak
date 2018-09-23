@@ -5,11 +5,15 @@ from fruitbak.host import Host
 from fruitbak.pool import Pool
 from fruitbak.config import Config, configurable, configurable_function
 
+from hashset import Hashset
+
 from weakref import WeakValueDictionary
 from pathlib import Path
 from urllib.parse import quote, unquote
 from sys import stderr
-from os import getenv, scandir
+from os import getenv, getpid, scandir, rename, unlink
+from threading import get_ident as gettid
+from concurrent.futures import ThreadPoolExecutor
 
 class Fruitbak(Clarity):
 	"""Top-level object for a Fruitbak installation.
@@ -66,6 +70,12 @@ class Fruitbak(Clarity):
 	def hostdir_fd(self):
 		return sysopendir(self.hostdir, dir_fd = self.rootdir_fd)
 
+	max_workers = 32
+
+	@initializer
+	def executor(self):
+		return ThreadPoolExecutor(max_workers = self.max_workers)
+
 	@configurable
 	def hashalgo(data):
 		from hashlib import sha256
@@ -93,6 +103,35 @@ class Fruitbak(Clarity):
 		if value & value - 1:
 			raise RuntimeError("chunksize must be a power of two")
 		return int(value)
+
+	def generate_digests(self):
+		pmap = self.executor.map
+
+		backups = []
+		for bb in pmap(tuple, self):
+			backups.extend(bb)
+
+		digests = pmap(lambda s: s.digests, backups)
+
+		rootdir_fd = self.rootdir_fd
+
+		tempname = 'hashes.%d.%d' % (getpid(), gettid())
+		try:
+			Hashset.merge(*digests, path = tempname, dir_fd = rootdir_fd)
+			rename(tempname, 'hashes', src_dir_fd = rootdir_fd, dst_dir_fd = rootdir_fd)
+		finally:
+			try:
+				unlink(tempname, dir_fd = rootdir_fd)
+			except FileNotFoundError:
+				pass
+		return Hashset.load('hashes', self.hashsize, dir_fd = rootdir_fd)
+
+	@initializer
+	def stale_digests(self):
+		try:
+			return Hashset.load('hashes', self.hashsize, dir_fd = self.rootdir_fd)
+		except FileNotFoundError:
+			return self.generate_digests()
 
 	@initializer
 	def pool(self):

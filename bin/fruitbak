@@ -53,8 +53,8 @@ def ls(host, backup, share, path):
 			else:
 				return '%ds' % s
 
-	#pmap = ThreadPoolExecutor(max_workers = 32).map
-	pmap = map
+	pmap = ThreadPoolExecutor(max_workers = 32).map
+	#pmap = map
 
 	if host is None:
 		def info(h):
@@ -266,6 +266,19 @@ def backup(host):
 	"""Run a backup for a host"""
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 	fbak[host].backup()
+
+
+@cli.command()
+def gc():
+	"""Clean up"""
+	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+
+	# delete root/hashes
+	# delete old backups
+	# generate new root/hashes
+	# clean up the pool
+
+	print(repr(fbak.generate_digests()))
 
 @cli.command()
 def pooltest():

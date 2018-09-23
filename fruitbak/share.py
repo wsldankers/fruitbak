@@ -101,6 +101,12 @@ class Share(Clarity):
 		else:
 			return dentry
 
+	def hashes(self):
+		for data in self.metadata.values():
+			d = Dentry(data)
+			if d.is_file and not d.is_hardlink:
+				yield d.extra
+
 	def ls(self, path = b'', parent = False):
 		return self.hardlink_inverter(self.metadata.ls(path, parent = parent))
 
