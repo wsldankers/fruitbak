@@ -1,6 +1,6 @@
 """Represent hosts to back up"""
 
-from fruitbak.util import Clarity, initializer, sysopendir
+from fruitbak.util import Clarity, initializer
 from fruitbak.config import Config
 from fruitbak.backup import Backup
 from fruitbak.new.backup import NewBackup
@@ -69,7 +69,7 @@ class Host(Clarity):
 
 	@initializer
 	def hostdir_fd(self):
-		return sysopendir(self.hostdir, dir_fd = self.fruitbak.hostdir_fd)
+		return self.fruitbak.hostdir_fd.sysopendir(self.hostdir)
 
 	@initializer
 	def backupcache(self):

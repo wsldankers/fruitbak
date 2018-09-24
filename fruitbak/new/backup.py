@@ -5,7 +5,7 @@ from json import dump as dump_json
 
 from hashset import Hashset
 
-from fruitbak.util import Clarity, initializer, sysopendir, opener, xyzzy
+from fruitbak.util import Clarity, initializer, xyzzy
 from fruitbak.config import configurable, configurable_function
 from fruitbak.new.share import NewShare, time_ns
 
@@ -44,7 +44,7 @@ class NewBackup(Clarity):
 
 	@initializer
 	def backupdir_fd(self):
-		return sysopendir(self.backupdir, dir_fd = self.host.hostdir_fd, create_ok = True)
+		return self.host.hostdir_fd.sysopendir(self.backupdir, create_ok = True)
 
 	@initializer
 	def sharedir(self):
@@ -52,7 +52,7 @@ class NewBackup(Clarity):
 
 	@initializer
 	def sharedir_fd(self):
-		return sysopendir(self.sharedir, dir_fd = self.backupdir_fd, create_ok = True, path_only = True)
+		return self.backupdir_fd.sysopendir(self.sharedir, create_ok = True, path_only = True)
 
 	@initializer
 	def predecessor(self):
@@ -89,7 +89,7 @@ class NewBackup(Clarity):
 
 	@initializer
 	def hashes_fp(self):
-		 return open('hashes', 'wb', opener = opener(dir_fd = self.backupdir_fd))
+		 return open('hashes', 'wb', opener = self.backupdir_fd.opener)
 
 	@initializer
 	def env(self):
@@ -136,7 +136,7 @@ class NewBackup(Clarity):
 		with config.setenv(self.env):
 			self.post_command(fruitbak = self.fruitbak, host = self.host, newbackup = self)
 
-		with open('info.json', 'w', opener = opener(dir_fd = backupdir_fd, mode = 0o666)) as fp:
+		with open('info.json', 'w', opener = backupdir_fd.opener) as fp:
 			dump_json(info, fp)
 
 		hostdir_fd = self.host.hostdir_fd

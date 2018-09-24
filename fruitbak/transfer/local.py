@@ -1,7 +1,7 @@
-from fruitbak.util import Clarity, initializer, sysopen, sysopendir
+from fruitbak.util import Clarity, initializer, sysopendir, xyzzy
 from fruitbak.dentry import Dentry
 
-from os import fwalk, stat, readlink, listdir, major, minor, O_RDONLY, O_NOATIME
+from os import major, minor, O_RDONLY, O_NOATIME
 from os.path import join as path_join, split as path_split, samestat
 from pathlib import Path
 from sys import stderr
@@ -10,14 +10,14 @@ from traceback import print_exc
 
 def _fruitwalk(dir_fd, path, topdown, onerror):
 	try:
-		names = listdir(dir_fd)
+		names = dir_fd.listdir()
 	except Exception as e:
 		onerror(e)
 	else:
 		entries = []
 		for name in names:
 			try:
-				st = stat(name, dir_fd = dir_fd, follow_symlinks = False)
+				st = dir_fd.stat(name, follow_symlinks = False)
 			except Exception as e:
 				onerror(e)
 			else:
@@ -28,53 +28,36 @@ def _fruitwalk(dir_fd, path, topdown, onerror):
 			yield path, entries, dir_fd
 
 		for name, st in entries:
-			fd = None
+			if not S_ISDIR(st.st_mode):
+				continue
 			try:
-				if S_ISDIR(st.st_mode):
-					fd = sysopendir(name, dir_fd = dir_fd, follow_symlinks = False) 
+				fd = dir_fd.sysopendir(name, follow_symlinks = False) 
 			except Exception as e:
 				onerror(e)
-
-			if fd is not None:
-				try:
-					is_same = None
+			else:
+				with fd:
 					try:
-						is_same = samestat(st, stat(fd))
+						if not samestat(st, fd.stat()):
+							continue
 					except Exception as e:
 						onerror(e)
-					if is_same:
+					else:
 						yield from _fruitwalk(fd, path / name, topdown, onerror)
-				finally:
-					fd.close()
 
 		if not topdown:
 			yield path, entries, dir_fd
 
 def fruitwalk(top = '.', topdown = True, onerror = None, *, dir_fd = None):
 	if onerror is None:
-		def onerror(exc):
-			pass
-	topdown = bool(topdown)
-	fd = None
+		onerror = xyzzy
 
 	try:
-		st = stat(top, dir_fd = dir_fd, follow_symlinks = False)
-		if S_ISDIR(st.st_mode):
-			fd = sysopendir(top, dir_fd = dir_fd, follow_symlinks = False)
+		fd = sysopendir(top, dir_fd = dir_fd, follow_symlinks = False)
 	except Exception as e:
 		onerror(e)
-
-	if fd is not None:
-		try:
-			is_same = None
-			try:
-				is_same = samestat(st, stat(fd))
-			except Exception as e:
-				onerror(e)
-			if is_same:
-				yield from _fruitwalk(fd, Path(), topdown, onerror)
-		finally:
-			fd.close()
+	else:
+		with fd:
+			yield from _fruitwalk(fd, Path(), bool(topdown), onerror)
 
 class LocalTransfer(Clarity):
 	@initializer
@@ -110,13 +93,13 @@ class LocalTransfer(Clarity):
 						seen[ino] = path
 					if dentry.is_file:
 						try:
-							fd = sysopen(name, O_RDONLY, dir_fd = root_fd, follow_symlinks = False)
+							fd = root_fd.sysopen(name, O_RDONLY, follow_symlinks = False)
 						except:
 							print_exc(file = stderr)
 						else:
 							with fd:
 								try:
-									is_same = samestat(st, stat(fd))
+									is_same = samestat(st, fd.stat())
 								except:
 									print_exc(file = stderr)
 								else:
@@ -137,7 +120,7 @@ class LocalTransfer(Clarity):
 							dentry.hashes = hashes
 					elif dentry.is_symlink:
 						try:
-							symlink = readlink(name, dir_fd = root_fd)
+							symlink = root_fd.readlink(name)
 						except:
 							print_exc(file = stderr)
 						else:

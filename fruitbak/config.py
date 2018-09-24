@@ -1,7 +1,7 @@
 from pathlib import Path
 from subprocess import run as subprocess_run
 from weakref import ref as weakref
-from os import environ, fsencode, open as os_open, O_CLOEXEC, O_NOCTTY
+from os import environ, fsencode
 from threading import local
 
 from fruitbak.util import initializer, opener

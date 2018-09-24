@@ -38,7 +38,7 @@ class Fruitbak(Clarity):
 	@initializer
 	def confdir_fd(self):
 		if 'rootdir' in self.__dict__:
-			return sysopendir(self.confdir, dir_fd = self.rootdir_fd)
+			return self.rootdir_fd.sysopendir(self.confdir)
 		else:
 			return sysopendir(self.confdir)
 
@@ -69,7 +69,7 @@ class Fruitbak(Clarity):
 
 	@initializer
 	def hostdir_fd(self):
-		return sysopendir(self.hostdir, dir_fd = self.rootdir_fd)
+		return self.rootdir_fd.sysopendir(self.hostdir)
 
 	max_workers = 32
 
@@ -161,7 +161,7 @@ class Fruitbak(Clarity):
 					hostcache[name] = host
 				hosts[name] = host
 
-		with sysopendir('host', dir_fd = self.confdir_fd) as hostconfdir_fd:
+		with self.confdir_fd.sysopendir('host') as hostconfdir_fd:
 			for entry in hostconfdir_fd.scandir():
 				entry_name = entry.name
 				if not entry_name.startswith('.') and entry_name.endswith('.py') and entry.is_file():

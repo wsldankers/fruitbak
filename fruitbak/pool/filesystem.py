@@ -10,16 +10,7 @@ from traceback import print_exc
 from sys import stderr, exc_info
 from concurrent.futures import ThreadPoolExecutor
 from threading import get_ident as get_thread_id
-from os import (
-	access, fstat,
-	open as os_open, close,
-	read, write, fsync,
-	mkdir, link, unlink,
-	listdir,
-	fsdecode,
-	F_OK,
-	O_RDONLY, O_WRONLY, O_EXCL, O_CREAT
-)
+from os import F_OK, O_RDONLY, O_WRONLY, O_EXCL, O_CREAT
 
 from pathlib import Path
 from re import compile as re
@@ -82,7 +73,7 @@ class Filesystem(Storage):
 
 	def hash2path(self, hash):
 		b64 = my_b64encode(hash)
-		return Path(fsdecode(b64[:2])) / fsdecode(b64[2:])
+		return Path(b64[:2]) / b64[2:]
 
 	@configurable
 	def pooldir(self):
@@ -94,7 +85,7 @@ class Filesystem(Storage):
 
 	@initializer
 	def pooldir_fd(self):
-		return sysopendir(self.pooldir, dir_fd = self.fruitbak.rootdir_fd)
+		return self.fruitbak.rootdir_fd.sysopendir(self.pooldir)
 
 	def submit(self, job, *args, **kwargs):
 		def windshield():
@@ -153,7 +144,7 @@ class Filesystem(Storage):
 		pooldir_fd = self.pooldir_fd
 		def job():
 			try:
-				result = access(str(path), F_OK, dir_fd = pooldir_fd)
+				result = pooldir_fd.access(path, F_OK)
 			except:
 				callback(None, exc_info())
 			else:
@@ -167,8 +158,8 @@ class Filesystem(Storage):
 		def job():
 			try:
 				results = []
-				with sysopen(path, O_RDONLY, dir_fd = pooldir_fd) as fd:
-					buf = fd.read(fstat(fd).st_size)
+				with pooldir_fd.sysopen(path, O_RDONLY) as fd:
+					buf = fd.read(fd.fstat().st_size)
 			except:
 				callback(None, exc_info())
 			else:
@@ -178,7 +169,6 @@ class Filesystem(Storage):
 
 	def put_chunk(self, callback, hash, value):
 		path = self.hash2path(hash)
-		path_str = str(path)
 		parent = path.parent
 		tmpfile = self.tmpfile
 		pooldir_fd = self.pooldir_fd
@@ -186,22 +176,16 @@ class Filesystem(Storage):
 		def job():
 			value_len = len(value)
 			try:
-				if not access(path_str, F_OK, dir_fd = pooldir_fd):
+				if not pooldir_fd.access(path, F_OK):
 					try:
 						tmp = tmpfile(parent)
 					except FileNotFoundError:
-						try:
-							mkdir(str(parent), dir_fd = pooldir_fd)
-						except FileExistsError:
-							pass
+						pooldir_fd.mkdir(parent, exist_ok = True)
 						tmp = tmpfile(parent)
 					with tmp:
 						tmp.write(value)
-						fsync(tmp)
-						try:
-							link(str(tmp.path), path_str, src_dir_fd = pooldir_fd, dst_dir_fd = pooldir_fd)
-						except FileExistsError:
-							pass
+						tmp.sync()
+						pooldir_fd.link(tmp.path, path)
 			except:
 				callback(exc_info())
 			else:
@@ -215,9 +199,7 @@ class Filesystem(Storage):
 
 		def job():
 			try:
-				unlink(str(path), dir_fd = pooldir_fd)
-			except FileNotFoundError:
-				callback(None)
+				pooldir_fd.unlink(path, missing_ok = True)
 			except:
 				callback(exc_info())
 			else:
@@ -226,7 +208,7 @@ class Filesystem(Storage):
 		self.submit(job)
 
 	def lister(self, agent):
-		dirs = listdir(self.pooldir_fd)
+		dirs = self.pooldir_fd.listdir()
 		dirs = list(filter(directory_re.fullmatch, dirs))
 		dirs.sort(key = lambda x: b64decode(x+'A=', b'+_'))
 		listahead = FilesystemListahead(filesystem = self, agent = agent, iterator = iter(dirs))
@@ -240,8 +222,8 @@ class Filesystem(Storage):
 		pooldir = self.pooldir
 		def job():
 			try:
-				with sysopendir(directory, dir_fd = self.pooldir_fd) as fd:
-					files = listdir(fd)
+				with self.pooldir_fd.sysopendir(directory) as fd:
+					files = fd.listdir()
 				hashes = map(lambda x: my_b64decode(directory + x), files)
 				del files
 				hashbuf = b''.join(hashes)
@@ -265,35 +247,27 @@ else:
 			return sysopendir("/proc/self/fd", path_only = True)
 
 		def tmpfile(self, path):
-			return sysopen(path, O_TMPFILE|O_WRONLY, dir_fd = self.pooldir_fd)
+			return self.pooldir_fd.sysopen(path, O_TMPFILE|O_WRONLY)
 
 		def put_chunk(self, callback, hash, value):
 			path = self.hash2path(hash)
-			path_str = str(path)
 			parent = path.parent
-			parent_str = str(parent)
 			pooldir_fd = self.pooldir_fd
 			proc_self_fd = self.proc_self_fd
 
 			def job():
 				value_len = len(value)
 				try:
-					if not access(path_str, F_OK, dir_fd = pooldir_fd):
+					if not pooldir_fd.access(path, F_OK):
 						try:
-							tmp = self.tmpfile(parent_str)
+							tmp = self.tmpfile(parent)
 						except FileNotFoundError:
-							try:
-								mkdir(parent_str, dir_fd = pooldir_fd)
-							except FileExistsError:
-								pass
-							tmp = self.tmpfile(parent_str)
+							pooldir_fd.mkdir(parent, exist_ok = True)
+							tmp = self.tmpfile(parent)
 						with tmp as fd:
 							fd.write(value)
 							fsync(fd)
-							try:
-								link(str(fd), path_str, src_dir_fd = proc_self_fd, dst_dir_fd = pooldir_fd)
-							except FileExistsError:
-								pass
+							proc_self_fd.link(str(fd), path, dir_fd = pooldir_fd)
 				except:
 					callback(exc_info())
 				else:

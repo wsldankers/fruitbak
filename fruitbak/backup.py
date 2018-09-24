@@ -1,6 +1,6 @@
 """Represent a backup"""
 
-from fruitbak.util import Clarity, initializer, sysopendir, opener
+from fruitbak.util import Clarity, initializer
 from fruitbak.share import Share
 
 from hardhat import normalize as hardhat_normalize
@@ -47,7 +47,7 @@ class Backup(Clarity):
 
 	@initializer
 	def backupdir_fd(self):
-		return sysopendir(self.backupdir, dir_fd = self.host.hostdir_fd)
+		return self.host.hostdir_fd.sysopendir(self.backupdir)
 
 	@initializer
 	def sharedir(self):
@@ -55,7 +55,7 @@ class Backup(Clarity):
 
 	@initializer
 	def sharedir_fd(self):
-		return sysopendir(self.sharedir, dir_fd = self.backupdir_fd)
+		return self.backupdir_fd.sysopendir(self.sharedir)
 
 	@initializer
 	def sharecache(self):
@@ -68,7 +68,7 @@ class Backup(Clarity):
 		try:
 			return Hashset.load('hashes', hashsize, dir_fd = backupdir_fd)
 		except FileNotFoundError:
-			with open('hashes.new', 'wb', opener = opener(dir_fd = backupdir_fd)) as fp:
+			with open('hashes.new', 'wb', opener = backupdir_fd.opener) as fp:
 				for share in self:
 					for blob in share.hashes():
 						fp.write(blob)
@@ -78,7 +78,7 @@ class Backup(Clarity):
 
 	@initializer
 	def info(self):
-		with open('info.json', 'r', opener = opener(dir_fd = self.backupdir_fd)) as fp:
+		with open('info.json', 'r', opener = self.backupdir_fd.opener) as fp:
 			return load_json(fp)
 
 	@initializer

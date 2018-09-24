@@ -1,4 +1,4 @@
-from fruitbak.util import Clarity, initializer, xyzzy, sysopendir, opener
+from fruitbak.util import Clarity, initializer, xyzzy
 from fruitbak.config import configurable
 from fruitbak.transfer.local import LocalTransfer
 
@@ -60,7 +60,7 @@ class NewShare(Clarity):
 
 	@initializer
 	def sharedir_fd(self):
-		return sysopendir(self.sharedir, dir_fd = self.newbackup.sharedir_fd, create_ok = True, path_only = True)
+		return self.newbackup.sharedir_fd.sysopendir(self.sharedir, create_ok = True, path_only = True)
 
 	@initializer
 	def fruitbak(self):
@@ -116,7 +116,7 @@ class NewShare(Clarity):
 		with hostconfig.setenv(self.env):
 			self.post_command(fruitbak = self.fruitbak, host = self.host, backup = self.newbackup, newshare = self)
 
-		with open('info.json', 'w', opener = opener(dir_fd = self.sharedir_fd, mode = 0o666)) as fp:
+		with open('info.json', 'w', opener = self.sharedir_fd.opener) as fp:
 			dump_json(info, fp)
 
 		return info

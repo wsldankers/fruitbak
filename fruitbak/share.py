@@ -1,6 +1,6 @@
 """Represent hosts to back up"""
 
-from fruitbak.util import Clarity, initializer, sysopendir, opener
+from fruitbak.util import Clarity, initializer
 from fruitbak.dentry import Dentry, HardlinkDentry, dentry_layout_size
 
 from hardhat import Hardhat
@@ -48,11 +48,11 @@ class Share(Clarity):
 
 	@initializer
 	def sharedir_fd(self):
-		return sysopendir(str(self.sharedir), dir_fd = self.backup.sharedir_fd)
+		return self.backup.sharedir_fd.sysopendir(self.sharedir)
 
 	@initializer
 	def info(self):
-		with open('info.json', 'r', opener = opener(dir_fd = self.sharedir_fd)) as fp:
+		with open('info.json', 'r', opener = self.sharedir_fd.opener) as fp:
 			return load_json(fp)
 
 	@initializer
