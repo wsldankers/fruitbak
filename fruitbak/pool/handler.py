@@ -16,6 +16,10 @@ class Handler(Clarity):
 	def pool(self):
 		raise RuntimeError("%.pool used uninitialized" % type(self).__name__)
 
+	@initializer
+	def config(self):
+		return self.pool.config
+
 	max_workers = 32
 
 	@locked

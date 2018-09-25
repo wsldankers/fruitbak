@@ -6,7 +6,7 @@ from sys import stderr
 from fruitbak.util import Clarity, initializer, MinWeakHeapMap, weakproperty, locked, NLock
 from fruitbak.pool.filesystem import Filesystem
 from fruitbak.pool.agent import PoolAgent
-from fruitbak.config import configurable
+from fruitbak.config import configurable, configurable_function
 
 class Pool(Clarity):
 	def __init__(self, *args, **kwargs):
@@ -31,10 +31,22 @@ class Pool(Clarity):
 	def config(self):
 		return self.fruitbak.config
 
+	@configurable
+	def pool_storage_type(self):
+		return Filesystem
+
+	@configurable
+	def pool_storage_options(self):
+		return {}
+
+	@configurable_function
+	def pool_storage(pool):
+		return pool.pool_storage_type(pool = pool, **pool.pool_storage_options)
+
 	@initializer
 	def root(self):
 		assert self.lock
-		return Filesystem(pool = self, config = self.config)
+		return self.pool_storage(self)
 
 	@initializer
 	def agents(self):

@@ -1,5 +1,3 @@
-# https://docs.python.org/3/howto/descriptor.html
-
 class getinitializer:
 	def __init__(self, getfunction):
 		self.getfunction = getfunction
@@ -102,6 +100,37 @@ def initializer(getfunction, setfunction=None, delfunction=None):
 
 def xyzzy(*args, **kwargs):
 	"""Nothing happens."""
+
+class flexiblemethod:
+	def __init__(self, method):
+		self._method = method
+		self._classmethod = method
+
+	def classmethod(self, method):
+		self._classmethod = method
+		return self
+
+	def __get__(self, instance, owner):
+		if instance is None:
+			instance = owner
+			method = self._classmethod
+		else:
+			method = self._method
+		def closure(*args, **kwargs):
+			return method(instance, *args, **kwargs)
+		closure.__name__ = method.__name__
+		closure.__qualname__ = method.__qualname__
+		closure.__doc__ = method.__doc__
+		return closure
+
+class fallback:
+	def __init__(self, func):
+		self.func = func
+
+	def __get__(self, instance, owner):
+		if instance is None:
+			instance = owner
+		return self.func(instance)
 
 def stub(f):
 	def toe():

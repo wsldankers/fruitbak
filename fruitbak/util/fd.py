@@ -8,6 +8,7 @@ from os import (
 	dup2 as os_dup2,
 	fdatasync as os_fdatasync,
 	fdopen as os_fdopen,
+	fsync as os_fsync,
 	link as os_link,
 	listdir as os_listdir,
 	mkdir as os_mkdir,
@@ -25,7 +26,6 @@ from os import (
 	stat as os_stat,
 	statvfs as os_statvfs,
 	symlink as os_symlink,
-	sync as os_sync,
 	truncate as os_truncate,
 	unlink as os_unlink,
 	utime as os_utime,
@@ -42,7 +42,7 @@ from os.path import samestat
 from stat import S_ISDIR, S_ISREG, S_ISLNK
 from pathlib import PurePath
 
-from fruitbak.util import Clarity, initializer
+from fruitbak.util import Clarity, initializer, flexiblemethod
 
 try:
 	from os import O_PATH
@@ -69,21 +69,6 @@ def is_bytes_like(obj):
 		return False
 	else:
 		return True
-
-def sysopendir(path, dir_fd = None, mode = 0o777, path_only = None, follow_symlinks = True, create_ok = False):
-	flags = O_DIRECTORY|O_RDONLY
-	path = unpath(path)
-	if path_only:
-		flags |= O_PATH
-	if create_ok:
-		try:
-			return sysopen(path, flags, dir_fd = dir_fd, follow_symlinks = follow_symlinks)
-		except FileNotFoundError:
-			try:
-				os_mkdir(path, mode, dir_fd = dir_fd)
-			except FileExistsError:
-				pass
-	return sysopen(path, flags, dir_fd = dir_fd, follow_symlinks = follow_symlinks)
 
 def opener(mode = 0o666, **kwargs):
 	def opener(path, flags):
@@ -158,25 +143,10 @@ class DirEntry(Clarity):
 		else:
 			return S_ISLNK(st.st_mode)
 
-class sysopen(int):
+class fd(int):
 	"""Wrapper for os.open() with some amenities such as garbage collection,
 	context methods, utility methods for reading and writing reliably"""
 	closed = False
-
-	def __new__(cls, path, flags, mode = 0o666, follow_symlinks = True, controlling_tty = False, inheritable = True, **kwargs):
-		flags |= O_LARGEFILE
-		if not follow_symlinks:
-			flags |= O_NOFOLLOW
-		if not controlling_tty:
-			flags |= O_NOCTTY
-		if inheritable:
-			flags |= O_CLOEXEC
-		fd = os_open(unpath(path), flags, mode, **kwargs)
-		try:
-			return super().__new__(cls, fd)
-		except:
-			os_close(fd)
-			raise
 
 	def __del__(self):
 		if not self.closed:
@@ -193,9 +163,49 @@ class sysopen(int):
 			self.closed = True
 			os_close(self)
 
-	@classmethod
-	def wrap(cls, fd):
-			return super().__new__(cls, fd)
+	@flexiblemethod
+	def sysopen(self, path, *args, **kwargs):
+		if self.closed:
+			raise ValueError("I/O operation on closed file.")
+		return type(self).sysopen(path, *args, dir_fd = self, **kwargs)
+
+	@flexiblemethod
+	def sysopendir(self, path, **kwargs):
+		if self.closed:
+			raise ValueError("I/O operation on closed file.")
+		return type(self).sysopendir(path, dir_fd = self, **kwargs)
+
+	@sysopen.classmethod
+	def sysopen(cls, path, flags, mode = 0o666, large_file = True, follow_symlinks = True, controlling_tty = False, inheritable = True, **kwargs):
+		flags |= O_LARGEFILE
+		if not follow_symlinks:
+			flags |= O_NOFOLLOW
+		if not controlling_tty:
+			flags |= O_NOCTTY
+		if inheritable:
+			flags |= O_CLOEXEC
+		unmanaged_fd = os_open(unpath(path), flags, mode, **kwargs)
+		try:
+			return cls(unmanaged_fd)
+		except:
+			os_close(unmanaged_fd)
+			raise
+
+	@sysopendir.classmethod
+	def sysopendir(cls, path, dir_fd = None, mode = 0o777, path_only = None, follow_symlinks = True, create_ok = False):
+		flags = O_DIRECTORY|O_RDONLY
+		path = unpath(path)
+		if path_only:
+			flags |= O_PATH
+		if create_ok:
+			try:
+				return cls.sysopen(path, flags, dir_fd = dir_fd, large_file = False, follow_symlinks = follow_symlinks)
+			except FileNotFoundError:
+				try:
+					os_mkdir(path, mode, dir_fd = dir_fd)
+				except FileExistsError:
+					pass
+		return cls.sysopen(path, flags, dir_fd = dir_fd, large_file = False, follow_symlinks = follow_symlinks)
 
 	def close(self):
 		if not self.closed:
@@ -246,11 +256,11 @@ class sysopen(int):
 	def dup(self):
 		if self.closed:
 			raise ValueError("I/O operation on closed file.")
-		fd = os_dup(self)
+		unmanaged_fd = os_dup(self)
 		try:
-			return sysopen.wrap(fd)
+			return fd(unmanaged_fd)
 		except:
-			os_close(fd)
+			os_close(unmanaged_fd)
 			raise
 
 	def dup2(self, fd, **kwargs):
@@ -298,7 +308,7 @@ class sysopen(int):
 	def sync(self):
 		if self.closed:
 			raise ValueError("I/O operation on closed file.")
-		return os_sync(self)
+		return os_fsync(self)
 
 	def datasync(self):
 		if self.closed:
@@ -371,16 +381,6 @@ class sysopen(int):
 		if self.closed:
 			raise ValueError("I/O operation on closed file.")
 		os_open(unpath(path), flags, *args, dir_fd = self, **kwargs)
-
-	def sysopen(self, path, *args, **kwargs):
-		if self.closed:
-			raise ValueError("I/O operation on closed file.")
-		return sysopen(path, *args, dir_fd = self, **kwargs)
-
-	def sysopendir(self, path, **kwargs):
-		if self.closed:
-			raise ValueError("I/O operation on closed file.")
-		return sysopendir(path, dir_fd = self, **kwargs)
 
 	def mkdir(self, path, *args, exist_ok = False, **kwargs):
 		if self.closed:
@@ -469,3 +469,6 @@ class sysopen(int):
 		except FileExistsError:
 			if not exist_ok:
 				raise
+
+sysopen = fd.sysopen
+sysopendir = fd.sysopendir

@@ -1,4 +1,4 @@
-from fruitbak.util import Clarity, initializer, sysopen, sysopendir
+from fruitbak.util import Clarity, initializer, sysopen, sysopendir, fd, fallback
 from fruitbak.pool.handler import Storage
 from fruitbak.pool.agent import PoolReadahead, PoolAction
 from fruitbak.config import configurable
@@ -9,8 +9,8 @@ from base64 import b64encode, b64decode
 from traceback import print_exc
 from sys import stderr, exc_info
 from concurrent.futures import ThreadPoolExecutor
-from threading import get_ident as get_thread_id
-from os import F_OK, O_RDONLY, O_WRONLY, O_EXCL, O_CREAT
+from threading import get_ident as gettid
+from os import getpid, unlink, F_OK, O_RDONLY, O_WRONLY, O_EXCL, O_CREAT
 
 from pathlib import Path
 from re import compile as re
@@ -97,32 +97,43 @@ class Filesystem(Storage):
 
 		self.executor.submit(windshield)
 
-	class NamedTemporaryFile(sysopen):
-		def __new__(cls, path, mode = 0o666, *, dir_fd = None):
-			name = 'tmp@' + str(get_thread_id()) + '@' + my_b64encode(getrandbits(128).to_bytes(16, 'big'))
+	class NamedTemporaryFile:
+		def __init__(self, path, mode = 0o666, *, dir_fd = None):
+			name = 'tmp-' + str(getpid()) + '-' + str(gettid()) + '-' + my_b64encode(getrandbits(128).to_bytes(16, 'big'))
 			path = Path(path) / name
-			self = super().__new__(cls, path, O_WRONLY|O_EXCL|O_CREAT, dir_fd = dir_fd)
+			self.fd = sysopen(path, O_WRONLY|O_EXCL|O_CREAT, dir_fd = dir_fd)
 			self.path = path
 			self.dir_fd = dir_fd
-			return self
 
-		@property
-		def xpath(self):
+		@fallback
+		def path(self):
 			raise RuntimeError("this temporary file is already closed")
 
-		@property
-		def xdir_fd(self):
+		@fallback
+		def fd(self):
 			raise RuntimeError("this temporary file is already closed")
+
+		@fallback
+		def dir_fd(self):
+			raise RuntimeError("this temporary file is already closed")
+
+		def __getattr__(self, name):
+			return getattr(self.fd, name)
 
 		def close(self):
 			path = self.path
+			fd = self.fd
 			dir_fd = self.dir_fd
+			del self.fd
 			del self.path
 			del self.dir_fd
 			try:
-				unlink(str(path), dir_fd = dir_fd)
-			except FileNotFoundError:
-				pass
+				fd.close()
+			finally:
+				try:
+					unlink(str(path), dir_fd = dir_fd)
+				except FileNotFoundError:
+					pass
 
 		def __enter__(self):
 			return self
