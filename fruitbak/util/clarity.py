@@ -1,4 +1,4 @@
-from types import MethodType as method
+from types import MethodType as method_closure
 
 class getinitializer:
 	def __init__(self, getfunction):
@@ -114,9 +114,9 @@ class flexiblemethod:
 
 	def __get__(self, instance, owner):
 		if instance is None:
-			return method(self._classmethod, owner)
+			return method_closure(self._classmethod, owner)
 		else:
-			return method(self._method, instance)
+			return method_closure(self._method, instance)
 
 class fallback:
 	def __init__(self, func):
