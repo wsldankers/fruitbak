@@ -125,6 +125,8 @@ class NewBackup(Clarity):
 			share = NewShare(config = share_config, newbackup = self)
 			shares_info[share.name] = share.backup()
 
+		self.agent.sync()
+
 		info['endTime'] = time_ns()
 
 		with config.setenv(self.env):

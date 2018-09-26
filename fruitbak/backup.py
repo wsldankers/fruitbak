@@ -227,7 +227,7 @@ class Backup(Clarity):
 				name = fruitbak.path_to_name(entry_name)
 				share = sharecache.get(name)
 				if share is None:
-					share = Share(fruitbak = fruitbak, backup = self, name = name, sharedir = Path(entry))
+					share = Share(fruitbak = fruitbak, backup = self, name = name, sharedir = Path(entry.name))
 					sharecache[name] = share
 				shares.append(share)
 		shares.sort(key = lambda s: s.name)
@@ -235,9 +235,6 @@ class Backup(Clarity):
 
 	def __bool__(self):
 		return True
-
-	def __len__(self):
-		return len(tuple(self))
 
 	def __getitem__(self, name):
 		name = str(name)

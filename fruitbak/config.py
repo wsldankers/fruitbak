@@ -103,7 +103,7 @@ class subdict(dict):
 	"""Subclass dict so that we can weakref it"""
 
 class Config:
-	def __init__(self, path, *paths, dir_fd = None, preseed = None):
+	def __init__(self, *paths, dir_fd = None, preseed = None):
 		# thread-local storage
 		tls = local()
 		self.tls = tls
@@ -154,7 +154,6 @@ class Config:
 			return subprocess_run(*args, **kwargs)
 		extra_builtins['run'] = run
 
-		include(path)
 		for p in paths:
 			include(p)
 

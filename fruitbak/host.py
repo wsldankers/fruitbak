@@ -1,7 +1,7 @@
 """Represent hosts to back up"""
 
 from fruitbak.util import Clarity, initializer
-from fruitbak.config import Config
+from fruitbak.config import Config, configurable
 from fruitbak.backup import Backup
 from fruitbak.new.backup import NewBackup
 
@@ -81,7 +81,18 @@ class Host(Clarity):
 
 	@initializer
 	def config(self):
-		return Config(Path('host') / self.name, dir_fd = self.fruitbak.confdir_fd)
+		try:
+			return Config(Path('host') / self.name, dir_fd = self.fruitbak.confdir_fd)
+		except FileNotFoundError:
+			return Config(preseed = dict(auto = False))
+
+	@configurable
+	def auto(self):
+		return True
+
+	@auto.validate
+	def auto(self, value):
+		return bool(value)
 
 	def backup(self):
 		try:

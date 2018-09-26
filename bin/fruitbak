@@ -53,8 +53,7 @@ def ls(host, backup, share, path):
 			else:
 				return '%ds' % s
 
-	#pmap = ThreadPoolExecutor(max_workers = 32).map
-	pmap = map
+	pmap = ThreadPoolExecutor(max_workers = 32).map
 
 	if host is None:
 		def info(h):
@@ -97,7 +96,7 @@ def ls(host, backup, share, path):
 			status = s.error or 'done'
 			return s.name, mountpoint, start, end, duration, status
 		headings = ('Name', 'Mount point', 'Start', 'End', 'Duration', 'Status')
-		print(tabulate(pmap(info, fbak[host][backup]), headings = headings, alignment = {4:True}))
+		print(tabulate(pmap(info, tuple(fbak[host][backup])), headings = headings, alignment = {4:True}))
 	else:
 		backup = fbak[host][backup]
 		if path is None:
@@ -261,11 +260,39 @@ def tar(host, backup, share, path):
 	binary_stdout.write(b'\0' * (BLOCKSIZE*2))
 
 @cli.command()
-@click.argument('host')
-def backup(host):
-	"""Run a backup for a host"""
+@click.option('-a', '--all', default = False, is_flag = True)
+@click.argument('host', nargs = -1)
+def backup(all, host = None):
+	"""Run a backup for a host (or all hosts)"""
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
-	fbak[host].backup()
+	max_parallel_backups = fbak.max_parallel_backups
+
+	hostset = set(host)
+	hosts = []
+	for h in fbak:
+		n = h.name
+		if n in hostset or (all and h.auto):
+			hosts.append(h)
+			hostset.discard(n)
+
+	if hostset:
+		raise RuntimeError("unknown hosts: " + "".join(hostset))
+
+	if max_parallel_backups == 1:
+		for h in hosts:
+			try:
+				h.backup()
+			except:
+				print_exc(file = stderr)
+	else:
+		with ThreadPoolExecutor(max_workers = max_parallel_backups) as exec:
+			def job(h):
+				try:
+					h.backup()
+				except:
+					print_exc(file = stderr)
+			for j in [exec.submit(job, h) for h in hosts]:
+				j.result()
 
 @cli.command()
 def gc():
@@ -279,7 +306,6 @@ def gc():
 	for host in fbak:
 		for backup in host:
 			if backup.expired:
-				print("removing", host.name, backup.index)
 				backup.remove()
 
 	# generate new root/hashes

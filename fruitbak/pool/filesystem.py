@@ -283,7 +283,7 @@ else:
 						with tmp as fd:
 							fd.write(value)
 							fd.sync()
-							proc_self_fd.link(str(fd), path, dir_fd = pooldir_fd)
+							proc_self_fd.link(str(fd), path, dir_fd = pooldir_fd, exist_ok = True)
 				except:
 					callback(exc_info())
 				else:

@@ -52,8 +52,11 @@ class Share(Clarity):
 
 	@initializer
 	def info(self):
-		with open('info.json', 'r', opener = self.sharedir_fd.opener) as fp:
-			return load_json(fp)
+		try:
+			return self.backup.info['shares'][self.name]
+		except KeyError:
+			with open('info.json', 'r', opener = self.sharedir_fd.opener) as fp:
+				return load_json(fp)
 
 	@initializer
 	def start_time(self):

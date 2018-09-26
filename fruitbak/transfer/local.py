@@ -87,7 +87,6 @@ class LocalTransfer(Clarity):
 
 	def transfer(self):
 		newshare = self.newshare
-		agent = newshare.agent
 		reference = self.reference
 		chunksize = self.fruitbak.chunksize
 		hashfunc = self.fruitbak.hashfunc
@@ -132,8 +131,7 @@ class LocalTransfer(Clarity):
 												buf = fd.read(chunksize)
 												if not buf:
 													break
-												agent.put_chunk(hashfunc(buf), buf, async = True)
-												hashes.append(hashfunc(buf))
+												hashes.append(newshare.put_chunk(buf))
 												buf_len = len(buf)
 												size += buf_len
 												if buf_len < chunksize:
@@ -154,5 +152,3 @@ class LocalTransfer(Clarity):
 					dentry.is_hardlink = True
 					dentry.hardlink = hardlink
 				newshare.add_dentry(dentry)
-
-		agent.sync()

@@ -73,6 +73,17 @@ class Fruitbak(Clarity):
 
 	max_workers = 32
 
+	@configurable
+	def max_parallel_backups(self):
+		return 1
+
+	@max_parallel_backups.validate
+	def max_parallel_backups(self, value):
+		intvalue = int(value)
+		if intvalue != value or value < 1:
+			raise RuntimeError("max_parallel_backups must be a strictly positive integer")
+		return intvalue
+
 	@initializer
 	def executor(self):
 		return ThreadPoolExecutor(max_workers = self.max_workers)

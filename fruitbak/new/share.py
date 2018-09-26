@@ -83,12 +83,43 @@ class NewShare(Clarity):
 		return HardhatMaker('metadata.hh', dir_fd = self.sharedir_fd)
 
 	@initializer
+	def predecessor(self):
+		return self.newbackup.predecessor
+
+	@initializer
 	def reference(self):
-		return self.newbackup.predecessor.get(self.name, {})
+		return self.predecessor.get(self.name, {})
+
+	@initializer
+	def predecessor_hashes(self):
+		predecessor = self.predecessor
+		if predecessor:
+			return predecessor.hashes
+		else:
+			return {}
 
 	@initializer
 	def hashes_fp(self):
 		return self.newbackup.hashes_fp
+
+	@initializer
+	def hashfunc(self):
+		return self.fruitbak.hashfunc
+
+	def put_chunk(self, *args):
+		if len(args) > 2:
+			raise TypeError("too many arguments")
+		if len(args) == 2:
+			hash, value = args
+		elif len(args) == 1:
+			hash, value = None, *args
+		else:
+			raise TypeError("missing argument")
+		if hash is None:
+			hash = self.hashfunc(value)
+		if hash not in self.predecessor_hashes:
+			self.agent.put_chunk(hash, value, async = True)
+		return hash
 
 	def add_dentry(self, dentry):
 		if dentry.is_file and not dentry.is_hardlink:
