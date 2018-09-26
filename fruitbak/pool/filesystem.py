@@ -201,7 +201,7 @@ class Filesystem(Storage):
 					with tmp:
 						tmp.write(value)
 						tmp.sync()
-						pooldir_fd.link(tmp.path, path)
+						pooldir_fd.link(tmp.path, path, exist_ok = True)
 			except:
 				callback(exc_info())
 			else:
