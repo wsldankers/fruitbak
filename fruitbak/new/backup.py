@@ -57,35 +57,29 @@ class NewBackup(Clarity):
 	@initializer
 	def predecessor(self):
 		try:
-			last = self.host[-1]
+			return self.host[-1]
 		except IndexError:
-			return None
-		else:
-			return last
+			return {}
 
 	@initializer
 	def index(self):
 		pred = self.predecessor
-		if pred is None:
-			return 0
-		else:
+		if pred:
 			return pred.index + 1
-
-	@initializer
-	def is_full(self):
-		pred = self.predecessor
-		if pred is None:
-			return 0
 		else:
-			return pred.index + 1
+			return 0
 
 	@initializer
 	def level(self):
 		pred = self.predecessor
-		if pred is None:
-			return 0
-		else:
+		if pred:
 			return pred.level + 1
+		else:
+			return 0
+
+	@initializer
+	def is_full(self):
+		return bool(self.predecessor)
 
 	@initializer
 	def hashes_fp(self):
@@ -95,11 +89,11 @@ class NewBackup(Clarity):
 	def env(self):
 		env = dict(self.host.env, backup = str(self.index))
 		predecessor = self.predecessor
-		if predecessor is None:
-			env['mode'] = 'full'
-		else:
+		if predecessor:
 			env['mode'] = 'incr'
 			env['predecessor'] = self.predecessor
+		else:
+			env['mode'] = 'full'
 		return env
 
 	def backup(self):

@@ -59,6 +59,23 @@ def fruitwalk(top = '.', topdown = True, onerror = None, *, dir_fd = None):
 		with fd:
 			yield from _fruitwalk(fd, Path(), bool(topdown), onerror)
 
+def samedentry(a, b):
+	if a is None:
+		return False
+	if b is None:
+		return False
+	if a.mode != b.mode:
+		return False
+	if a.size != b.size:
+		return False
+	if a.mtime != b.mtime:
+		return False
+	if a.uid != b.uid:
+		return False
+	if a.gid != b.gid:
+		return False
+	return True
+
 class LocalTransfer(Clarity):
 	@initializer
 	def fruitbak(self):
@@ -71,6 +88,7 @@ class LocalTransfer(Clarity):
 	def transfer(self):
 		newshare = self.newshare
 		agent = newshare.agent
+		reference = self.reference
 		chunksize = self.fruitbak.chunksize
 		hashfunc = self.fruitbak.hashfunc
 
@@ -89,35 +107,40 @@ class LocalTransfer(Clarity):
 				ino = st.st_dev, st.st_ino
 				hardlink = seen.get(ino)
 				if hardlink is None:
-					if st.st_nlink > 1:
+					if not dentry.is_directory and st.st_nlink > 1:
 						seen[ino] = path
 					if dentry.is_file:
-						try:
-							fd = root_fd.sysopen(name, O_RDONLY, follow_symlinks = False)
-						except:
-							print_exc(file = stderr)
+						ref_dentry = reference.get(path)
+						if samedentry(dentry, ref_dentry):
+							dentry.hashes = ref_dentry.hashes
 						else:
-							with fd:
-								try:
-									is_same = samestat(st, fd.stat())
-								except:
-									print_exc(file = stderr)
-								else:
-									if is_same:
-										hashes = []
-										size = 0
-										while True:
-											buf = fd.read(chunksize)
-											if not buf:
-												break
-											agent.put_chunk(hashfunc(buf), buf, async = True)
-											hashes.append(hashfunc(buf))
-											buf_len = len(buf)
-											size += buf_len
-											if buf_len < chunksize:
-												break
-							dentry.size = size
-							dentry.hashes = hashes
+							try:
+								fd = root_fd.sysopen(name, O_RDONLY, follow_symlinks = False)
+							except:
+								print_exc(file = stderr)
+							else:
+								with fd:
+									try:
+										is_same = samestat(st, fd.stat())
+									except:
+										print_exc(file = stderr)
+									else:
+										if is_same:
+											hashes = []
+											size = 0
+											while True:
+												buf = fd.read(chunksize)
+												if not buf:
+													break
+												agent.put_chunk(hashfunc(buf), buf, async = True)
+												hashes.append(hashfunc(buf))
+												buf_len = len(buf)
+												size += buf_len
+												if buf_len < chunksize:
+													break
+								dentry.size = size
+								dentry.hashes = hashes
+
 					elif dentry.is_symlink:
 						try:
 							symlink = root_fd.readlink(name)

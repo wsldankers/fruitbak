@@ -83,6 +83,10 @@ class NewShare(Clarity):
 		return HardhatMaker('metadata.hh', dir_fd = self.sharedir_fd)
 
 	@initializer
+	def reference(self):
+		return self.newbackup.predecessor.get(self.name, {})
+
+	@initializer
 	def hashes_fp(self):
 		return self.newbackup.hashes_fp
 
@@ -94,6 +98,9 @@ class NewShare(Clarity):
 	def backup(self):
 		transfer = self.transfer
 		transfer.newshare = self
+		transfer.reference = self.reference
+		#print(repr(self.newbackup.predecessor))
+		#print(repr(self.reference))
 		hostconfig = self.host.config
 
 		info = dict(

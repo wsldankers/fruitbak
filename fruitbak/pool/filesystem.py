@@ -135,6 +135,11 @@ class Filesystem(Storage):
 				except FileNotFoundError:
 					pass
 
+		def __int__(self):
+			return self.fd
+
+		__index__ = __int__
+
 		def __enter__(self):
 			return self
 
@@ -277,7 +282,7 @@ else:
 							tmp = self.tmpfile(parent)
 						with tmp as fd:
 							fd.write(value)
-							fsync(fd)
+							fd.sync()
 							proc_self_fd.link(str(fd), path, dir_fd = pooldir_fd)
 				except:
 					callback(exc_info())

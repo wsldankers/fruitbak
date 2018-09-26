@@ -1,9 +1,9 @@
 """Represent hosts to back up"""
 
 from fruitbak.util import Clarity, initializer
-from fruitbak.dentry import Dentry, HardlinkDentry, dentry_layout_size
+from fruitbak.dentry import Dentry, HardlinkDentry, dentry_layout_size, dentry_encode
 
-from hardhat import Hardhat
+from hardhat import Hardhat, normalize as hardhat_normalize
 
 from struct import Struct
 from json import load as load_json
@@ -176,5 +176,18 @@ class Share(Clarity):
 
 			yield dentry
 
+	def __bool__(self):
+		return True
+
+	def __len__(self):
+		return len(self.metadata)
+
 	def __getitem__(self, path):
+		path = hardhat_normalize(dentry_encode(path))
 		return self.parse_dentry(path, self.metadata[path])
+
+	def get(self, key, default = None):
+		try:
+			return self[key]
+		except KeyError:
+			return default

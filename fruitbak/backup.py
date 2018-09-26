@@ -233,11 +233,27 @@ class Backup(Clarity):
 		shares.sort(key = lambda s: s.name)
 		return iter(shares)
 
+	def __bool__(self):
+		return True
+
+	def __len__(self):
+		return len(tuple(self))
+
 	def __getitem__(self, name):
 		name = str(name)
 		sharecache = self.sharecache
 		share = sharecache.get(name)
 		if share is None:
 			share = Share(backup = self, name = name)
+			try:
+				share.sharedir_fd
+			except FileNotFoundError:
+				raise KeyError(name)
 			sharecache[name] = share
 		return share
+
+	def get(self, key, default = None):
+		try:
+			return self[key]
+		except KeyError:
+			return default
