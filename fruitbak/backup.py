@@ -2,6 +2,7 @@
 
 from fruitbak.util import Clarity, initializer, lockingclass, unlocked
 from fruitbak.share import Share
+from fruitbak.dentry import dentry_encode
 
 from hardhat import normalize as hardhat_normalize
 from hashset import Hashset
@@ -169,8 +170,8 @@ class Backup(Clarity):
 			start_timestruct.tm_mon + 1,
 			1, 0, 0, 0, 0, 0, -1,
 		)) * 1000000000)
-		start_month_ratio = (start_time - beginning_of_start_month) \
-			/ (ending_of_start_month - beginning_of_start_month)
+		start_month_ratio = ((start_time - beginning_of_start_month)
+			/ (ending_of_start_month - beginning_of_start_month))
 
 		current_time = time_ns()
 		current_timestruct = localtime(current_time // 1000000000)
@@ -189,11 +190,11 @@ class Backup(Clarity):
 				current_timestruct.tm_mon + 1,
 				1, 0, 0, 0, 0, 0, -1,
 			)) * 1000000000)
-		current_month_ratio = (current_time - beginning_of_current_month) \
-			/ (ending_of_current_month - beginning_of_current_month)
+		current_month_ratio = ((current_time - beginning_of_current_month)
+			/ (ending_of_current_month - beginning_of_current_month))
 
-		return current_yearmonth - start_yearmonth \
-			+ current_month_ratio - start_month_ratio
+		return (current_yearmonth - start_yearmonth
+			+ current_month_ratio - start_month_ratio)
 
 	@unlocked
 	@property
@@ -214,14 +215,7 @@ class Backup(Clarity):
 	@unlocked
 	def locate_path(self, path):
 		original_path = path
-		try:
-			encode = path.encode
-		except AttributeError:
-			pass
-		else:
-			path = encode(errors = 'surrogateescape')
-		#print(repr(path))
-		path = hardhat_normalize(path)
+		path = hardhat_normalize(dentry_encode(path))
 		path = path.split(b'/') if len(path) else []
 		path_len = len(path)
 		shares = tuple(self)
@@ -229,7 +223,7 @@ class Backup(Clarity):
 		best_mp = None
 		best_len = -1
 		for share in shares:
-			mp = hardhat_normalize(share.mountpoint.encode(errors = 'surrogateescape'))
+			mp = hardhat_normalize(dentry_encode(share.mountpoint))
 			mp = mp.split(b'/') if len(mp) else []
 			mp_len = len(mp)
 			#print(best_len, mp_len, path_len, repr(mp), repr(path[:mp_len]))
