@@ -93,7 +93,6 @@ class LocalTransfer(Clarity):
 		newshare = self.newshare
 		reference = self.reference
 		chunksize = self.fruitbak.chunksize
-		hashfunc = self.fruitbak.hashfunc
 
 		def normalize(path):
 			return '/'.join(path.relative_to(path.anchor).parts)

@@ -19,15 +19,18 @@ from time import sleep
 from random import choice
 from itertools import chain
 
-b64seq = bytes(b64encode(bytes((i * 4,)), b'+_')[0] for i in range(64)).decode()
+b64bytes = b'+_'
+b64chars = b64bytes.decode()
+
+b64seq = bytes(b64encode(bytes((i << 2,)), b64bytes)[0] for i in range(64)).decode()
 #b64set = set(b64seq)
-directory_re = re('[A-Za-z0-9+_]{2}')
+directory_re = re('[A-Za-z0-9'+b64chars+']{2}')
 
 def my_b64encode(b):
-	return b64encode(b, b'+_').rstrip(b'=').decode()
+	return b64encode(b, b64bytes).rstrip(b'=').decode()
 
 def my_b64decode(s):
-	return b64decode(s + '=' * (-len(s) % 4), b'+_')
+	return b64decode(s + '=' * (-len(s) & 3), b64bytes)
 
 class FilesystemListAction(PoolAction):
 	directory = None
@@ -230,7 +233,7 @@ class Filesystem(Storage):
 	def lister(self, agent):
 		dirs = self.pooldir_fd.listdir()
 		dirs = list(filter(directory_re.fullmatch, dirs))
-		dirs.sort(key = lambda x: b64decode(x+'A=', b'+_'))
+		dirs.sort(key = lambda x: b64decode(x+'A=', b64bytes))
 		listahead = FilesystemListahead(filesystem = self, agent = agent, iterator = iter(dirs))
 		for action in listahead:
 			if action.exception:
