@@ -7,8 +7,15 @@ class getinitializer:
 
 	def __get__(self, obj, objtype = None):
 		getfunction = self.getfunction
+		name = getfunction.__name__
+		objdict = obj.__dict__
+		# do an explicit check to accommodate a threaded scenario
+		try:
+			return objdict[name]
+		except KeyError:
+			pass
 		value = getfunction(obj)
-		setattr(obj, getfunction.__name__, value)
+		objdict[name] = value
 		return value
 
 	def setter(self, setfunction):
@@ -39,24 +46,12 @@ class getdelinitializer(getinitializer):
 	def setter(self, setfunction):
 		return getsetdelinitializer(self.getfunction, setfunction, self.delfunction)
 
-class getsetinitializer:
+class getsetinitializer(getinitializer):
 	def __init__(self, getfunction, setfunction):
 		self.getfunction = getfunction
 		self.setfunction = setfunction
 		self.name = getfunction.__name__
 		self.__doc__ = getfunction.__doc__
-
-	def __get__(self, obj, objtype = None):
-		getfunction = self.getfunction
-		name = getfunction.__name__
-		objdict = obj.__dict__
-		try:
-			return objdict[name]
-		except KeyError:
-			pass
-		value = getfunction(obj)
-		objdict[name] = value
-		return value
 
 	def __set__(self, obj, value):
 		obj.__dict__[self.name] = self.setfunction(obj, value)

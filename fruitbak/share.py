@@ -1,6 +1,6 @@
 """Represent hosts to back up"""
 
-from fruitbak.util import Clarity, initializer
+from fruitbak.util import Clarity, initializer, lockingclass, unlocked
 from fruitbak.dentry import Dentry, HardlinkDentry, dentry_layout_size, dentry_encode
 
 from hardhat import Hardhat, normalize as hardhat_normalize
@@ -19,6 +19,7 @@ class NestedHardlinkError(ShareError):
 class MissingLinkError(ShareError):
     pass
 
+@lockingclass
 class Share(Clarity):
 	"""Represent a share to back up.
 
@@ -28,20 +29,24 @@ class Share(Clarity):
 	distinction is not relevant/applicable for the host.
 	"""
 
+	@unlocked
 	@initializer
 	def fruitbak(self):
 		"""The fruitbak object that this share belongs to"""
 		return self.host.fruitbak
 
+	@unlocked
 	@initializer
 	def host(self):
 		"""The host object that this share belongs to"""
 		return self.backup.host
 
+	@unlocked
 	@initializer
 	def name(self):
 		return self.fruitbak.path_to_name(self.sharedir.name)
 
+	@unlocked
 	@initializer
 	def sharedir(self):
 		return self.fruitbak.name_to_path(self.name)
@@ -58,6 +63,7 @@ class Share(Clarity):
 			with open('info.json', 'r', opener = self.sharedir_fd.opener) as fp:
 				return load_json(fp)
 
+	@unlocked
 	@initializer
 	def start_time(self):
 		t = int(self.info['startTime'])
@@ -66,6 +72,7 @@ class Share(Clarity):
 		else:
 			return t
 
+	@unlocked
 	@initializer
 	def end_time(self):
 		t = int(self.info['endTime'])
@@ -74,14 +81,17 @@ class Share(Clarity):
 		else:
 			return t
 
+	@unlocked
 	@initializer
 	def mountpoint(self):
 		return str(self.info['mountpoint'])
 
+	@unlocked
 	@initializer
 	def path(self):
 		return str(self.info['path'])
 
+	@unlocked
 	@initializer
 	def error(self):
 		try:
@@ -93,7 +103,8 @@ class Share(Clarity):
 	def metadata(self):
 		return Hardhat('metadata.hh', dir_fd = self.sharedir_fd)
 
-	def parse_dentry(self, path, data):
+	@unlocked
+	def _parse_dentry(self, path, data):
 		dentry = Dentry(data, name = path, share = self)
 		if dentry.is_hardlink:
 			name = dentry.hardlink
@@ -104,18 +115,22 @@ class Share(Clarity):
 		else:
 			return dentry
 
+	@unlocked
 	def hashes(self):
 		for data in self.metadata.values():
 			d = Dentry(data)
 			if d.is_file and not d.is_hardlink:
 				yield d.extra
 
+	@unlocked
 	def ls(self, path = b'', parent = False):
 		return self.hardlink_inverter(self.metadata.ls(path, parent = parent))
 
+	@unlocked
 	def find(self, path = b'', parent = True):
 		return self.hardlink_inverter(self.metadata.find(path, parent = parent))
 
+	@unlocked
 	def hardlink_inverter(self, c):
 		remap = {}
 		first_inode = None
@@ -179,16 +194,20 @@ class Share(Clarity):
 
 			yield dentry
 
+	@unlocked
 	def __bool__(self):
 		return True
 
+	@unlocked
 	def __len__(self):
 		return len(self.metadata)
 
+	@unlocked
 	def __getitem__(self, path):
 		path = hardhat_normalize(dentry_encode(path))
-		return self.parse_dentry(path, self.metadata[path])
+		return self._parse_dentry(path, self.metadata[path])
 
+	@unlocked
 	def get(self, key, default = None):
 		try:
 			return self[key]

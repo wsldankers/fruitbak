@@ -1,6 +1,6 @@
 """Top-level object for a Fruitbak installation"""
 
-from fruitbak.util import Clarity, initializer, sysopendir, locked, NLock
+from fruitbak.util import Clarity, initializer, sysopendir, lockingclass, unlocked
 from fruitbak.host import Host
 from fruitbak.pool import Pool
 from fruitbak.config import Config, configurable, configurable_function
@@ -11,12 +11,13 @@ from weakref import WeakValueDictionary
 from pathlib import Path
 from urllib.parse import quote, unquote
 from sys import stderr
-from os import getenv, getpid, scandir, rename, unlink, sched_getaffinity
+from os import getenv, getpid, sched_getaffinity
 from threading import get_ident as gettid, Lock
 from concurrent.futures import ThreadPoolExecutor
 from itertools import chain
 
-class UnlockedFruitbak(Clarity):
+@lockingclass
+class Fruitbak(Clarity):
 	"""Top-level object for a Fruitbak installation.
 
 	For each Fruitbak installation you should instantiate a Fruitbak
@@ -71,8 +72,6 @@ class UnlockedFruitbak(Clarity):
 	def hostdir_fd(self):
 		return self.rootdir_fd.sysopendir(self.hostdir)
 
-	max_workers = 32
-
 	@configurable
 	def max_parallel_backups(self):
 		return 1
@@ -82,6 +81,17 @@ class UnlockedFruitbak(Clarity):
 		intvalue = int(value)
 		if intvalue != value or value < 1:
 			raise RuntimeError("max_parallel_backups must be a strictly positive integer")
+		return intvalue
+
+	@configurable
+	def max_workers(self):
+		return 32
+
+	@max_workers.validate
+	def max_workers(self, value):
+		intvalue = int(value)
+		if intvalue != value or value < 1:
+			raise RuntimeError("max_workers must be a strictly positive integer")
 		return intvalue
 
 	@initializer
@@ -120,6 +130,7 @@ class UnlockedFruitbak(Clarity):
 			raise RuntimeError("chunksize must be a power of two")
 		return int(value)
 
+	@unlocked
 	def generate_hashes(self):
 		pmap = self.executor.map
 
@@ -133,10 +144,10 @@ class UnlockedFruitbak(Clarity):
 		tempname = 'hashes.%d.%d' % (getpid(), gettid())
 		try:
 			Hashset.merge(*hashes, path = tempname, dir_fd = rootdir_fd)
-			rename(tempname, 'hashes', src_dir_fd = rootdir_fd, dst_dir_fd = rootdir_fd)
+			rootdir_fd.rename(tempname, 'hashes')
 		except:
 			try:
-				unlink(tempname, dir_fd = rootdir_fd)
+				rootdir_fd.unlink(tempname)
 			except FileNotFoundError:
 				pass
 		return Hashset.load('hashes', self.hashsize, dir_fd = rootdir_fd)
@@ -150,7 +161,11 @@ class UnlockedFruitbak(Clarity):
 
 	def remove_hashes(self):
 		try:
-			unlink('hashes', dir_fd = self.rootdir_fd)
+			del self.stale_hashes
+		except AttributeError:
+			pass
+		try:
+			self.rootdir_fd.unlink('hashes')
 		except FileNotFoundError:
 			pass
 
@@ -162,6 +177,7 @@ class UnlockedFruitbak(Clarity):
 	def _hostcache(self):
 		return WeakValueDictionary()
 
+	@unlocked
 	def _discover_hosts(self):
 		hostcache = self._hostcache
 		path_to_name = self.path_to_name
@@ -172,10 +188,11 @@ class UnlockedFruitbak(Clarity):
 			entry_name = entry.name
 			if not entry_name.startswith('.') and entry.is_dir():
 				name = path_to_name(entry_name)
-				host = hostcache.get(name)
-				if host is None:
-					host = Host(fruitbak = self, name = name, backupdir = Path(entry_name))
-					hostcache[name] = host
+				with self.lock:
+					host = hostcache.get(name)
+					if host is None:
+						host = Host(fruitbak = self, name = name, backupdir = Path(entry_name))
+						hostcache[name] = host
 				hosts[name] = host
 
 		with self.confdir_fd.sysopendir('host') as hostconfdir_fd:
@@ -185,19 +202,22 @@ class UnlockedFruitbak(Clarity):
 					name = path_to_name(entry_name[:-3])
 					if name in hosts:
 						continue
-					host = hostcache.get(name)
-					if host is None:
-						host = Host(fruitbak = self, name = name)
-						hostcache[name] = host
+					with self.lock:
+						host = hostcache.get(name)
+						if host is None:
+							host = Host(fruitbak = self, name = name)
+							hostcache[name] = host
 					hosts[name] = host
 
 		return hosts
 
+	@unlocked
 	def __iter__(self):
 		hosts = list(self._discover_hosts().values())
 		hosts.sort(key = lambda h: h.name)
 		return iter(hosts)
 
+	@unlocked
 	def __getitem__(self, name):
 		try:
 			return self._hostcache[name]
@@ -206,34 +226,11 @@ class UnlockedFruitbak(Clarity):
 		hosts = self._discover_hosts()
 		return hosts[name]
 
+	@unlocked
 	def name_to_path(self, name):
 		return Path(quote(name[0], errors = 'strict', safe = '+=_,%@')
 			+ quote(name[1:], errors = 'strict', safe = '+=_,%@.-'))
 
+	@unlocked
 	def path_to_name(self, path):
 		return unquote(str(path), errors = 'strict')
-
-class Fruitbak(Clarity):
-	def __init__(self, *args, **kwargs):
-		return super().__init__(
-			_lock = NLock(),
-			_unlocked = UnlockedFruitbak(*args, **kwargs),
-		)
-
-	def __getattr__(self, name):
-		with self._lock:
-			v = getattr(self._unlocked, name)
-			self.__dict__[name] = v
-			return v
-
-	def generate_hashes(self, *args, **kwargs):
-		with self._lock:
-			return self._unlocked.generate_hashes(*args, **kwargs)
-
-	def __iter__(self):
-		with self._lock:
-			return self._unlocked.__iter__()
-
-	def __getitem__(self, name):
-		with self._lock:
-			return self._unlocked.__getitem__(name)

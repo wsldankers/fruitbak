@@ -1,6 +1,6 @@
 """Represent a backup"""
 
-from fruitbak.util import Clarity, initializer
+from fruitbak.util import Clarity, initializer, lockingclass, unlocked
 from fruitbak.share import Share
 
 from hardhat import normalize as hardhat_normalize
@@ -20,6 +20,7 @@ except ImportError:
 	def time_ns():
 		return int(time() * 1000000000.0)
 
+@lockingclass
 class Backup(Clarity):
 	"""Represent a finished backup.
 
@@ -32,15 +33,18 @@ class Backup(Clarity):
 	if the distinction is not relevant/applicable for the host.
 	"""
 
+	@unlocked
 	@initializer
 	def fruitbak(self):
 		"""The fruitbak object that this backup belongs to"""
 		return self.host.fruitbak
 
+	@unlocked
 	@initializer
 	def index(self):
 		return int(self.backupdir.name)
 
+	@unlocked
 	@initializer
 	def backupdir(self):
 		return Path(str(self.index))
@@ -49,6 +53,7 @@ class Backup(Clarity):
 	def backupdir_fd(self):
 		return self.host.hostdir_fd.sysopendir(self.backupdir)
 
+	@unlocked
 	@initializer
 	def sharedir(self):
 		return Path('share')
@@ -76,11 +81,13 @@ class Backup(Clarity):
 			rename('hashes.new', 'hashes', src_dir_fd = backupdir_fd, dst_dir_fd = backupdir_fd)
 			return Hashset.load('hashes', hashsize, dir_fd = backupdir_fd)
 
+	@unlocked
 	@initializer
 	def info(self):
 		with open('info.json', 'r', opener = self.backupdir_fd.opener) as fp:
 			return load_json(fp)
 
+	@unlocked
 	@initializer
 	def start_time(self):
 		t = int(self.info['startTime'])
@@ -89,6 +96,7 @@ class Backup(Clarity):
 		else:
 			return t
 
+	@unlocked
 	@initializer
 	def end_time(self):
 		t = int(self.info['endTime'])
@@ -97,14 +105,17 @@ class Backup(Clarity):
 		else:
 			return t
 
+	@unlocked
 	@initializer
 	def level(self):
 		return int(self.info['level'])
 
+	@unlocked
 	@initializer
 	def failed(self):
 		return bool(self.info.get('failed', False))
 
+	@unlocked
 	def remove(self):
 		def onerror(exc):
 			raise exc
@@ -117,30 +128,37 @@ class Backup(Clarity):
 
 		rmdir(str(self.backupdir), dir_fd = self.host.hostdir_fd)
 
+	@unlocked
 	@property
 	def age_seconds(self):
-		return self.start_time / 1000000000
+		return (time_ns() - self.start_time) / 1000000000
 
+	@unlocked
 	@property
 	def age_minutes(self):
-		return self.start_time / 60000000000
+		return (time_ns() - self.start_time) / 60000000000
 
+	@unlocked
 	@property
 	def age_hours(self):
-		return self.start_time / 3600000000000
+		return (time_ns() - self.start_time) / 3600000000000
 
+	@unlocked
 	@property
 	def age_days(self):
-		return self.start_time / 86400000000000
+		return (time_ns() - self.start_time) / 86400000000000
 
+	@unlocked
 	@property
 	def age_weeks(self):
-		return self.start_time / 604800000000000
+		return (time_ns() - self.start_time) / 604800000000000
 
+	@unlocked
 	@property
 	def age_months(self):
 		start_time = self.start_time
 		start_timestruct = localtime(start_time // 1000000000)
+		start_yearmonth = start_timestruct.tm_year * 12 + start_timestruct.tm_mon
 		beginning_of_start_month = int(mktime((
 			start_timestruct.tm_year,
 			start_timestruct.tm_mon,
@@ -156,23 +174,28 @@ class Backup(Clarity):
 
 		current_time = time_ns()
 		current_timestruct = localtime(current_time // 1000000000)
-		beginning_of_current_month = int(mktime((
-			current_timestruct.tm_year,
-			current_timestruct.tm_mon,
-			1, 0, 0, 0, 0, 0, -1,
-		)) * 1000000000)
-		ending_of_current_month = int(mktime((
-			current_timestruct.tm_year,
-			current_timestruct.tm_mon + 1,
-			1, 0, 0, 0, 0, 0, -1,
-		)) * 1000000000)
+		current_yearmonth = current_timestruct.tm_year * 12 + current_timestruct.tm_mon
+		if current_yearmonth == start_yearmonth:
+			beginning_of_current_month = beginning_of_start_month
+			ending_of_current_month = ending_of_start_month
+		else:
+			beginning_of_current_month = int(mktime((
+				current_timestruct.tm_year,
+				current_timestruct.tm_mon,
+				1, 0, 0, 0, 0, 0, -1,
+			)) * 1000000000)
+			ending_of_current_month = int(mktime((
+				current_timestruct.tm_year,
+				current_timestruct.tm_mon + 1,
+				1, 0, 0, 0, 0, 0, -1,
+			)) * 1000000000)
 		current_month_ratio = (current_time - beginning_of_current_month) \
 			/ (ending_of_current_month - beginning_of_current_month)
 
-		return (current_timestruct.tm_year * 12 + current_timestruct.tm_mon) \
-			- (start_timestruct.tm_year * 12 + start_timestruct.tm_mon) \
+		return current_yearmonth - start_yearmonth \
 			+ current_month_ratio - start_month_ratio
 
+	@unlocked
 	@property
 	def expired(self):
 		try:
@@ -182,12 +205,13 @@ class Backup(Clarity):
 		else:
 			return configured(self)
 
-	@property
+	@initializer
 	def log_tier(self):
 		# abuse the side effect:
 		iter(self.host)
 		return self.__dict__['log_tier']
 
+	@unlocked
 	def locate_path(self, path):
 		original_path = path
 		try:
@@ -217,6 +241,7 @@ class Backup(Clarity):
 			raise FileNotFoundError("no share found for '%s'" % original_path)
 		return best, b'/'.join(path[best_len:])
 
+	@unlocked
 	def __iter__(self):
 		shares = []
 		sharecache = self.sharecache
@@ -225,14 +250,16 @@ class Backup(Clarity):
 			entry_name = entry.name
 			if not entry_name.startswith('.') and entry.is_dir():
 				name = fruitbak.path_to_name(entry_name)
-				share = sharecache.get(name)
-				if share is None:
-					share = Share(fruitbak = fruitbak, backup = self, name = name, sharedir = Path(entry.name))
-					sharecache[name] = share
+				with self.lock:
+					share = sharecache.get(name)
+					if share is None:
+						share = Share(fruitbak = fruitbak, backup = self, name = name, sharedir = Path(entry.name))
+						sharecache[name] = share
 				shares.append(share)
 		shares.sort(key = lambda s: s.name)
 		return iter(shares)
 
+	@unlocked
 	def __bool__(self):
 		return True
 
@@ -249,6 +276,7 @@ class Backup(Clarity):
 			sharecache[name] = share
 		return share
 
+	@unlocked
 	def get(self, key, default = None):
 		try:
 			return self[key]

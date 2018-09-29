@@ -11,6 +11,8 @@ def lockedmethod(method):
 		with self.lock:
 			return method(self, *args, **kwargs)
 	replacement.__name__ = method.__name__
+	replacement.__qualname__ = method.__qualname__
+	replacement.__doc__ = method.__doc__
 	return replacement
 
 class lockednondatadescriptor:
@@ -81,7 +83,16 @@ def lockingclass(cls):
 			replacements[key] = lockednondatadescriptor(value)
 		else:
 			replacements[key] = value
-	return type(cls.__name__, cls.__bases__, replacements)
+
+	if '__init__' not in replacements:
+		def __init__(self, *args, **kwargs):
+			self.lock = RLock()
+			return super(cls, self).__init__(*args, **kwargs)
+		replacements['__init__'] = __init__
+	
+	# make sure the cls in super() above works properly
+	cls = type(cls.__name__, cls.__bases__, replacements)
+	return cls
 
 if __debug__:
 	class NLock(type(RLock())):

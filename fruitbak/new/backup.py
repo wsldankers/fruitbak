@@ -63,9 +63,9 @@ class NewBackup(Clarity):
 
 	@initializer
 	def index(self):
-		pred = self.predecessor
-		if pred:
-			return pred.index + 1
+		predecessor = self.predecessor
+		if predecessor:
+			return predecessor.index + 1
 		else:
 			return 0
 
@@ -73,8 +73,11 @@ class NewBackup(Clarity):
 	def level(self):
 		if self.full:
 			return 0
-		else:
+		predecessor = self.predecessor
+		if predecessor:
 			return self.predecessor.level + 1
+		else:
+			return 0
 
 	@initializer
 	def full(self):
