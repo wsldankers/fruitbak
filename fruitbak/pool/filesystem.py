@@ -16,10 +16,11 @@ from pathlib import Path
 from re import compile as re
 
 from time import sleep
-from random import getrandbits
+from random import choice
+from itertools import chain
 
-#b64order = bytes(b64encode(bytes((i * 4,)), b'+_')[0] for i in range(64)).decode()
-#b64set = set(b64order)
+b64seq = bytes(b64encode(bytes((i * 4,)), b'+_')[0] for i in range(64)).decode()
+#b64set = set(b64seq)
 directory_re = re('[A-Za-z0-9+_]{2}')
 
 def my_b64encode(b):
@@ -99,7 +100,10 @@ class Filesystem(Storage):
 
 	class NamedTemporaryFile:
 		def __init__(self, path, mode = 0o666, *, dir_fd = None):
-			name = 'tmp-' + str(getpid()) + '-' + str(gettid()) + '-' + my_b64encode(getrandbits(128).to_bytes(16, 'big'))
+			name = ''.join(chain(
+				('tmp-', str(getpid()), '-', str(gettid()), '-'),
+				(choice(b64seq) for x in range(32)),
+			))
 			path = Path(path) / name
 			self.fd = sysopen(path, O_WRONLY|O_EXCL|O_CREAT, dir_fd = dir_fd)
 			self.path = path
