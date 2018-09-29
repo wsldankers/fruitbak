@@ -1,5 +1,5 @@
 from fruitbak.util import Clarity, initializer, xyzzy
-from fruitbak.config import configurable
+from fruitbak.config import configurable, configurable_function
 from fruitbak.transfer.local import LocalTransfer
 
 from hardhat import HardhatMaker
@@ -50,9 +50,10 @@ class NewShare(Clarity):
 	def transfer_options(self):
 		return {}
 
-	@configurable
-	def transfer(self):
-		return self.transfer_method(**self.transfer_options)
+	@configurable_function
+	def transfer(**kwargs):
+		self = kwargs['newshare']
+		return self.transfer_method(**self.transfer_options, **kwargs)
 
 	@initializer
 	def sharedir(self):
@@ -71,6 +72,10 @@ class NewShare(Clarity):
 		return self.newbackup.host
 
 	@initializer
+	def cpu_executor(self):
+		return self.cpu_executor.agent
+
+	@initializer
 	def agent(self):
 		return self.newbackup.agent
 
@@ -83,12 +88,19 @@ class NewShare(Clarity):
 		return HardhatMaker('metadata.hh', dir_fd = self.sharedir_fd)
 
 	@initializer
+	def full(self):
+		return self.newbackup.full
+
+	@initializer
 	def predecessor(self):
 		return self.newbackup.predecessor
 
 	@initializer
 	def reference(self):
-		return self.predecessor.get(self.name, {})
+		if self.full:
+			return {}
+		else:
+			return self.predecessor.get(self.name, {})
 
 	@initializer
 	def predecessor_hashes(self):
@@ -126,10 +138,8 @@ class NewShare(Clarity):
 			self.hashes_fp.write(dentry.extra)
 		self.hardhat_maker.add(dentry.name, bytes(dentry))
 
-	def backup(self):
-		transfer = self.transfer
-		transfer.newshare = self
-		transfer.reference = self.reference
+	def backup(self, full = False):
+		transfer = self.transfer(newshare = self)
 		#print(repr(self.newbackup.predecessor))
 		#print(repr(self.reference))
 		hostconfig = self.host.config

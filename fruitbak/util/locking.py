@@ -1,6 +1,6 @@
 #! /usr/bin/python3
 
-from threading import RLock
+from threading import Lock, RLock
 
 class unlockedmethod:
 	def __init__(self, function):
@@ -115,12 +115,11 @@ if __debug__:
 			finally:
 				s.release()
 else:
-	class NLock(type(RLock())):
+	class NLock(type(Lock())):
 		def __bool__(self):
 			s = super()
-			if not s.acquire(False):
-				return False
-			try:
-				return " count=1 " not in repr(self)
-			finally:
+			if s.acquire(False):
 				s.release()
+				return True
+			else:
+				return False

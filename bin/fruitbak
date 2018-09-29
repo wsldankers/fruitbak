@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 
 from fruitbak import Fruitbak
-from fruitbak.util.tabulate import tabulate
+from fruitbak.util import tabulate, OptionalWithoutArgument, OptionalWithArgument, OptionalCommand
 
 from os import fsdecode
 from os.path import basename
@@ -12,6 +12,7 @@ from tarfile import TarInfo, REGTYPE, LNKTYPE, SYMTYPE, CHRTYPE, BLKTYPE, DIRTYP
 from time import sleep, localtime, strftime
 from concurrent.futures import ThreadPoolExecutor
 from hardhat import normalize as hardhat_normalize
+from traceback import print_exc
 
 import click
 import gc, atexit
@@ -96,7 +97,7 @@ def ls(host, backup, share, path):
 			status = s.error or 'done'
 			return s.name, mountpoint, start, end, duration, status
 		headings = ('Name', 'Mount point', 'Start', 'End', 'Duration', 'Status')
-		print(tabulate(pmap(info, tuple(fbak[host][backup])), headings = headings, alignment = {4:True}))
+		print(tabulate(pmap(info, fbak[host][backup]), headings = headings, alignment = {4:True}))
 	else:
 		backup = fbak[host][backup]
 		if path is None:
@@ -251,7 +252,7 @@ def tar(host, backup, share, path):
 				for hash in dentry.hashes:
 					action = next(reader)
 					if action.exception:
-						raise action.exception
+						raise action.exception[1]
 					binary_stdout.write(action.value)
 				padding = -i.size % BLOCKSIZE
 				if padding:
@@ -259,10 +260,13 @@ def tar(host, backup, share, path):
 
 	binary_stdout.write(b'\0' * (BLOCKSIZE*2))
 
-@cli.command()
-@click.option('-a', '--all', default = False, is_flag = True)
+@cli.command(cls = OptionalCommand)
 @click.argument('host', nargs = -1)
-def backup(all, host = None):
+@click.option('--full', cls = OptionalWithoutArgument, is_flag = True, help = "Do a full backup")
+@click.option('--full_set', cls = OptionalWithArgument,
+	help = "Do a full backup if the previous one is older than this interval")
+@click.option('-a', '--all', default = False, is_flag = True)
+def backup(all, host, full, full_set):
 	"""Run a backup for a host (or all hosts)"""
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 	max_parallel_backups = fbak.max_parallel_backups
@@ -278,19 +282,17 @@ def backup(all, host = None):
 	if hostset:
 		raise RuntimeError("unknown hosts: " + "".join(hostset))
 
+	def job(h):
+		try:
+			h.backup(full = full)
+		except:
+			print_exc(file = stderr)
+
 	if max_parallel_backups == 1:
 		for h in hosts:
-			try:
-				h.backup()
-			except:
-				print_exc(file = stderr)
+			job(h)
 	else:
 		with ThreadPoolExecutor(max_workers = max_parallel_backups) as exec:
-			def job(h):
-				try:
-					h.backup()
-				except:
-					print_exc(file = stderr)
 			for j in [exec.submit(job, h) for h in hosts]:
 				j.result()
 
@@ -379,8 +381,7 @@ def listchunks():
 	for hash in fbak.pool.agent().lister():
 		print(hash)
 
-@cli.command()
-def xyzzy():
+def xyzzy(full, full_set):
 	"""Nothing happens"""
 
 if __name__ == '__main__':

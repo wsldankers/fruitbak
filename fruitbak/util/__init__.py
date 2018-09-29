@@ -1,4 +1,5 @@
 from fruitbak.util.clarity import *
+from fruitbak.util.click import *
 from fruitbak.util.heapmap import *
 from fruitbak.util.weakheapmap import *
 from fruitbak.util.locking import *

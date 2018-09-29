@@ -85,6 +85,10 @@ class LocalTransfer(Clarity):
 	def path(self):
 		return self.newshare.path
 
+	@initializer
+	def reference(self):
+		return self.newshare.reference
+
 	def transfer(self):
 		newshare = self.newshare
 		reference = self.reference

@@ -1,6 +1,6 @@
 """Top-level object for a Fruitbak installation"""
 
-from fruitbak.util import Clarity, initializer, sysopendir
+from fruitbak.util import Clarity, initializer, sysopendir, locked, NLock
 from fruitbak.host import Host
 from fruitbak.pool import Pool
 from fruitbak.config import Config, configurable, configurable_function
@@ -11,12 +11,12 @@ from weakref import WeakValueDictionary
 from pathlib import Path
 from urllib.parse import quote, unquote
 from sys import stderr
-from os import getenv, getpid, scandir, rename, unlink
-from threading import get_ident as gettid
+from os import getenv, getpid, scandir, rename, unlink, sched_getaffinity
+from threading import get_ident as gettid, Lock
 from concurrent.futures import ThreadPoolExecutor
 from itertools import chain
 
-class Fruitbak(Clarity):
+class UnlockedFruitbak(Clarity):
 	"""Top-level object for a Fruitbak installation.
 
 	For each Fruitbak installation you should instantiate a Fruitbak
@@ -88,6 +88,10 @@ class Fruitbak(Clarity):
 	def executor(self):
 		return ThreadPoolExecutor(max_workers = self.max_workers)
 
+	@initializer
+	def cpu_executor(self):
+		return ThreadPoolExecutor(max_workers = len(sched_getaffinity(0)))
+
 	@configurable
 	def hashalgo(data):
 		from hashlib import sha256
@@ -122,9 +126,7 @@ class Fruitbak(Clarity):
 		# iterate over self, which gives a list of hosts
 		# then apply tuple() to each host, giving lists of backups
 		# then chain to concatenate those tuples
-		backups = chain(*pmap(tuple, self))
-
-		hashes = pmap(lambda s: s.hashes, backups)
+		hashes = pmap(lambda s: s.hashes, chain(*pmap(tuple, self)))
 
 		rootdir_fd = self.rootdir_fd
 
@@ -156,8 +158,12 @@ class Fruitbak(Clarity):
 	def pool(self):
 		return Pool(fruitbak = self)
 
-	def discover_hosts(self):
-		hostcache = self.hostcache
+	@initializer
+	def _hostcache(self):
+		return WeakValueDictionary()
+
+	def _discover_hosts(self):
+		hostcache = self._hostcache
 		path_to_name = self.path_to_name
 
 		hosts = {}
@@ -187,17 +193,17 @@ class Fruitbak(Clarity):
 
 		return hosts
 
-	@initializer
-	def hostcache(self):
-		return WeakValueDictionary()
-
 	def __iter__(self):
-		hosts = list(self.discover_hosts().values())
+		hosts = list(self._discover_hosts().values())
 		hosts.sort(key = lambda h: h.name)
 		return iter(hosts)
 
 	def __getitem__(self, name):
-		hosts = self.discover_hosts()
+		try:
+			return self._hostcache[name]
+		except KeyError:
+			pass
+		hosts = self._discover_hosts()
 		return hosts[name]
 
 	def name_to_path(self, name):
@@ -206,3 +212,28 @@ class Fruitbak(Clarity):
 
 	def path_to_name(self, path):
 		return unquote(str(path), errors = 'strict')
+
+class Fruitbak(Clarity):
+	def __init__(self, *args, **kwargs):
+		return super().__init__(
+			_lock = NLock(),
+			_unlocked = UnlockedFruitbak(*args, **kwargs),
+		)
+
+	def __getattr__(self, name):
+		with self._lock:
+			v = getattr(self._unlocked, name)
+			self.__dict__[name] = v
+			return v
+
+	def generate_hashes(self, *args, **kwargs):
+		with self._lock:
+			return self._unlocked.generate_hashes(*args, **kwargs)
+
+	def __iter__(self):
+		with self._lock:
+			return self._unlocked.__iter__()
+
+	def __getitem__(self, name):
+		with self._lock:
+			return self._unlocked.__getitem__(name)

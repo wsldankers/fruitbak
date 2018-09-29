@@ -175,7 +175,7 @@ class Filesystem(Storage):
 			try:
 				results = []
 				with pooldir_fd.sysopen(path, O_RDONLY) as fd:
-					buf = fd.read(fd.fstat().st_size)
+					buf = fd.read(fd.stat().st_size)
 			except:
 				callback(None, exc_info())
 			else:

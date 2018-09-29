@@ -71,14 +71,13 @@ class NewBackup(Clarity):
 
 	@initializer
 	def level(self):
-		pred = self.predecessor
-		if pred:
-			return pred.level + 1
-		else:
+		if self.full:
 			return 0
+		else:
+			return self.predecessor.level + 1
 
 	@initializer
-	def is_full(self):
+	def full(self):
 		return bool(self.predecessor)
 
 	@initializer

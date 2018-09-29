@@ -94,12 +94,12 @@ class Host(Clarity):
 	def auto(self, value):
 		return bool(value)
 
-	def backup(self):
+	def backup(self, **kwargs):
 		try:
 			mkdir(str(self.hostdir), dir_fd = self.fruitbak.hostdir_fd)
 		except FileExistsError:
 			pass
-		NewBackup(host = self).backup()
+		NewBackup(host = self, **kwargs).backup()
 
 	def __iter__(self):
 		try:
