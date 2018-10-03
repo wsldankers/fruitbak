@@ -1,7 +1,7 @@
 AC_INIT([fruitbak], [0.0])
 AM_INIT_AUTOMAKE([foreign subdir-objects dist-xz no-dist-gzip])
 
-AC_CONFIG_SRCDIR(bin/fruitbak.pl)
+AC_CONFIG_SRCDIR(bin/fruitbak.py)
 
 AC_SUBST([pkglocalstatedir], ['${localstatedir}/lib/${PACKAGE}'])
 AC_SUBST([pkgsysconfdir], ['${sysconfdir}/${PACKAGE}'])
@@ -10,12 +10,22 @@ AC_SUBST([pkglibdir], ['${libdir}/${PACKAGE}'])
 
 AC_PROG_INSTALL
 
-AC_PATH_PROG(PERL, perl)
+AC_PATH_PROG([PERL], [perl])
 case $PERL in '')
 	AC_MSG_ERROR([cannot find perl in your PATH.])
 esac
 
-AC_CONFIG_COMMANDS([config.perl],[echo "$allconfigvars" >config.perl],[
+AC_CACHE_CHECK([for the full path of Python 3], [ac_cv_path_PYTHON], [
+	AC_PATH_PROGS_FEATURE_CHECK([PYTHON], [python python3], [
+		case $($ac_path_PYTHON -V 2>/dev/null) in Python\ 3.*)
+			ac_cv_path_PYTHON=$ac_path_PYTHON
+			ac_path_PYTHON_found=:
+		esac
+	], [AC_MSG_ERROR([cannot find python 3 in your PATH.])])
+])
+AC_SUBST([PYTHON], [$ac_cv_path_PYTHON])
+
+AC_CONFIG_COMMANDS([scriptconfig], [echo "$allconfigvars" >scriptconfig], [
 allconfigvars=\$(cat <<'__CONFIGVARS_EOT'
 $(for ax_var in $ac_subst_vars
 do

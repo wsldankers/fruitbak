@@ -1,17 +1,23 @@
 pkgsysconfdir = $(sysconfdir)/@PACKAGE@
-scriptdir = $(pkgdatadir)/bin
-sbindir = $(exec_prefix)/sbin
+supportbindir = $(pkgdatadir)/bin
+#sbindir = $(exec_prefix)/sbin
 
 bin_SCRIPTS = bin/fruitbak
-script_SCRIPTS = bin/fruitbak-rsyncp-recv
-man_MANS = $(bin_SCRIPTS:=.1)
+supportbin_SCRIPTS = bin/fruitbak-rsyncp-recv
+#man_MANS = $(bin_SCRIPTS:=.1)
 
-CLEANFILES = $(bin_SCRIPTS) $(bin_SCRIPTS:=.tmp) $(man_MANS)
-EXTRA_DIST = $(bin_SCRIPTS:=.pl) $(sbin_SCRIPTS:=.pl)
+CLEANFILES = $(bin_SCRIPTS) $(bin_SCRIPTS:=.tmp) $(supportbin_SCRIPTS) $(supportbin_SCRIPTS:=.tmp) $(man_MANS)
+EXTRA_DIST = $(bin_SCRIPTS:=.py) $(supportbin_SCRIPTS:=.pl)
+
+.py:
+	mkdir -p $$(dirname $@)
+	$(PERL) compile python $^ >$@.tmp
+	chmod 755 $@.tmp
+	mv $@.tmp $@
 
 .pl:
 	mkdir -p $$(dirname $@)
-	$(PERL) compile $^ >$@.tmp
+	$(PERL) compile perl $^ >$@.tmp
 	chmod 755 $@.tmp
 	mv $@.tmp $@
 
@@ -19,4 +25,4 @@ EXTRA_DIST = $(bin_SCRIPTS:=.pl) $(sbin_SCRIPTS:=.pl)
 	mkdir -p $$(dirname $@)
 	pod2man --utf8 $< $@
 
-SUFFIXES = .pl .1
+SUFFIXES = .py .pl .1 .tmp

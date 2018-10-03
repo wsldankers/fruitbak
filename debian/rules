@@ -1,8 +1,9 @@
 #! /usr/bin/make -f
 
-DEB_PERL_CHECK_FLAGS =
-DEB_DH_BUILDDEB_ARGS_DEFAULT = -- -Zxz -z9
+DEB_PYTHON_SYSTEM = python3
+DEB_PYTHON3_MODULE_PACKAGES = fruitbak
 
 include /usr/share/cdbs/1/rules/debhelper.mk
 include /usr/share/cdbs/1/class/autotools.mk
+include /usr/share/cdbs/1/class/python-distutils.mk
 include /usr/share/cdbs/1/class/perl-build.mk

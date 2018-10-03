@@ -4,7 +4,7 @@ use strict;
 use warnings FATAL => 'all';
 use autodie;
 
-open my $fh, '<', 'config.perl';
+open my $fh, '<', 'scriptconfig';
 
 my %invars = map { chomp; split /=/, $_, 2 } <$fh>;
 my %outvars;
@@ -23,19 +23,45 @@ for(;;) {
 	last unless $changed;
 }
 
-print "#! $outvars{PERL}\n\nBEGIN {\n";
+my $lang = shift @ARGV;
 
-foreach my $key (sort keys %outvars) {
-	my $val = $outvars{$key};
-	$val =~ s/[\\"\$\@]/\\$&/g;
-	print "\tour \$$key = \"$val\";\n";
-}
+if($lang eq 'perl') {
+	print "#! $outvars{PERL}\n\nBEGIN {\n";
 
-print "}\n\n";
+	foreach my $key (sort keys %outvars) {
+		my $val = $outvars{$key};
+		$val =~ s/[\\"\$\@]/\\$&/g;
+		print "\tour \$$key = \"$val\";\n";
+	}
 
-my $pod;
-while(<ARGV>) {
-	$pod = 1 if /^=\w+/;
-	print unless $pod;
-	$pod = 0 if /^=cut(?:\s|$)/
+	print "}\n\n";
+
+	my $pod;
+	while(<ARGV>) {
+		$pod = 1 if /^=\w+/;
+		print unless $pod;
+		$pod = 0 if /^=cut(?:\s|$)/
+	}
+} elsif($lang eq 'python') {
+	open my $fh, '|-', $outvars{PYTHON}, "-c", "import keyword\nfor x in keyword.kwlist: print(x)";
+	my %resvars = map { chomp; ($_, undef) } <$fh>;
+	close($fh);
+
+	print "#! $outvars{PYTHON}\n\nclass autoconf:\n";
+
+	foreach my $key (sort keys %outvars) {
+		my $val = $outvars{$key};
+		$val =~ s/[\\"]/\\$&/g;
+		if(exists $resvars{$key}) {
+			print "\tac_$key = \"$val\";\n";
+		} else {
+			print "\t$key = \"$val\";\n";
+		}
+	}
+
+	print "\n";
+
+	print or die $! while <ARGV>;
+} else {
+	die "unknown language '$lang'\n";
 }

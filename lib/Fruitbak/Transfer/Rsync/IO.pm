@@ -27,8 +27,8 @@ Fruitbak::Transfer::Rsync that responds to the RPC calls.
 
 File::RsyncP forks the process, causing multiple clones of an
 Fruitbak::Transfer::Rsync::IO object to spring into existence. This is, in
-fact, one of the main reasons to run this code in a seperate process with
-an RPC tether.
+fact, one of the original reasons to run this code in a seperate process
+with an RPC tether. The rewrite of Fruitbak in Python sealed the deal.
 
 One important consequence of forking for our RPC channel is that multiple
 processes will be reading from and writing to the channel at the same time.
@@ -41,9 +41,8 @@ feature to maximize parallellism by using both shared and exclusive locks.
 
 Exclusive locks are needed when the write is non-atomic or the RPC call
 requires a reply. When the write is atomic and no reply is required, we can
-obtain a shared lock. This will exclude the processes that are sending
-complicated calls while processes that send simple calls can send those in
-parallel.
+obtain a shared lock. This way, processes that send simple calls can send
+these in parallel.
 
 The wire protocol is described in more detail in
 Fruitbak::Transfer::Rsync::RPC.
