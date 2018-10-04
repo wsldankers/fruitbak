@@ -2,20 +2,24 @@ Source: fruitbak
 Section: admin
 Priority: extra
 Maintainer: Wessel Dankers <wsl@fruit.je>
-Build-Depends: cdbs, debhelper, python3-setuptools, perl-modules, libmodule-build-perl,
+Build-Depends: cdbs, debhelper, python3-setuptools, libmodule-build-perl,
+	python3-hardhat,
+	python3-hashset,
+	python3-click,
 	libclass-clarity-perl,
 	libclass-lazy-perl,
 	libfile-rsyncp-perl,
 	libguard-perl,
+X-Python3-Version: >= 3.5
 Standards-Version: 3.9.1
 
 Package: fruitbak
 Architecture: all
-Depends: ${misc:Depends}, ${perl:Depends}, ${python3:Depends}, adduser,
-	libclass-clarity-perl,
-	libclass-lazy-perl,
-	libfile-rsyncp-perl,
-	libguard-perl,
+Depends: ${misc:Depends}, ${python3:Depends},
+	adduser,
+	python3-click,
+	python3-fruitbak,
+	libfruitbak-perl,
 Description: Efficient disk-based backups
  Efficient disk-based backups. Features:
  .
@@ -29,3 +33,22 @@ Description: Efficient disk-based backups
   - pluggable expiry methods
   - storage scrubbing
   - parallel backup job manager
+
+Package: python3-fruitbak
+Architecture: all
+Depends: ${misc:Depends}, ${python3:Depends},
+	python3-hardhat,
+	python3-hashset,
+Description: Efficient disk-based backups
+ Efficient disk-based backups. This package contains the python bits.
+
+Package: libfruitbak-perl
+Architecture: all
+Depends: ${misc:Depends}, ${perl:Depends},
+	libclass-clarity-perl,
+	libclass-lazy-perl,
+	libfile-rsyncp-perl,
+	libguard-perl,
+Replaces: fruitbak (< 1.0~)
+Description: Efficient disk-based backups
+ Efficient disk-based backups. This package contains the perl bits.

@@ -1,3 +1,9 @@
+fruitbak (1.0) UNRELEASED; urgency=low
+
+  * Rewrite to Python.
+
+ -- Wessel Dankers <wsl@fruit.je>  Thu, 04 Oct 2018 23:07:12 +0200
+
 fruitbak (0.0) UNRELEASED; urgency=low
 
   * Initial release.

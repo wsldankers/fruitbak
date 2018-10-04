@@ -1,0 +1,4 @@
+usr/bin
+usr/share/fruitbak
+debian/global.py etc/fruitbak
+debian/common.py etc/fruitbak
