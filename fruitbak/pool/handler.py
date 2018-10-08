@@ -27,6 +27,10 @@ class Handler(Clarity):
 	def executor(self):
 		return ThreadPoolExecutor(max_workers = self.max_workers)
 
+	@initializer
+	def cpu_executor(self):
+		return self.fruitbak.cpu_executor
+
 	@stub
 	def has_chunk(self, callback, hash):
 		pass
@@ -43,10 +47,18 @@ class Handler(Clarity):
 	def del_chunk(self, callback, hash):
 		pass
 
+	@stub
+	def lister(self):
+		pass
+
 class Filter(Handler):
 	def __init__(self, subordinate, **kwargs):
 		super().__init__(**kwargs)
 		self.subordinate = subordinate
+
+	@weakproperty
+	def pool(self):
+		return self.subordinate.pool
 
 	def has_chunk(self, callback, hash):
 		return self.subordinate.has_chunk(callback, hash)
@@ -59,6 +71,9 @@ class Filter(Handler):
 
 	def del_chunk(self, callback, hash):
 		return self.subordinate.del_chunk(callback, hash)
+
+	def lister(self, agent):
+		return self.subordinate.lister(agent)
 
 class Storage(Handler):
 	pass

@@ -4,7 +4,7 @@ from threading import Condition, RLock
 from sys import stderr
 
 from fruitbak.util import Clarity, initializer, MinWeakHeapMap, weakproperty, locked, NLock
-from fruitbak.pool.filesystem import Filesystem
+from fruitbak.pool.storage import Filesystem
 from fruitbak.pool.agent import PoolAgent
 from fruitbak.config import configurable, configurable_function
 
