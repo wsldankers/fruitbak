@@ -5,3 +5,5 @@
 - compression
 - user docs
 - api/code docs
+- triage exceptions to distinguish between tempfail and permfail
+- generate exceptions that can be pretty printed for the user
