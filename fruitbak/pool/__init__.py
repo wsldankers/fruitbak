@@ -43,6 +43,10 @@ class Pool(Clarity):
 	def pool_storage(pool):
 		return pool.pool_storage_type(pool = pool, **pool.pool_storage_options)
 
+	@configurable
+	def pool_encryption_key(self):
+		return None
+
 	@initializer
 	def root(self):
 		assert self.lock

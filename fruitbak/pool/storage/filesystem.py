@@ -124,9 +124,6 @@ class Filesystem(Storage):
 		def dir_fd(self):
 			raise RuntimeError("this temporary file is already closed")
 
-		def __getattr__(self, name):
-			return getattr(self.fd, name)
-
 		def close(self):
 			path = self.path
 			fd = self.fd
@@ -141,6 +138,9 @@ class Filesystem(Storage):
 					unlink(str(path), dir_fd = dir_fd)
 				except FileNotFoundError:
 					pass
+
+		def __getattr__(self, name):
+			return getattr(self.fd, name)
 
 		def __int__(self):
 			return self.fd

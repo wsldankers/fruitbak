@@ -256,7 +256,7 @@ def tar(host, backup, share, path):
 					binary_stdout.write(action.value)
 				padding = -i.size % BLOCKSIZE
 				if padding:
-					binary_stdout.write(b'\0' * padding)
+					binary_stdout.write(bytes(padding))
 
 	binary_stdout.write(b'\0' * (BLOCKSIZE*2))
 

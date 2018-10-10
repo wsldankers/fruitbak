@@ -1,7 +1,6 @@
 - implement ideas in READAHEAD
 - excludes
 - rsyncp
-- crypto (make key configurable)
 - user docs
 - api/code docs
 - triage exceptions to distinguish between tempfail and permfail
