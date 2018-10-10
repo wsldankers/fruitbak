@@ -16,7 +16,7 @@ except ImportError:
 class NewShare(Clarity):
 	@configurable
 	def name(self):
-		return 'root'
+		return self.path
 
 	@configurable
 	def path(self):
@@ -54,6 +54,10 @@ class NewShare(Clarity):
 	def transfer(**kwargs):
 		self = kwargs['newshare']
 		return self.transfer_method(**self.transfer_options, **kwargs)
+
+	@configurable
+	def excludes(self):
+		return set()
 
 	@initializer
 	def sharedir(self):

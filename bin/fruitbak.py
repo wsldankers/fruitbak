@@ -217,14 +217,16 @@ def tar(host, backup, share, path):
 
 	with fbak.pool.agent().readahead(iterator()) as reader:
 		for dentry in share.find(path):
-			i = TarInfo(fsdecode(bytes(dentry.name)))
+			name = dentry.name or b'.'
+			i = TarInfo(fsdecode(bytes(name)))
 			i.mode = dentry.mode & 0o7777
 			i.uid = dentry.uid
 			i.gid = dentry.gid
 			i.mtime = dentry.mtime // 1000000000
 			if dentry.is_hardlink:
 				i.type = LNKTYPE
-				i.linkname = fsdecode(bytes(dentry.hardlink))
+				hardlink = dentry.hardlink or b'.'
+				i.linkname = fsdecode(bytes(hardlink))
 			elif dentry.is_file:
 				i.type = REGTYPE
 				i.size = dentry.size
