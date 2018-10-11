@@ -25,6 +25,7 @@ class fruitwalk:
 	def skip(self):
 		self._message = True
 
+	@classmethod
 	def _walktop(self, top = '.', onerror = None, *, dir_fd = None):
 		if onerror is None:
 			onerror = xyzzy
@@ -60,6 +61,7 @@ class fruitwalk:
 					if not skip:
 						yield from self._walkrest(fd, path, onerror)
 
+	@classmethod
 	def _walkrest(self, dir_fd, path, onerror):
 		try:
 			names = dir_fd.listdir()
@@ -116,17 +118,74 @@ class LocalTransfer(Clarity):
 		return self.newshare.fruitbak
 
 	@initializer
+	def newbackup(self):
+		return self.newshare.newbackup
+
+	@initializer
 	def path(self):
-		return self.newshare.path
+		return Path(self.newshare.path)
+
+	@initializer
+	def mountpoint(self):
+		return Path(self.newshare.mountpoint)
 
 	@initializer
 	def reference(self):
 		return self.newshare.reference
 
+	@initializer
+	def strict_excludes(self):
+		excludes = set()
+		mountpoint = Path(self.mountpoint)
+		for e in self.newshare.excludes:
+			if not e.endswith('/'):
+				p = Path(e)
+				if p.is_absolute():
+					try:
+						rel = p.relative_to(mountpoint)
+					except ValueError:
+						pass
+					else:
+						excludes.add(rel)
+				else:
+					excludes.add(p)
+		return frozenset(excludes)
+
+	@initializer
+	def recursion_excludes(self):
+		excludes = set()
+		mountpoint = Path(self.mountpoint)
+		for e in self.newshare.excludes:
+			p = Path(e)
+			if p.is_absolute():
+				try:
+					rel = p.relative_to(mountpoint)
+				except ValueError:
+					pass
+				else:
+					excludes.add(rel)
+			else:
+				excludes.add(p)
+		return frozenset(excludes)
+
+	@initializer
+	def one_filesystem(self):
+		try:
+			return self.newshare.config['one_filesystem']
+		except KeyError:
+			pass
+		try:
+			return self.newbackup.config['one_filesystem']
+		except KeyError:
+			pass
+		return None
+
 	def transfer(self):
 		newshare = self.newshare
 		reference = self.reference
 		chunksize = self.fruitbak.chunksize
+		strict_excludes = self.strict_excludes
+		recursion_excludes = self.recursion_excludes
 
 		def normalize(path):
 			return '/'.join(path.relative_to(path.anchor).parts)
@@ -136,8 +195,20 @@ class LocalTransfer(Clarity):
 		def onerror(exc):
 			print_exc(file = stderr)
 
+		one_filesystem = self.one_filesystem
+		dev = None
+
 		walk = fruitwalk(self.path, onerror = onerror)
 		for path, st, parent_fd in walk:
+			if dev is None:
+				dev = st.st_dev
+			elif one_filesystem and dev != st.st_dev:
+				walk.skip()
+				continue
+			if path in recursion_excludes:
+				walk.skip()
+			if path in strict_excludes:
+				continue
 			name = path.name
 			path = normalize(path)
 			dentry = Dentry(name = path, mode = st.st_mode, size = st.st_size, mtime = st.st_mtime_ns, uid = st.st_uid, gid = st.st_gid)

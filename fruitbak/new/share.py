@@ -1,6 +1,5 @@
 from fruitbak.util import Clarity, initializer, xyzzy
 from fruitbak.config import configurable, configurable_function
-from fruitbak.transfer.local import LocalTransfer
 
 from hardhat import HardhatMaker
 
@@ -44,20 +43,19 @@ class NewShare(Clarity):
 
 	@configurable
 	def transfer_method(self):
-		return LocalTransfer
+		return self.newbackup.transfer_method
 
 	@configurable
 	def transfer_options(self):
-		return {}
+		return self.newbackup.transfer_options
 
-	@configurable_function
-	def transfer(**kwargs):
-		self = kwargs['newshare']
-		return self.transfer_method(**self.transfer_options, **kwargs)
+	@configurable
+	def transfer(self):
+		return self.newbackup.transfer
 
 	@configurable
 	def excludes(self):
-		return set()
+		return self.newbackup.excludes
 
 	@initializer
 	def sharedir(self):

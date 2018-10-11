@@ -167,6 +167,13 @@ class Config:
 	def __contains__(self, key):
 		return key in self.globals
 
+	def get(self, key, default = None):
+		value = self.globals.get(key, default)
+		while isinstance(value, delayed):
+			value = value()
+			self.globals[key] = value
+		return value
+
 	def __repr__(self):
 		rep = ["[config for %s]\n" % self.globals['name']]
 		for key, value in self.globals.items():

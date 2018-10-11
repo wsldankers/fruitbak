@@ -8,6 +8,7 @@ from hashset import Hashset
 from fruitbak.util import Clarity, initializer, xyzzy
 from fruitbak.config import configurable, configurable_function
 from fruitbak.new.share import NewShare, time_ns
+from fruitbak.transfer.local import LocalTransfer
 
 class NewBackup(Clarity):
 	@initializer
@@ -37,6 +38,23 @@ class NewBackup(Clarity):
 	@configurable
 	def post_command(self):
 		return xyzzy
+
+	@configurable
+	def transfer_method(self):
+		return LocalTransfer
+
+	@configurable
+	def transfer_options(self):
+		return {}
+
+	@configurable_function
+	def transfer(**kwargs):
+		self = kwargs['newshare']
+		return self.transfer_method(**self.transfer_options, **kwargs)
+
+	@configurable
+	def excludes(self):
+		return frozenset()
 
 	@initializer
 	def backupdir(self):
