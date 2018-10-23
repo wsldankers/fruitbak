@@ -1,6 +1,6 @@
 from fruitbak.util import Clarity, initializer
 from enum import Enum
-from selectors import DefaultSelector, EVENT_READ, EVENT_WRITE
+from select import poll, POLLIN, POLLOUT, POLLHUP, POLLERR
 from threading import Thread, Condition
 from os import read
 from collections import deque
@@ -26,13 +26,17 @@ class MessageCodes(Enum):
     MSG_NO_SEND = 102
 
 class RsyncConnection(Clarity):
+	timeout = 10
+
 	@initializer
 	def pid(self):
 		raise RuntimeError("uninitialized property 'pid'")
 
 	@initializer
-	def selector(self):
-		return DefaultSelector()
+	def poll(self):
+		p = poll()
+		p.register(self.in_fd, POLLIN)
+		return p
 
 	@initializer
 	def in_fd(self):
@@ -43,36 +47,6 @@ class RsyncConnection(Clarity):
 		return []
 
 	@initializer
-	def in_eof(self):
-		return []
-
-	@initializer
-	def in_cond(self):
-		return Condition()
-
-	@initializer
-	def in_thread(self):
-		fd = self.in_fd
-		cond = self.in_cond
-		buf = self.in_buf
-		eof = self.in_eof
-		def run():
-			with DefaultSelector() as selector:
-				selector.register(fd, EVENT_READ)
-				while True:
-					if selector.select():
-						b = read(fd, 65536)
-						with cond:
-							if b:
-								buf.append(b)
-							else:
-								eof.append(None)
-							cond.notify_all()
-					if not b:
-						break
-		return Thread(target = run, daemon = True)
-
-	@initializer
 	def out_fd(self):
 		raise RuntimeError("uninitialized property 'out_fd'")
 
@@ -80,47 +54,16 @@ class RsyncConnection(Clarity):
 	def out_buf(self):
 		return []
 
-	@initializer
-	def out_eof(self):
-		return []
+	def do_io(self):
+		poll = self.poll
+		in_fd = self.in_fd
+		out_fd = self.out_fd
+		in_buf = self.in_buf
+		out_buf = self.out_buf
+		if out_buf:
+			poll.register(out_fd, POLLOUT)
+		else:
+			poll.register(out_fd, 0)
 
-	@initializer
-	def out_cond(self):
-		return Condition()
-
-	@initializer
-	def out_thread(self):
-		fd = self.out_fd
-		cond = self.out_cond
-		buf = self.out_buf
-		eof = self.out_eof
-		deq = deque()
-		def run():
-			with DefaultSelector() as selector:
-				selector.register(fd, EVENT_WRITE)
-				while not eof:
-					with cond:
-						while not eof and not buf:
-							cond.wait()
-					if eof:
-						return
-					if selector.select():
-						while not eof:
-							with cond:
-								deq.extend(buf)
-								buf.clear()
-							if not deq:
-								break
-							n = writev(fd, deq)
-							while n > 0:
-								first = deq[0]
-								first_len = len(first)
-								if n < first_len:
-									deq[0] = first[n:]
-									n = 0
-								else:
-									deq.popleft()
-									n -= first_len
-		return Thread(target = run, daemon = True)
-
-
+		for fd, event in poll.poll(self.timeout * 1000):
+			
