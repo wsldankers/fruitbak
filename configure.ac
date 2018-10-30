@@ -10,11 +10,6 @@ AC_SUBST([pkglibdir], ['${libdir}/${PACKAGE}'])
 
 AC_PROG_INSTALL
 
-AC_PATH_PROG([PERL], [perl])
-case $PERL in '')
-	AC_MSG_ERROR([cannot find perl in your PATH.])
-esac
-
 AC_CACHE_CHECK([for the full path of Python 3], [ac_cv_path_PYTHON], [
 	AC_PATH_PROGS_FEATURE_CHECK([PYTHON], [python python3], [
 		case $($ac_path_PYTHON -V 2>/dev/null) in Python\ 3.*)
