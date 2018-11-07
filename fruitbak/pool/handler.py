@@ -74,6 +74,3 @@ class Filter(Handler):
 
 	def lister(self, agent):
 		return self.subordinate.lister(agent)
-
-class Storage(Handler):
-	pass
