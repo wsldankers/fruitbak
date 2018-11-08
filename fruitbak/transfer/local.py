@@ -1,5 +1,6 @@
 from fruitbak.util import Clarity, initializer, sysopen, sysopendir, xyzzy
 from fruitbak.dentry import Dentry
+from fruitbak.transfer import Transfer
 
 from os import major, minor, stat, O_RDONLY, O_NOATIME
 from os.path import join as path_join, split as path_split, samestat
@@ -112,32 +113,12 @@ def samedentry(a, b):
 		return False
 	return True
 
-class LocalTransfer(Clarity):
-	@initializer
-	def fruitbak(self):
-		return self.newshare.fruitbak
-
-	@initializer
-	def newbackup(self):
-		return self.newshare.newbackup
-
-	@initializer
-	def path(self):
-		return Path(self.newshare.path)
-
-	@initializer
-	def mountpoint(self):
-		return Path(self.newshare.mountpoint)
-
-	@initializer
-	def reference(self):
-		return self.newshare.reference
-
+class LocalTransfer(Transfer):
 	@initializer
 	def strict_excludes(self):
 		excludes = set()
 		mountpoint = Path(self.mountpoint)
-		for e in self.newshare.excludes:
+		for e in self.excludes:
 			if not e.endswith('/'):
 				p = Path(e)
 				if p.is_absolute():
@@ -155,7 +136,7 @@ class LocalTransfer(Clarity):
 	def recursion_excludes(self):
 		excludes = set()
 		mountpoint = Path(self.mountpoint)
-		for e in self.newshare.excludes:
+		for e in self.excludes:
 			p = Path(e)
 			if p.is_absolute():
 				try:
@@ -167,18 +148,6 @@ class LocalTransfer(Clarity):
 			else:
 				excludes.add(p)
 		return frozenset(excludes)
-
-	@initializer
-	def one_filesystem(self):
-		try:
-			return self.newshare.config['one_filesystem']
-		except KeyError:
-			pass
-		try:
-			return self.newbackup.config['one_filesystem']
-		except KeyError:
-			pass
-		return None
 
 	def transfer(self):
 		newshare = self.newshare

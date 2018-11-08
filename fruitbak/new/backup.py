@@ -8,7 +8,7 @@ from hashset import Hashset
 from fruitbak.util import Clarity, initializer, xyzzy
 from fruitbak.config import configurable, configurable_function
 from fruitbak.new.share import NewShare, time_ns
-from fruitbak.transfer.local import LocalTransfer
+from fruitbak.transfer import LocalTransfer
 
 class NewBackup(Clarity):
 	@initializer
