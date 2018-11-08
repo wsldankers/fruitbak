@@ -1,4 +1,4 @@
-from fruitbak.util import Clarity, initializer
+from fruitbak.util import Clarity, initializer, ensure_bytes
 from fruitbak.dentry import Dentry
 from fruitbak.transfer import Transfer
 
@@ -9,32 +9,39 @@ from sys import stderr
 from stat import *
 from traceback import print_exc
 from re import compile as re
+from itertools import chain
 
-rsync_filter_escape_find_re = re(r'[[*?]')
-rsync_filter_escape_replace_re = re(r'[[*?\]')
+rsync_filter_escape_find_re = re(rb'[*?[]')
+rsync_filter_escape_replace_re = re(rb'[*?[\\]')
 
 def rsync_filter_escape(path, force = False):
+	path = bytes(path)
 	if force or rsync_filter_escape_find_re.search(path) is not None:
-		path = rsync_filter_escape_replace_re.sub(path, r"\\\1")
-	return path.encode(errors = "surrogateescape")
+		return rsync_filter_escape_replace_re.sub(path, r'"\\\1')
+	return path
 
 class RsyncTransfer(Transfer):
 	@initializer
 	def filters(self):
 		filters = set()
 		mountpoint = Path(self.mountpoint)
-		for e in self.excludes:
-			p = Path(e)
-			if p.is_absolute():
+		for exclude in self.excludes:
+			path = Path(exclude)
+			if path.is_absolute():
 				try:
-					p = p.relative_to(mountpoint)
+					path = path.relative_to(mountpoint)
 				except ValueError:
 					continue
-			if e.endswith('/'):
-				excludes.add(b'- /' + rsync_filter_escape(p, force = True) + b'/**')
+			if exclude.endswith('/') and e != '/':
+				excludes.add(b'- /' + rsync_filter_escape(path, force = True) + b'/**')
 			else:
-				excludes.add(b'- /' + rsync_filter_escape(p))
-		return tuple(filters)
+				excludes.add(b'- /' + rsync_filter_escape(path))
+		try:
+			custom_filters = self.config['filters']
+		except KeyError:
+			return tuple(filters)
+		else:
+			return tuple(chain(filters, map(ensure_bytes, custom_filters)))
 
 	def transfer(self):
 		newshare = self.newshare

@@ -28,15 +28,14 @@ class Transfer(Clarity):
 		return self.newshare.excludes
 
 	@initializer
+	def config(self):
+		config = {}
+		config.update(self.newbackup.config)
+		config.update(self.newshare.config)
+		return config
+
+	@initializer
 	def one_filesystem(self):
-		try:
-			return self.newshare.config['one_filesystem']
-		except KeyError:
-			pass
-		try:
-			return self.newbackup.config['one_filesystem']
-		except KeyError:
-			pass
-		return None
+		return self.config.get('one_filesystem')
 
 from fruitbak.transfer.local import LocalTransfer
