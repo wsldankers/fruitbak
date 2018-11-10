@@ -158,7 +158,7 @@ class NewBackup(Clarity):
 		hostdir_fd = self.host.hostdir_fd
 
 		self.hashes_fp.close()
-		Hashset.sortfile('hashes', self.fruitbak.hashsize, dir_fd = backupdir_fd)
+		Hashset.sortfile('hashes', self.fruitbak.hash_size, dir_fd = backupdir_fd)
 
 		rename('new', str(self.index), src_dir_fd = hostdir_fd, dst_dir_fd = hostdir_fd)
 

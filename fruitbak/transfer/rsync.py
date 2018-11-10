@@ -10,6 +10,7 @@ from stat import *
 from traceback import print_exc
 from re import compile as re
 from itertools import chain
+from os import makedev
 
 rsync_filter_escape_find_re = re(rb'[*?[]')
 rsync_filter_escape_replace_re = re(rb'[*?[\\]')
@@ -19,6 +20,23 @@ def rsync_filter_escape(path, force = False):
 	if force or rsync_filter_escape_find_re.search(path) is not None:
 		return rsync_filter_escape_replace_re.sub(path, r'"\\\1')
 	return path
+
+def samedentry(a, b):
+	if a is None:
+		return False
+	if b is None:
+		return False
+	if a.mode != b.mode:
+		return False
+	if a.size != b.size:
+		return False
+	if a.mtime != b.mtime:
+		return False
+	if a.uid != b.uid:
+		return False
+	if a.gid != b.gid:
+		return False
+	return True
 
 class RsyncTransfer(Transfer):
 	@initializer
@@ -33,9 +51,9 @@ class RsyncTransfer(Transfer):
 				except ValueError:
 					continue
 			if exclude.endswith('/') and e != '/':
-				excludes.add(b'- /' + rsync_filter_escape(path, force = True) + b'/**')
+				filters.add(b'- /' + rsync_filter_escape(path, force = True) + b'/**')
 			else:
-				excludes.add(b'- /' + rsync_filter_escape(path))
+				filters.add(b'- /' + rsync_filter_escape(path))
 		try:
 			custom_filters = self.config['filters']
 		except KeyError:
@@ -46,9 +64,52 @@ class RsyncTransfer(Transfer):
 	def transfer(self):
 		newshare = self.newshare
 		reference = self.reference
-		chunksize = self.fruitbak.chunksize
+		chunk_size = self.fruitbak.chunk_size
 		filters = self.filters
 		one_filesystem = self.one_filesystem
 
 		def normalize(path):
 			return '/'.join(path.relative_to(path.anchor).parts)
+
+		command = ("/usr/bin/rsync",) + RsyncFetch.required_options + (bytes(self.path),)
+
+		def entry_callback(name, size, mtime, mode, uid, user, gid, group, major, minor, symlink, hardlink):
+			dentry = Dentry(name = name, size = size, mtime = mtime, mode = mode, uid = uid, gid = gid)
+			if hardlink is None:
+				if dentry.is_file:
+					ref_dentry = reference.get(name)
+					if samedentry(dentry, ref_dentry):
+						dentry.size = ref_dentry.size
+						dentry.hashes = ref_dentry.hashes
+					else:
+						hashes = []
+						size = 0
+						def data_callback(chunk = None):
+							nonlocal size
+							if chunk is None:
+								dentry.size = size
+								dentry.hashes = hashes
+								newshare.add_dentry(dentry)
+							else:
+								size += len(chunk)
+								hashes.append(newshare.put_chunk(chunk))
+						return data_callback
+				elif dentry.is_symlink:
+					dentry.symlink = symlink
+				elif dentry.is_device:
+					dentry.rdev = major, minor
+			else:
+				dentry.is_hardlink = True
+				dentry.hardlink = hardlink
+			print(name, size, mtime, mode, uid, user, gid, group, major, minor, symlink, hardlink, file = stderr)
+			newshare.add_dentry(dentry)
+
+		with RsyncFetch(
+					command = command,
+					entry_callback = entry_callback,
+					#error_callback = error_callback,
+					filters = filters,
+					chunk_size = chunk_size,
+				) as rf:
+			rf.run()
+

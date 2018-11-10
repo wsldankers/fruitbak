@@ -152,7 +152,7 @@ class LocalTransfer(Transfer):
 	def transfer(self):
 		newshare = self.newshare
 		reference = self.reference
-		chunksize = self.fruitbak.chunksize
+		chunk_size = self.fruitbak.chunk_size
 		strict_excludes = self.strict_excludes
 		recursion_excludes = self.recursion_excludes
 
@@ -189,6 +189,7 @@ class LocalTransfer(Transfer):
 				if dentry.is_file:
 					ref_dentry = reference.get(path)
 					if samedentry(dentry, ref_dentry):
+						dentry.size = ref_dentry.size
 						dentry.hashes = ref_dentry.hashes
 					else:
 						try:
@@ -206,13 +207,13 @@ class LocalTransfer(Transfer):
 										hashes = []
 										size = 0
 										while True:
-											buf = fd.read(chunksize)
+											buf = fd.read(chunk_size)
 											if not buf:
 												break
 											hashes.append(newshare.put_chunk(buf))
 											buf_len = len(buf)
 											size += buf_len
-											if buf_len < chunksize:
+											if buf_len < chunk_size:
 												break
 							dentry.size = size
 							dentry.hashes = hashes

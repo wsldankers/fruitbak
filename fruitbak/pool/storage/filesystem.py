@@ -241,7 +241,7 @@ class Filesystem(Storage):
 			yield from action.cursor
 
 	def listdir(self, callback, directory):
-		hashsize = self.fruitbak.hashsize
+		hash_size = self.fruitbak.hash_size
 		pooldir = self.pooldir
 		def job():
 			try:
@@ -251,7 +251,7 @@ class Filesystem(Storage):
 				del files
 				hashbuf = b''.join(hashes)
 				del hashes
-				cursor = Hashset(hashbuf, hashsize)
+				cursor = Hashset(hashbuf, hash_size)
 			except:
 				callback(None, exc_info())
 			else:

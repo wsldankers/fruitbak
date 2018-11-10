@@ -103,31 +103,31 @@ class Fruitbak(Clarity):
 		return ThreadPoolExecutor(max_workers = len(sched_getaffinity(0)))
 
 	@configurable
-	def hashalgo(data):
+	def hash_algo(data):
 		from hashlib import sha256
 		return sha256
 
 	@initializer
 	def hashfunc(self):
-		hashalgo = self.hashalgo
+		hash_algo = self.hash_algo
 		def hashfunc(data):
-			h = hashalgo()
+			h = hash_algo()
 			h.update(data)
 			return h.digest()
 		return hashfunc
 
 	@initializer
-	def hashsize(self):
+	def hash_size(self):
 		return len(self.hashfunc(b''))
 
 	@configurable
-	def chunksize(self):
+	def chunk_size(self):
 		return 2 ** 21
 
-	@chunksize.validate
-	def chunksize(self, value):
+	@chunk_size.validate
+	def chunk_size(self, value):
 		if value & value - 1:
-			raise RuntimeError("chunksize must be a power of two")
+			raise RuntimeError("chunk_size must be a power of two")
 		return int(value)
 
 	@unlocked
@@ -150,12 +150,12 @@ class Fruitbak(Clarity):
 				rootdir_fd.unlink(tempname)
 			except FileNotFoundError:
 				pass
-		return Hashset.load('hashes', self.hashsize, dir_fd = rootdir_fd)
+		return Hashset.load('hashes', self.hash_size, dir_fd = rootdir_fd)
 
 	@initializer
 	def stale_hashes(self):
 		try:
-			return Hashset.load('hashes', self.hashsize, dir_fd = self.rootdir_fd)
+			return Hashset.load('hashes', self.hash_size, dir_fd = self.rootdir_fd)
 		except FileNotFoundError:
 			return self.generate_hashes()
 

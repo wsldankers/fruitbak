@@ -2,6 +2,26 @@ from pathlib import Path
 
 from fruitbak.util import Clarity, initializer
 
+class TransferConfig:
+	def __init__(self, newshare, newbackup):
+		self._newshare = newshare
+		self._newbackup = newbackup
+
+	def __getitem__(self, key):
+		try:
+			value = self._newshare.config[key]
+		except KeyError:
+			pass
+		else:
+			return value
+		return self._newbackup.config[key]
+
+	def get(self, key, fallback = None):
+		try:
+			return self[key]
+		except KeyError:
+			return fallback
+
 class Transfer(Clarity):
 	@initializer
 	def fruitbak(self):
@@ -29,13 +49,11 @@ class Transfer(Clarity):
 
 	@initializer
 	def config(self):
-		config = {}
-		config.update(self.newbackup.config)
-		config.update(self.newshare.config)
-		return config
+		return TransferConfig(self.newshare, self.newbackup)
 
 	@initializer
 	def one_filesystem(self):
 		return self.config.get('one_filesystem')
 
 from fruitbak.transfer.local import LocalTransfer
+from fruitbak.transfer.rsync import RsyncTransfer

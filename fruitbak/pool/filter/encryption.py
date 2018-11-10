@@ -35,9 +35,9 @@ class Encrypt(Filter):
 	@locked
 	@initializer
 	def aes(self):
-		if self.fruitbak.hashsize % AES.block_size:
+		if self.fruitbak.hash_size % AES.block_size:
 			raise RuntimeError("size of hash function (%d) is incompatible with AES block size (%d)"
-				% (self.fruitbak.hashsize, AES.block_size))
+				% (self.fruitbak.hash_size, AES.block_size))
 		# we get away with reusing this because the mode is ECB
 		return AES.new(self.validated_key)
 

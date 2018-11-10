@@ -202,18 +202,18 @@ class DentryHashes(Clarity):
 		return memoryview(m)
 
 	def __iter__(self):
-		hashsize = self.hashsize
+		hash_size = self.hash_size
 		def hashiterator(hashes):
 			offset = 0
 			length = len(hashes)
 			while offset < length:
-				next_offset = offset + hashsize
+				next_offset = offset + hash_size
 				yield hashes[offset:next_offset]
 				offset = next_offset
 		return hashiterator(self.hashview)
 
 	def __len__(self):
-		return len(self.hashes) // self.hashsize
+		return len(self.hashes) // self.hash_size
 
 	def __bytes__(self):
 		return self.hashes
@@ -306,8 +306,8 @@ class Dentry(Clarity):
 		return self.pool.agent()
 
 	@initializer
-	def hashsize(self):
-		return self.fruitbak.hashsize
+	def hash_size(self):
+		return self.fruitbak.hash_size
 
 	def open(self, mode = 'rb', agent = None):
 		if agent is None:
@@ -317,7 +317,7 @@ class Dentry(Clarity):
 			return io
 		elif mode == 'r':
 			wrapper = TextIOWrapper(io)
-			wrapper._CHUNK_SIZE = self.fruitbak.chunksize
+			wrapper._CHUNK_SIZE = self.fruitbak.chunk_size
 			return wrapper
 		else:
 			return RuntimeError("Unsupported open mode %r" % (mode,))
@@ -345,7 +345,7 @@ class Dentry(Clarity):
 
 		if not self.is_file:
 			raise NotAFileError("'%s' is not a regular file" % dentry_decode(self.name))
-		return DentryHashes(hashes = self.extra, hashsize = self.hashsize)
+		return DentryHashes(hashes = self.extra, hash_size = self.hash_size)
 
 	@hashes.setter
 	def hashes(self, value):
