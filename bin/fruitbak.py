@@ -290,7 +290,7 @@ def backup(all, host, full, full_set):
 		except:
 			print_exc(file = stderr)
 
-	if max_parallel_backups == 1:
+	if max_parallel_backups == 1 or len(hosts) == 1:
 		for h in hosts:
 			job(h)
 	else:

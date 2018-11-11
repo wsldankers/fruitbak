@@ -174,6 +174,15 @@ class Config:
 			self.globals[key] = value
 		return value
 
+	def copy(self):
+		dup = type(self)()
+		dup.tls = self.tls
+		dup.globals = self.globals
+		return dup
+
+	def update(self, *args, **kwargs):
+		self.globals.update(*args, **kwargs)
+
 	def __repr__(self):
 		rep = ["[config for %s]\n" % self.globals['name']]
 		for key, value in self.globals.items():

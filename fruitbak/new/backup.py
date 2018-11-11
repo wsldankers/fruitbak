@@ -142,7 +142,9 @@ class NewBackup(Clarity):
 		info['startTime'] = time_ns()
 
 		for share_config in self.shares:
-			share = NewShare(config = share_config, newbackup = self)
+			combined_config = config.copy()
+			combined_config.update(share_config)
+			share = NewShare(config = combined_config, newbackup = self)
 			shares_info[share.name] = share.backup()
 
 		self.agent.sync()

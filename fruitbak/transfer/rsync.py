@@ -1,6 +1,7 @@
 from fruitbak.util import Clarity, initializer, ensure_bytes
 from fruitbak.dentry import Dentry
 from fruitbak.transfer import Transfer
+from fruitbak.config import configurable
 
 from rsync_fetch import RsyncFetch
 
@@ -64,14 +65,12 @@ class RsyncTransfer(Transfer):
 	def transfer(self):
 		newshare = self.newshare
 		reference = self.reference
-		chunk_size = self.fruitbak.chunk_size
-		filters = self.filters
-		one_filesystem = self.one_filesystem
+		one_filesystem = (b'--one-file-system',) if self.one_filesystem else ()
 
 		def normalize(path):
 			return '/'.join(path.relative_to(path.anchor).parts)
 
-		command = ("/usr/bin/rsync",) + RsyncFetch.required_options + (bytes(self.path),)
+		command = (b'/usr/bin/rsync',) + RsyncFetch.required_options + one_filesystem + (bytes(self.path),)
 
 		def entry_callback(name, size, mtime, mode, uid, user, gid, group, major, minor, symlink, hardlink):
 			dentry = Dentry(name = name, size = size, mtime = mtime, mode = mode, uid = uid, gid = gid)
@@ -81,7 +80,8 @@ class RsyncTransfer(Transfer):
 					if samedentry(dentry, ref_dentry):
 						dentry.size = ref_dentry.size
 						dentry.hashes = ref_dentry.hashes
-					else:
+					elif size > 0:
+						#print(name, size, mtime, mode, uid, user, gid, group, major, minor, symlink, hardlink, file = stderr)
 						hashes = []
 						size = 0
 						def data_callback(chunk = None):
@@ -101,15 +101,14 @@ class RsyncTransfer(Transfer):
 			else:
 				dentry.is_hardlink = True
 				dentry.hardlink = hardlink
-			print(name, size, mtime, mode, uid, user, gid, group, major, minor, symlink, hardlink, file = stderr)
 			newshare.add_dentry(dentry)
 
 		with RsyncFetch(
 					command = command,
 					entry_callback = entry_callback,
 					#error_callback = error_callback,
-					filters = filters,
-					chunk_size = chunk_size,
+					filters = self.filters,
+					chunk_size = self.fruitbak.chunk_size,
 				) as rf:
 			rf.run()
 
