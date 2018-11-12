@@ -82,7 +82,7 @@ class Host(Clarity):
 	@initializer
 	def config(self):
 		try:
-			return Config(Path('host') / self.name, dir_fd = self.fruitbak.confdir_fd)
+			return Config(Path('host') / self.name, env = self.env, dir_fd = self.fruitbak.confdir_fd)
 		except FileNotFoundError:
 			return Config(preseed = dict(auto = False))
 

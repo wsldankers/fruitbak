@@ -156,14 +156,13 @@ class NewShare(Clarity):
 		with hostconfig.setenv(self.env):
 			self.pre_command(fruitbak = self.fruitbak, host = self.host, backup = self.newbackup, newshare = self)
 
-		info['startTime'] = time_ns()
+			info['startTime'] = time_ns()
 
-		with self.hardhat_maker:
-			transfer.transfer()
+			with self.hardhat_maker:
+				transfer.transfer()
 
-		info['endTime'] = time_ns()
+			info['endTime'] = time_ns()
 
-		with hostconfig.setenv(self.env):
 			self.post_command(fruitbak = self.fruitbak, host = self.host, backup = self.newbackup, newshare = self)
 
 		with open('info.json', 'w', opener = self.sharedir_fd.opener) as fp:

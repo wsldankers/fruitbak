@@ -139,19 +139,18 @@ class NewBackup(Clarity):
 		with config.setenv(env):
 			self.pre_command(fruitbak = self.fruitbak, host = self.host, newbackup = self)
 
-		info['startTime'] = time_ns()
+			info['startTime'] = time_ns()
 
-		for share_config in self.shares:
-			combined_config = config.copy()
-			combined_config.update(share_config)
-			share = NewShare(config = combined_config, newbackup = self)
-			shares_info[share.name] = share.backup()
+			for share_config in self.shares:
+				combined_config = config.copy()
+				combined_config.update(share_config)
+				share = NewShare(config = combined_config, newbackup = self)
+				shares_info[share.name] = share.backup()
 
-		self.agent.sync()
+			self.agent.sync()
 
-		info['endTime'] = time_ns()
+			info['endTime'] = time_ns()
 
-		with config.setenv(self.env):
 			self.post_command(fruitbak = self.fruitbak, host = self.host, newbackup = self)
 
 		with open('info.json', 'w', opener = backupdir_fd.opener) as fp:

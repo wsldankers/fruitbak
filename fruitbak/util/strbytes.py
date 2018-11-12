@@ -38,6 +38,13 @@ def ensure_str(obj):
 		return str(obj)
 	if isinstance(obj, str):
 		return obj
-	elif not isinstance(obj, bytes):
-		obj = bytes(obj)
-	return obj.decode(errors = 'surrogateescape')
+	if isinstance(obj, bytes):
+		return obj.decode(errors = 'surrogateescape')
+	else:
+		try:
+			memoryview(obj)
+		except:
+			pass
+		else:
+			return bytes(obj).decode(errors = 'surrogateescape')
+	return str(obj)

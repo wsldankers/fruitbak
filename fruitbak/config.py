@@ -1,10 +1,10 @@
 from pathlib import Path
-from subprocess import run as subprocess_run
+from subprocess import run as subprocess_run, PIPE
 from weakref import ref as weakref
 from os import environ, fsencode
 from threading import local
 
-from fruitbak.util import initializer, opener
+from fruitbak.util import initializer, opener, ensure_bytes
 
 class configurable:
 	def __init__(self, initializer):
@@ -103,7 +103,7 @@ class subdict(dict):
 	"""Subclass dict so that we can weakref it"""
 
 class Config:
-	def __init__(self, *paths, dir_fd = None, preseed = None):
+	def __init__(self, *paths, dir_fd = None, env = None, preseed = None):
 		# thread-local storage
 		tls = local()
 		self.tls = tls
@@ -125,34 +125,57 @@ class Config:
 			exec(content, weak_globals())
 		extra_builtins['include'] = include
 
-		def run(*args, env = None, **kwargs):
-			try:
-				tlsenv = tls.env
-			except AttributeError:
-				pass
-			else:
-				newenv = {}
-				if env is None:
-					for k, v in environ.items():
-						newenv[fsencode(k)] = fsencode(v)
+		cfg_env = {}
+		if env is not None:
+			for k, v in env.items():
+				k = fsencode(k)
+				if k in cfg_env:
+					continue
+				try:
+					v = fsencode(v)
+				except:
+					pass
 				else:
-					for k, v in env.items():
-						newenv[fsencode(k)] = fsencode(v)
+					cfg_env[k] = v
 
-				for k, v in tlsenv.items():
+		def run(*args, env = None, **kwargs):
+			tls_env = getattr(tls, 'env', {})
+			if cfg_env or tls_env:
+				new_env = {}
+				if env is None:
+					env = environ
+				for k, v in env.items():
+					new_env[fsencode(k)] = fsencode(v)
+
+				new_env.update(cfg_env)
+
+				for k, v in tls_env.items():
 					k = fsencode(k)
-					if k in newenv:
+					if k in new_env:
 						continue
 					try:
 						v = fsencode(v)
 					except:
 						pass
 					else:
-						newenv[k] = v
+						new_env[k] = v
 
-				kwargs = dict(kwargs, env = newenv)
+				kwargs = dict(kwargs, env = new_env)
 			return subprocess_run(*args, **kwargs)
 		extra_builtins['run'] = run
+
+		def backticks(command, **kwargs):
+			if kwargs.get('shell') is None:
+				try:
+					command = (b'sh', b'-ec', ensure_bytes(command))
+				except TypeError:
+					pass
+				else:
+					kwargs['shell'] = False
+			completed = run(command, stdout = PIPE, **kwargs)
+			completed.check_returncode()
+			return completed.stdout
+		extra_builtins['backticks'] = backticks
 
 		for p in paths:
 			include(p)
@@ -161,7 +184,7 @@ class Config:
 		value = self.globals[key]
 		while isinstance(value, delayed):
 			value = value()
-			self.globals[key] = value
+			#self.globals[key] = value
 		return value
 
 	def __contains__(self, key):
@@ -171,7 +194,7 @@ class Config:
 		value = self.globals.get(key, default)
 		while isinstance(value, delayed):
 			value = value()
-			self.globals[key] = value
+			#self.globals[key] = value
 		return value
 
 	def copy(self):
