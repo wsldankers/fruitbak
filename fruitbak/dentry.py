@@ -1,70 +1,114 @@
-"""Represent entries in a filesystem."""
+"""Represent entries in a filesystem.
 
-from fruitbak.util import Clarity, initializer
+Dentry objects represent entries in a filesystem, including the name,
+metadata such as file size and last modification time, as well as file type
+specific information such as symlink destinations or block device major
+and minor numbers.
+
+These objects are used in Fruitbak to represent filesystem entries both
+when they are stored as part of the process of creating a backup, and when
+listing or retrieving files in an existing backup.
+
+Specific to Fruitbak is the hashes information: the list of hashes of the
+data chunks that when concatenated form the contents of the file.
+
+Hardlinks in Fruitbak are handled in a way that is more similar to symlinks
+than the usual unix system of inode indirection. Hardlinks do not have
+target file type specific information (such as hash lists) themselves; to
+get that information you need to retrieve the entry using the name returned
+by the hardlink function.
+
+All metadata (such as size, file ownership, file type, etcetera) is stored
+with the hardlink as it was found on the filesystem, which means it is
+usually the same as the hardlink destination. It may differ if, for
+example, the file was modified between backing up the hardlink and its
+target.
+
+Please note that most unix implementations allow you to create hardlinks
+to not only plain files but also to block/character device nodes, named
+pipes, unix domain sockets and even to symlinks. Only hardlinks to
+directories are generally not possible. Fruitbak follows this model.
+
+Some functions that return a Dentry may return a Hardlink object instead,
+which is a convenience wrapper that behaves more like a hardlink would on a
+unix filesystem: functions to access the filetype specific data will return
+data from the hardlink target instead.
+"""
+
 from stat import *
 from io import RawIOBase, TextIOWrapper
 from struct import pack, unpack, Struct
 
-def dentry_encode(filename):
-	"""
-	Encode filename to UTF-8 encoding with 'surrogateescape' error handler,
-	return bytes-like ojects unchanged.
-	"""
-	if isinstance(filename, str):
-		return filename.encode(errors = 'surrogateescape')
-	try:
-		memoryview(filename)
-	except:
-		raise TypeError("expect bytes or str, not %s" % type(filename).__name__) from None
-	else:
-		return filename
-
-def dentry_decode(filename):
-	"""
-	Decode filename from UTF-8 encoding with 'surrogateescape' error handler,
-	return str unchanged.
-	"""
-	if isinstance(filename, str):
-		return filename
-	try:
-		decode = filename.decode
-	except AttributeError:
-		raise TypeError("expect bytes or str, not %s" % type(filename).__name__)
-	else:
-		return filename.decode(errors = 'surrogateescape')
+from fruitbak.util import Clarity, initializer, ensure_byteslike, ensure_str
 
 class DentryError(Exception):
-	"""Something Dentry-related went wrong."""
-	pass
+	"""Something Dentry-related went wrong.
+
+	This is merely the base class for all Dentry exceptions.
+	It is never thrown as-is."""
 
 class FileTypeError(DentryError, ValueError):
-	pass
+	"""An operation was attempted on a Dentry object that is meant for a
+	different type of entry (as determined by the `mode` attribute.
+	For example, an attempt to set the file contents for a symlink.
+
+	This is merely the base class for other Dentry exceptions.
+	It is never thrown as-is.
+
+	Subclass of :class:`DentryError` and `ValueError`."""
 
 class NotAFileError(FileTypeError):
-	pass
+	"""An operation was attempted on a Dentry object representing a regular
+	file that is not applicable to regular files.
+
+	Subclass of :class:`FileTypeError`."""
 
 class NotAHardlinkError(FileTypeError):
-	pass
+	"""An operation was attempted on a Dentry object representing a hardlink
+	that is not applicable to hardlinks.
+
+	Subclass of :class:`FileTypeError`."""
 
 class NotASymlinkError(FileTypeError):
-	pass
+	"""An operation was attempted on a Dentry object representing a symlink
+	that is not applicable to symlinks.
+
+	Subclass of :class:`FileTypeError`."""
 
 class NotADeviceError(FileTypeError):
-	pass
+	"""An operation was attempted on a Dentry object representing a device
+	that is not applicable to devices.
+
+	This is merely the base class for the more specific device related
+	type errors below. It is never thrown as-is.
+
+	Subclass of :class:`FileTypeError`."""
 
 class NotABlockDeviceError(NotADeviceError):
-	pass
+	"""An operation was attempted on a Dentry object representing a block
+	device that is not applicable to (block) devices.
+
+	Subclass of :class:`NotADeviceError`."""
 
 class NotACharacterDeviceError(NotADeviceError):
-	pass
+	"""An operation was attempted on a Dentry object representing a character
+	device that is not applicable to (character) devices.
+
+	Subclass of :class:`NotADeviceError`."""
 
 class DentryUnsupportedFlag(DentryError):
-	pass
+	"""An unsupported flag was encountered while decoding the dentry wire
+	format. This entry was either created with a newer version of Fruitbak
+	or is corrupted.
 
+	Subclass of :class:`DentryError`."""
+
+# Used internally to encode or decode Dentry objects to/from wire format
 dentry_layout = Struct('<LLQQLL')
 dentry_layout_size = dentry_layout.size
 
 DENTRY_FORMAT_FLAG_HARDLINK = 0x1
+"""Wire format flag denoting that this dentry is a hardlink."""
 DENTRY_FORMAT_SUPPORTED_FLAGS = DENTRY_FORMAT_FLAG_HARDLINK
 
 class DENTRY_TYPE(Clarity):
@@ -219,42 +263,7 @@ class DentryHashes(Clarity):
 		return self.hashes
 
 class Dentry(Clarity):
-	"""Represent entries in a filesystem.
-
-	Objects of this type represent entries in a filesystem, including the name,
-	metadata such as file size and last modification time, as well as file type
-	specific information such as symlink destinations or block device major
-	and minor numbers.
-
-	These objects are used in Fruitbak to represent filesystem entries both
-	when they are stored as part of the process of creating a backup, and when
-	listing or retrieving files in an existing backup.
-
-	Specific to Fruitbak is the hashes information: the list of hashes of the
-	data chunks that when concatenated form the contents of the file.
-
-	Hardlinks in Fruitbak are handled in a way that is more similar to symlinks
-	than the usual unix system of inode indirection. Hardlinks do not have
-	target file type specific information (such as hash lists) themselves; to
-	get that information you need to retrieve the entry using the name returned
-	by the hardlink function.
-
-	All metadata (such as size, file ownership, file type, etcetera) is stored
-	with the hardlink as it was found on the filesystem, which means it is
-	usually the same as the hardlink destination. It may differ if, for
-	example, the file was modified between backing up the hardlink and its
-	target.
-
-	Please note that most unix implementations allow you to create hardlinks
-	to not only plain files but also to block/character device nodes, named
-	pipes, unix domain sockets and even to symlinks. Only hardlinks to
-	directories are generally not possible. Fruitbak follows this model.
-
-	Some functions that return a Dentry may return a Hardlink object instead,
-	which is a convenience wrapper that behaves more like a hardlink would on a
-	unix filesystem: functions to access the filetype specific data will return
-	data from the hardlink target instead.
-	"""
+	"""Represent entries in a filesystem."""
 
 	def __init__(self, encoded = None, **kwargs):
 		if encoded is not None:
@@ -287,7 +296,7 @@ class Dentry(Clarity):
 
 	@name.setter
 	def name(self, value):
-		return dentry_encode(value)
+		return ensure_byteslike(value)
 
 	@initializer
 	def extra(self):
@@ -344,13 +353,13 @@ class Dentry(Clarity):
 		"""
 
 		if not self.is_file:
-			raise NotAFileError("'%s' is not a regular file" % dentry_decode(self.name))
+			raise NotAFileError("'%s' is not a regular file" % ensure_str(self.name))
 		return DentryHashes(hashes = self.extra, hash_size = self.hash_size)
 
 	@hashes.setter
 	def hashes(self, value):
 		if not self.is_file:
-			raise NotAFileError("'%s' is not a regular file" % dentry_decode(self.name))
+			raise NotAFileError("'%s' is not a regular file" % ensure_str(self.name))
 
 		if isinstance(value, DentryHashes):
 			self.extra = value.hashes
@@ -387,16 +396,16 @@ class Dentry(Clarity):
 		"""
 
 		if not self.is_hardlink:
-			raise NotAHardlinkError("'%s' is not a hardlink" % dentry_decode(self.name))
+			raise NotAHardlinkError("'%s' is not a hardlink" % ensure_str(self.name))
 
 		return self.extra
 
 	@hardlink.setter
 	def hardlink(self, value):
 		if not self.is_hardlink:
-			raise NotAHardlinkError("'%s' is not a hardlink" % dentry_decode(self.name))
+			raise NotAHardlinkError("'%s' is not a hardlink" % ensure_str(self.name))
 
-		self.extra = dentry_encode(value)
+		self.extra = ensure_byteslike(value)
 
 	@property
 	def is_symlink(self):
@@ -419,15 +428,15 @@ class Dentry(Clarity):
 		"""
 
 		if not self.is_symlink:
-			raise NotASymlinkError("'%s' is not a hardlink" % dentry_decode(self.name))
+			raise NotASymlinkError("'%s' is not a hardlink" % ensure_str(self.name))
 		return self.extra
 
 	@symlink.setter
 	def symlink(self, value):
 		if not self.is_symlink:
-			raise NotASymlinkError("'%s' is not a hardlink" % dentry_decode(self.name))
+			raise NotASymlinkError("'%s' is not a hardlink" % ensure_str(self.name))
 
-		self.extra = dentry_encode(value)
+		self.extra = ensure_byteslike(value)
 
 	@property
 	def is_directory(self):
@@ -487,7 +496,10 @@ class Dentry(Clarity):
 	@property
 	def rdev(self):
 		if not self.is_device:
-			raise NotADeviceError("'%s' is not a device" % dentry_decode(self.name))
+			if self.is_chardev:
+				raise NotACharacterDeviceError("'%s' is not a (character) device" % ensure_str(self.name))
+			else:
+				raise NotABlockDeviceError("'%s' is not a (block) device" % ensure_str(self.name))
 		major, minor = unpack('<LL', self.extra)
 		if not major and minor & ~0xFF:
 			# compensate for old bug:
@@ -498,7 +510,10 @@ class Dentry(Clarity):
 	@rdev.setter
 	def rdev(self, majorminor):
 		if not self.is_device:
-			raise NotADeviceError("'%s' is not a device" % dentry_decode(self.name))
+			if self.is_chardev:
+				raise NotACharacterDeviceError("'%s' is not a (character) device" % ensure_str(self.name))
+			else:
+				raise NotABlockDeviceError("'%s' is not a (block) device" % ensure_str(self.name))
 		self.extra = pack('<LL', *majorminor)
 
 	@property

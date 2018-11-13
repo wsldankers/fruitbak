@@ -1,7 +1,6 @@
 - implement ideas in READAHEAD
 - rsync
 - logging
-- NewBackupConfig, NewShareConfig, TransferConfig
 - user docs
 - api/code docs
 - triage exceptions to distinguish between tempfail and permfail

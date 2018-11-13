@@ -1,7 +1,7 @@
 """Represent hosts to back up"""
 
-from fruitbak.util import Clarity, initializer, lockingclass, unlocked
-from fruitbak.dentry import Dentry, HardlinkDentry, dentry_layout_size, dentry_encode
+from fruitbak.dentry import Dentry, HardlinkDentry, dentry_layout_size
+from fruitbak.util import Clarity, initializer, lockingclass, unlocked, ensure_byteslike
 
 from hardhat import Hardhat, normalize as hardhat_normalize
 
@@ -204,7 +204,7 @@ class Share(Clarity):
 
 	@unlocked
 	def __getitem__(self, path):
-		path = hardhat_normalize(dentry_encode(path))
+		path = hardhat_normalize(ensure_byteslike(path))
 		return self._parse_dentry(path, self.metadata[path])
 
 	@unlocked

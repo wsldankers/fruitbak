@@ -1,8 +1,7 @@
 """Represent a backup"""
 
-from fruitbak.util import Clarity, initializer, lockingclass, unlocked
 from fruitbak.share import Share
-from fruitbak.dentry import dentry_encode
+from fruitbak.util import Clarity, initializer, lockingclass, unlocked, ensure_byteslike
 
 from hardhat import normalize as hardhat_normalize
 from hashset import Hashset
@@ -215,7 +214,7 @@ class Backup(Clarity):
 	@unlocked
 	def locate_path(self, path):
 		original_path = path
-		path = hardhat_normalize(dentry_encode(path))
+		path = hardhat_normalize(ensure_byteslike(path))
 		path = path.split(b'/') if len(path) else []
 		path_len = len(path)
 		shares = tuple(self)
@@ -223,7 +222,7 @@ class Backup(Clarity):
 		best_mp = None
 		best_len = -1
 		for share in shares:
-			mp = hardhat_normalize(dentry_encode(share.mountpoint))
+			mp = hardhat_normalize(ensure_byteslike(share.mountpoint))
 			mp = mp.split(b'/') if len(mp) else []
 			mp_len = len(mp)
 			#print(best_len, mp_len, path_len, repr(mp), repr(path[:mp_len]))
