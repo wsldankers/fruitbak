@@ -5,46 +5,38 @@ def ensure_bytes(obj):
 	Encode str obj to UTF-8 encoding with 'surrogateescape' error handler,
 	return bytes-like ojects as bytes objects. Can handle Path objects.
 	"""
-	if isinstance(obj, PurePath):
-		return bytes(obj)
 	if isinstance(obj, str):
 		return obj.encode(errors = 'surrogateescape')
 	if isinstance(obj, bytes):
 		return obj
-	return bytes(obj)
+	return obj.__bytes__()
 
 def ensure_byteslike(obj):
 	"""
 	Encode str obj to UTF-8 encoding with 'surrogateescape' error handler,
 	return bytes-like ojects unchanged. Can handle Path objects.
 	"""
-	if isinstance(obj, PurePath):
-		return bytes(obj)
 	if isinstance(obj, str):
 		return obj.encode(errors = 'surrogateescape')
 	try:
 		memoryview(obj)
-	except:
-		raise TypeError("expect bytes, str or Path, not %s" % type(obj).__name__) from None
+	except TypeError:
+		pass
 	else:
 		return obj
+	return obj.__bytes__()
 
 def ensure_str(obj):
 	"""
 	Decode bytes-like obj from UTF-8 encoding with 'surrogateescape' error handler,
-	return str ojects unchanged. Can handle Path objects.
+	return str objects unchanged. Can handle Path objects.
 	"""
-	if isinstance(obj, PurePath):
-		return str(obj)
+	try:
+		return str(obj, errors = 'surrogateescape')
+	except TypeError:
+		pass
 	if isinstance(obj, str):
 		return obj
-	if isinstance(obj, bytes):
-		return obj.decode(errors = 'surrogateescape')
-	else:
-		try:
-			memoryview(obj)
-		except:
-			pass
-		else:
-			return bytes(obj).decode(errors = 'surrogateescape')
-	return str(obj)
+	if isinstance(obj, Path):
+		return str(Path)
+	raise TypeError("expect byteslike, str or Path, not %s" % type(obj).__name__)
