@@ -109,61 +109,99 @@ dentry_layout_size = dentry_layout.size
 """Size of the header of the wire format. For internal use."""
 
 DENTRY_FORMAT_FLAG_HARDLINK = 0x1
-"""Wire format bitmask flag denoting that this dentry is a hardlink."""
+"""
+
+Wire format bitmask flag denoting that this dentry is a hardlink.
+
+"""
 DENTRY_FORMAT_SUPPORTED_FLAGS = DENTRY_FORMAT_FLAG_HARDLINK
 """Bitmask of all supported format flags. Any dentries with flags not in
 this bitmask will be rejected."""
 
 class DENTRY_TYPE(Clarity):
+	"""Represent the file types supported by Fruitbak. Returned by the
+	Dentry type() method. Note that hardlinks are a seperate type in
+	Fruitbak, so an entry that is a hardlink to a regular file is
+	classified as a hardlink and not a regular file.
+
+	Base class for the DENTRY_TYPE_* classes. Never used directly.
+
+	Each DENTRY_TYPE_* class defines several representations of the file
+	type for use in various contexts:"""
+
 	lsl_char = None
+	"""The character used in the output of of ``ls -l``. Read-only.
+
+	:vartype: str or None"""
+
 	tar_char = None
+	"""The byte used in tar archives. Read-only.
+
+	:vartype: bytes or None"""
+
 	stat_num = None
+	"""The number used in the S_IFMT part of the stat() st_mode field.
+	Read-only.
+
+	:vartype: int or None"""
 
 class DENTRY_TYPE_UNKNOWN(DENTRY_TYPE):
+	"""Used for dentries of unknown type."""
 	lsl_char = '?'
 
 class DENTRY_TYPE_FILE(DENTRY_TYPE):
+	"""Used for dentries that are regular files."""
 	lsl_char = '-'
 	tar_char = b'0'
 	stat_num = S_IFREG
 
 class DENTRY_TYPE_HARDLINK(DENTRY_TYPE):
+	"""Used for dentries that are hardlinks. The target may be any file
+	type except a directory."""
 	lsl_char = 'h'
 	tar_char = b'1'
 
 class DENTRY_TYPE_SYMLINK(DENTRY_TYPE):
+	"""Used for dentries that are symlinks."""
 	lsl_char = 'l'
 	tar_char = b'2'
 	stat_num = S_IFLNK
 
 class DENTRY_TYPE_DEVICE(DENTRY_TYPE):
-	pass
+	"""Used for dentries that are either block devices or character devices.
+
+	Base class for the DENTRY_TYPE_*DEVICE classes. Never used directly."""
 
 class DENTRY_TYPE_CHARDEVICE(DENTRY_TYPE_DEVICE):
+	"""Used for dentries that are character devices."""
 	lsl_char = 'c'
 	tar_char = b'3'
 	stat_num = S_IFCHR
 
 class DENTRY_TYPE_BLOCKDEVICE(DENTRY_TYPE_DEVICE):
+	"""Used for dentries that are block devices."""
 	lsl_char = 'b'
 	tar_char = b'4'
 	stat_num = S_IFBLK
 
 class DENTRY_TYPE_DIRECTORY(DENTRY_TYPE):
+	"""Used for dentries that are directories."""
 	lsl_char = 'd'
 	tar_char = b'5'
 	stat_num = S_IFDIR
 
 class DENTRY_TYPE_FIFO(DENTRY_TYPE):
+	"""Used for dentries that are named pipes."""
 	lsl_char = 'p'
 	tar_char = b'6'
 	stat_num = S_IFIFO
 
 class DENTRY_TYPE_SOCKET(DENTRY_TYPE):
+	"""Used for dentries that are UNIX domain sockets."""
 	lsl_char = 'p'
 	stat_num = S_IFSOCK
 
-dentry_types_by_stat_num = dict(map(lambda t: (t.stat_num, t), (
+dentry_types_by_stat_num = {t.stat_num: t for t in (
 	DENTRY_TYPE_FILE,
 	DENTRY_TYPE_SYMLINK,
 	DENTRY_TYPE_CHARDEVICE,
@@ -171,19 +209,44 @@ dentry_types_by_stat_num = dict(map(lambda t: (t.stat_num, t), (
 	DENTRY_TYPE_DIRECTORY,
 	DENTRY_TYPE_FIFO,
 	DENTRY_TYPE_SOCKET
-)))
+)}
+"""Private variable that maps stat() st_mode numbers to the correct
+DENTRY_TYPE_* class."""
 
 class DentryIO(RawIOBase):
-	current_chunk = None # always a memoryview
+	"""Private class that provides a read-only wrapper around Dentry
+	objects so that they can be used as Python file handle objects.
+
+	:param iter(bytes) readahead: any iterator that yields
+			byteslike objects (usually a fruitbak.pool.agent.PoolReadahead)."""
+
+	current_chunk = None
+	"""The last read chunk, used to satisfy reads that are not exactly
+	the Fruitbak chunk size or are not aligned to the chunk size.
+	May be None if there is the last chunk was completely read (or no
+	chunks have been read yet).
+
+	:vartype: memoryview or None"""
 	current_offset = 0
+	"""Offset in the current chunk; always strictly smaller than the
+	length of current_chunk.
+
+	:vartype: int"""
 
 	def __init__(self, readahead):
 		self.readahead = readahead
 
 	def readable(self):
+		"""Whether this IO object is readable (always True).
+
+		:rtype: bool"""
 		return True
 
 	def readall(self):
+		"""Read all that is left of the readahead iterator and return
+		it as one big bytes object.
+
+		:rtype: bytes"""
 		chunks = []
 		current_chunk = self.current_chunk
 		if current_chunk is not None:
@@ -194,6 +257,12 @@ class DentryIO(RawIOBase):
 		return b''.join(chunks)
 
 	def read(self, size = -1):
+		"""Read `size` bytes from the readahead iterator.
+		If `size` is -1 (or None), read all that is left of the
+		readahead iterator and return it as one big bytes object.
+
+		:param int size: the number of bytes to read
+		:rtype: bytes"""
 		if size is None or size < 0:
 			return self.readall()
 		if size == 0:
