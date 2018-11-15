@@ -103,13 +103,16 @@ class DentryUnsupportedFlag(DentryError):
 
 	Subclass of :class:`DentryError`."""
 
-# Used internally to encode or decode Dentry objects to/from wire format
 dentry_layout = Struct('<LLQQLL')
+"""The header of the wire format. For internal use."""
 dentry_layout_size = dentry_layout.size
+"""Size of the header of the wire format. For internal use."""
 
 DENTRY_FORMAT_FLAG_HARDLINK = 0x1
-"""Wire format flag denoting that this dentry is a hardlink."""
+"""Wire format bitmask flag denoting that this dentry is a hardlink."""
 DENTRY_FORMAT_SUPPORTED_FLAGS = DENTRY_FORMAT_FLAG_HARDLINK
+"""Bitmask of all supported format flags. Any dentries with flags not in
+this bitmask will be rejected."""
 
 class DENTRY_TYPE(Clarity):
 	lsl_char = None
