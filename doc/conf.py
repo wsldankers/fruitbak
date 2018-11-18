@@ -286,3 +286,8 @@ texinfo_documents = [
 
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #texinfo_no_detailmenu = False
+
+# -- Options for autodoc -------------------------------------------------
+
+autodoc_member_order = 'groupwise'
+autodoc_default_flags = ['members']

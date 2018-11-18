@@ -8,8 +8,17 @@ class getinitializer:
 	def __get__(self, obj, objtype = None):
 		getfunction = self.getfunction
 		name = getfunction.__name__
-		objdict = obj.__dict__
-		# do an explicit check to accommodate a threaded scenario
+		try:
+			objdict = obj.__dict__
+		except AttributeError:
+			# This typically happens when querying for docstrings,
+			# so return something with the appropriate docstring.
+			return self
+		# Do an explicit check to accommodate a threaded scenario:
+		# even if this getter is protected by a lock, that lock is
+		# not taken when python checks whether the attribute exists
+		# in the __dict__. So when we run, another thread might
+		# have caused the __dict__ entry to be populated.
 		try:
 			return objdict[name]
 		except KeyError:
@@ -27,8 +36,8 @@ class getinitializer:
 class getdelinitializer(getinitializer):
 	def __init__(self, getfunction, delfunction):
 		super().__init__(getfunction)
-		self.delfunction = delfunction
 		self.name = getfunction.__name__
+		self.delfunction = delfunction
 
 	def __set__(self, obj, value):
 		obj.__dict__[self.name] = value
@@ -48,10 +57,9 @@ class getdelinitializer(getinitializer):
 
 class getsetinitializer(getinitializer):
 	def __init__(self, getfunction, setfunction):
-		self.getfunction = getfunction
-		self.setfunction = setfunction
+		super().__init__(getfunction)
 		self.name = getfunction.__name__
-		self.__doc__ = getfunction.__doc__
+		self.setfunction = setfunction
 
 	def __set__(self, obj, value):
 		obj.__dict__[self.name] = self.setfunction(obj, value)

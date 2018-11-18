@@ -132,18 +132,18 @@ class DENTRY_TYPE(Clarity):
 	lsl_char = None
 	"""The character used in the output of of ``ls -l``. Read-only.
 
-	:vartype: str or None"""
+	:type: str or None"""
 
 	tar_char = None
 	"""The byte used in tar archives. Read-only.
 
-	:vartype: bytes or None"""
+	:type: bytes or None"""
 
 	stat_num = None
 	"""The number used in the S_IFMT part of the stat() st_mode field.
 	Read-only.
 
-	:vartype: int or None"""
+	:type: int or None"""
 
 class DENTRY_TYPE_UNKNOWN(DENTRY_TYPE):
 	"""Used for dentries of unknown type."""
@@ -226,12 +226,12 @@ class DentryIO(RawIOBase):
 	May be None if there is the last chunk was completely read (or no
 	chunks have been read yet).
 
-	:vartype: memoryview or None"""
+	:rtype: memoryview or None"""
 	current_offset = 0
 	"""Offset in the current chunk; always strictly smaller than the
 	length of current_chunk.
 
-	:vartype: int"""
+	:type: int"""
 
 	def __init__(self, readahead):
 		self.readahead = readahead
@@ -298,10 +298,15 @@ class DentryIO(RawIOBase):
 			return current_chunk[current_offset:next_offset]
 
 	def readinto(self, b):
+		"""Read from the readahead iterator and store the data in the supplied
+		memoryview `b`, until either the memoryview is full or the readahead
+		iterator is exhausted."""
 		if not isinstance(b, memoryview):
 			b = memoryview(b)
 		b = b.cast('B')
 
+		# This is inefficient, it would be better to copy from the iterated
+		# chunks directly.
 		data = self.read(len(b))
 		n = len(data)
 
@@ -310,8 +315,23 @@ class DentryIO(RawIOBase):
 		return n
 
 class DentryHashes(Clarity):
+	"""DentryHashes(*, hashes = None, hash_size = None)
+	Wrapper for concatenated hashes that allows iteration as well as
+	retrieving the underlying byteslike object.
+
+	Iterating over this object yields all hashes in turn.
+
+	Using len() will return the number of hashes.
+
+	Casting it to a bytes() object will return the concatenation of all hashes.
+
+	:param byteslike hashes: the concatenation of hashes (required)
+	:param int hash_size: the size of each hash (required)
+	"""
+
 	@initializer
-	def hashview(self):
+	def _hashview(self):
+		"""A memoryview of the underlying byteslike object."""
 		m = self.hashes
 		if isinstance(m, memoryview):
 			return m
@@ -326,7 +346,7 @@ class DentryHashes(Clarity):
 				next_offset = offset + hash_size
 				yield hashes[offset:next_offset]
 				offset = next_offset
-		return hashiterator(self.hashview)
+		return hashiterator(self._hashview)
 
 	def __len__(self):
 		return len(self.hashes) // self.hash_size
@@ -335,7 +355,15 @@ class DentryHashes(Clarity):
 		return self.hashes
 
 class Dentry(Clarity):
-	"""Represent entries in a filesystem."""
+	"""Represent entries in a filesystem. Can be initialized by either
+	passing a wire format encoded byteslike object as `encoded` or
+	by setting all desired attributes manually.
+
+	`Dentry` objects can be encoded to the wire format by casting
+	it to a bytes() object.
+
+	:param byteslike encoded: dentry data in wire format
+	"""
 
 	def __init__(self, encoded = None, **kwargs):
 		if encoded is not None:
@@ -364,6 +392,9 @@ class Dentry(Clarity):
 
 	@initializer
 	def name(self):
+		"""The name of this dentry.
+
+		:type: str or byteslike"""
 		raise AttributeError("attempt to access 'name' attribute before it is set")
 
 	@name.setter
@@ -372,6 +403,10 @@ class Dentry(Clarity):
 
 	@initializer
 	def extra(self):
+		"""The extra data for this entry, in wire format. Contents depend
+		on the file type.
+
+		:type: byteslike"""
 		return bytearray()
 
 	@initializer
@@ -390,7 +425,18 @@ class Dentry(Clarity):
 	def hash_size(self):
 		return self.fruitbak.hash_size
 
+	@initializer
+	def chunk_size(self):
+		return self.fruitbak.chunk_size
+
 	def open(self, mode = 'rb', agent = None):
+		"""Open the dentry for reading. Will raise an error if this
+		dentry is not a regular file.
+
+		:param str mode: open mode, must be either 'r' or 'rb'
+		:param PoolAgent agent: a pool agent to use for reading
+		:rtype: IOBase
+		"""
 		if agent is None:
 			agent = self.agent
 		io = DentryIO(readahead = agent.readahead(self.hashes))
@@ -398,7 +444,7 @@ class Dentry(Clarity):
 			return io
 		elif mode == 'r':
 			wrapper = TextIOWrapper(io)
-			wrapper._CHUNK_SIZE = self.fruitbak.chunk_size
+			wrapper._CHUNK_SIZE = self.chunk_size
 			return wrapper
 		else:
 			return RuntimeError("Unsupported open mode %r" % (mode,))
@@ -614,66 +660,8 @@ class HardlinkDentry(Dentry):
 	def name(self):
 		return self.original.name
 
-	@property
-	def inode(self):
-		return self.target.inode
+	def __getattr__(self, name):
+		return getattr(self.target, name)
 
-	@property
-	def mode(self):
-		return self.target.mode
-
-	@property
-	def size(self):
-		return self.target.size
-
-	@property
-	def storedsize(self):
-		return self.target.storedsize
-
-	@property
-	def mtime(self):
-		return self.target.mtime
-
-	@property
-	def uid(self):
-		return self.target.uid
-
-	@property
-	def gid(self):
-		return self.target.gid
-
-	@property
-	def hashes(self):
-		return self.target.hashes
-
-	@property
-	def hardlink(self):
-		return self.target.name
-
-	@property
-	def symlink(self):
-		return self.target.symlink
-
-	@property
-	def rdev_minor(self):
-		return self.target.rdev_minor
-
-	@property
-	def rdev_major(self):
-		return self.target.rdev_major
-
-	@property
-	def extra(self):
-		return self.target.extra
-
-	@property
-	def is_hardlink(self):
-		return True
-
-	@property
-	def is_file(self):
-		return self.target.is_file
-
-	@property
-	def is_directory(self):
-		return False
+	is_hardlink = True
+	is_directory = False
