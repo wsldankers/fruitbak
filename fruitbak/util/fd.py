@@ -1,3 +1,14 @@
+"""Garbage collected POSIX file descriptors that provide POSIX
+functionality as methods::
+
+	dir_fd = opendir("/tmp")
+	fd = dir_fd.open("temprace", O_CREAT, 0666)
+	fd.close()
+	dir_fd.unlink("temprace")
+
+In this example, dir_fd will be closed automatically when garbage
+collected (usually when it goes out of scope)."""
+
 from os import (
 	access as os_access,
 	chmod as os_chmod,
@@ -42,7 +53,7 @@ from os.path import samestat
 from stat import S_ISDIR, S_ISREG, S_ISLNK
 from pathlib import PurePath
 
-from fruitbak.util import Clarity, initializer, flexiblemethod
+from fruitbak.util import Clarity, initializer, flexiblemethod, is_byteslike
 
 try:
 	from os import O_PATH
@@ -56,43 +67,103 @@ except ImportError:
 	# that's ok, O_LARGEFILE is just advisory
 	O_LARGEFILE = 0
 
-def unpath(path):
-	if isinstance(path, PurePath):
-		return str(path)
-	else:
-		return path
+def unpath(obj):
+	"""Convert Path-like objects to str; pass through other objects
+	unmodified.
 
-def is_bytes_like(obj):
-	try:
-		memoryview(obj)
-	except TypeError:
-		return False
+	:param obj: The object to (potentially) convert"""
+	:type obj: str or bytes or PurePath
+	:return: either a stringified version of the Path or the unmodified parameter
+	:rtype: str or bytes"""
+	if isinstance(obj, PurePath):
+		return str(obj)
 	else:
-		return True
+		return obj
 
 def opener(mode = 0o666, **kwargs):
+	"""Create an opener suitable for use with the builtin Python `open`
+	function's `opener` parameter. See the documentation for Python's `open`
+	for details about what this parameter is used for.
+
+	This function returns an opener that will call `os.open` with the supplied
+	mode and other arguments, as well as the `flags` arguments that Python's
+	`open` will provide (bitwise or'd with ``O_CLOEXEC|O_NOCTTY``).
+
+	:param int mode: Integer modes to pass to `os.open`.
+	:param dict kwargs: Additional arguments that will be passed to `os.open`.
+	:return: A function that is a suitable argument to Python's `open`."""
 	def opener(path, flags):
-		return os_open(path, flags|O_CLOEXEC|O_NOCTTY, mode = mode, **kwargs)
+		"""This opener was created by `fruitbak.util.fd.opener()`.
+
+		:param path: The path to open (as passed to Python's `open` function).
+		:type path: str or bytes or Path
+		:return: A plain file descriptor.
+		:rtype: int"""
+		return os_open(unpath(path), flags|O_CLOEXEC|O_NOCTTY, mode = mode, **kwargs)
 	return opener
 
 class DirEntry(Clarity):
+	"""DirEntry(*, name, dir_fd)
+
+	Older versions of `os.scandir` do not accept a file descriptor as an
+	argument. The `DirEntry` class is part of a polyfill for that case. It
+	provides the same functionality as the built-in DirEntry type, though it
+	lacks support for one optimization that some filesystems provide (the
+	`d_type` field of the C library `readdir(3)` function).
+
+	:param name: The (bare) name of this entry.
+	:type name: str or bytes
+	:param int dir_fd: the directory fd relative to which `stat` operations
+		on `name` will be performed."""
+
 	@property
 	def path(self):
+		"""Normally the full name, these objects do not have parent information
+		because they are based off a listing of a file descriptor. Therefore this
+		entry is the same as the name attribute, i.e., the bare name without any
+		parent directory names prefixed to it.
+
+		:type: str or bytes"""
 		return self.name
 
 	def __fspath__(self):
+		"""Called by `Path` objects when used as an argument for the constructor.
+		Because this constructor would otherwise call `str()` on us and by doing
+		that possibly unnecessarily convert the filename from `bytes` to `str`,
+		we make sure it gets the original.
+
+		:return: The name.
+		:rtype: str or bytes"""
 		return self.name
 
 	def __str__(self):
+		"""Convert the name to a string using Python's current filesystem encoding.
+
+		:return: The name as a string.
+		:rtype: str"""
+
 		return fsdecode(self.name)
 
 	def __bytes__(self):
+		"""Convert the name to a bytes object using Python's current filesystem encoding.
+
+		:return: The name as a bytes object.
+		:rtype: bytes"""
 		return fsencode(self.name)
 
 	_stat_exception = None
+	"""If the last `stat` call raised an error, we store it here so we can keep raising
+	it instead of retrying it every time.
+
+	:type: Exception or None"""
 
 	@initializer
 	def _stat_result(self):
+		"""The result of the last `stat` we performed on this directory entry.
+		Initialized by actually performing the `stat`. If this `stat` ever fails, we
+		cache the exception instead (and keep raising it henceafter).
+
+		:type: os.stat_result"""
 		e = self._stat_exception
 		if e is None:
 			try:
@@ -102,9 +173,18 @@ class DirEntry(Clarity):
 		raise e
 
 	_lstat_exception = None
+	"""If the last `lstat` call raised an error, we store it here so we can keep raising
+	it instead of retrying it every time.
+
+	:type: Exception or None"""
 
 	@initializer
 	def _lstat_result(self):
+		"""The result of the last `lstat` we performed on this directory entry.
+		Initialized by actually performing the `lstat`. If this `lstat` ever fails, we
+		cache the exception instead (and keep raising it henceafter).
+
+		:type: os.stat_result"""
 		e = self._lstat_exception
 		if e is None:
 			try:
@@ -114,12 +194,19 @@ class DirEntry(Clarity):
 		raise e
 
 	def stat(self, *, follow_symlinks = True):
+		"""Perform a `stat` on this directory entry. This is only tried once;
+		if it fails, it will keep raising the same error.
+
+		;param: boolean follow_symlinks: Whether to follow symlinks when
+			doing the `stat`.
+		:return: The result of `os.stat`.
+		:rtype: os.stat_result"""
 		return self._stat_result if follow_symlinks else self._lstat_result
 
-	def inode(self):
-		return self.stat(follow_symlinks = False).st_ino
+	def inode(self, follow_symlinks = False):
+		return self.stat(follow_symlinks = follow_symlinks).st_ino
 
-	def is_dir(self, follow_symlinks = True):
+	def is_dir(self, *, follow_symlinks = True):
 		try:
 			st = self.stat(follow_symlinks = follow_symlinks)
 		except FileNotFoundError:
@@ -365,7 +452,7 @@ class fd(int):
 			arg = args[0]
 			if isinstance(arg, int):
 				raise RuntimeError("to utime the fd itself, omit the parameter")
-			if isinstance(arg, str) or isinstance(arg, PurePath) or is_bytes_like(arg):
+			if isinstance(arg, str) or isinstance(arg, PurePath) or is_byteslike(arg):
 				return os_utime(unpath(arg), *args[1:], dir_fd = self, **kwargs)
 		return os_utime(self, *args, dir_fd = None, **kwargs)
 

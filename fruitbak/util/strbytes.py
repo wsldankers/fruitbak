@@ -1,5 +1,14 @@
 from pathlib import PurePath
 
+def is_byteslike(obj):
+	"""Test whether `obj` is a byteslike object."""
+    try:
+        memoryview(obj)
+    except TypeError:
+        return False
+    else:
+        return True
+
 def ensure_bytes(obj):
 	"""
 	Encode str obj to UTF-8 encoding with 'surrogateescape' error handler,
