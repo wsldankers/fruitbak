@@ -166,6 +166,8 @@ class DirEntry(Clarity):
 		:type: os.stat_result"""
 		e = self._stat_exception
 		if e is None:
+			if '_lstat_result' in self.__dict__ and not S_ISLNK(self._lstat_result):
+				return self._lstat_result
 			try:
 				return os_stat(self.name, dir_fd = self.dir_fd, follow_symlinks = True)
 			except Exception as e:
@@ -197,16 +199,35 @@ class DirEntry(Clarity):
 		"""Perform a `stat` on this directory entry. This is only tried once;
 		if it fails, it will keep raising the same error.
 
-		;param: boolean follow_symlinks: Whether to follow symlinks when
+		:param boolean follow_symlinks: Whether to follow symlinks when
 			doing the `stat`.
 		:return: The result of `os.stat`.
 		:rtype: os.stat_result"""
 		return self._stat_result if follow_symlinks else self._lstat_result
 
 	def inode(self, follow_symlinks = False):
+		"""Determine the inode number of this entry (or – optionally – in the
+		case of a symlink, the inode of whatever the symlink points at).
+
+		:param boolean follow_symlinks: Whether to return the inode of the dentry
+			itself or of the entry this symlink points at.
+		:return: The inode number.
+		:rtype: int"""
+
 		return self.stat(follow_symlinks = follow_symlinks).st_ino
 
 	def is_dir(self, *, follow_symlinks = True):
+		"""Determine whether this entry (or – optionally – in the case of a
+		symlink, whatever the symlink points at) is a directory.
+
+		If the entry does not exist, returns False instead of raising an
+		exception.
+
+		:param boolean follow_symlinks: Whether to test this entry itself
+			or the entry this symlink points at.
+		:return: Whether this entry exists and is a directory.
+		:rtype: boolean"""
+
 		try:
 			st = self.stat(follow_symlinks = follow_symlinks)
 		except FileNotFoundError:
@@ -215,6 +236,17 @@ class DirEntry(Clarity):
 			return S_ISDIR(st.st_mode)
 
 	def is_file(self, *, follow_symlinks = True):
+		"""Determine whether this entry (or – optionally – in the case of a
+		symlink, whatever the symlink points at) is a regular file.
+
+		If the entry does not exist, returns False instead of raising an
+		exception.
+
+		:param boolean follow_symlinks: Whether to test this entry itself
+			or the entry this symlink points at.
+		:return: Whether this entry exists and is a regular file.
+		:rtype: boolean"""
+
 		try:
 			st = self.stat(follow_symlinks = follow_symlinks)
 		except FileNotFoundError:
@@ -223,6 +255,14 @@ class DirEntry(Clarity):
 			return S_ISREG(st.st_mode)
 
 	def is_symlink(self):
+		"""Determine whether this entry is a symbolic link.
+
+		If the entry does not exist, returns False instead of raising an
+		exception.
+
+		:return: Whether this entry exists and is a symbolic link.
+		:rtype: boolean"""
+
 		try:
 			st = self.stat(follow_symlinks = False)
 		except FileNotFoundError:
@@ -232,7 +272,7 @@ class DirEntry(Clarity):
 
 class fd(int):
 	"""Wrapper for os.open() with some amenities such as garbage collection,
-	context methods, utility methods for reading and writing reliably"""
+	context methods, utility methods for reading and writing reliably."""
 	closed = False
 
 	def __del__(self):
@@ -243,15 +283,28 @@ class fd(int):
 				pass
 
 	def __enter__(self):
+		"""Context manager that simply returns the fd itself.
+
+		:return: The fd itself.
+		:rtype: fruitbak.util.fd.fd"""
+
 		return self
 
 	def __exit__(self, exc_type, exc_value, traceback):
+		"""Context exit method that simply closes the file descriptor."""
 		if not self.closed:
 			self.closed = True
 			os_close(self)
 
 	@flexiblemethod
 	def sysopen(self, path, *args, **kwargs):
+		"""Open a file using `os.open`. This method can be used both as a
+		class method and an instance method. If it is used as an instance
+		method, the instance is assumed to be a file descriptor for a directory
+		and passed to the `os.open` call in the dir_fd parameter.
+
+		
+
 		if self.closed:
 			raise ValueError("I/O operation on closed file.")
 		return type(self).sysopen(path, *args, dir_fd = self, **kwargs)
