@@ -108,6 +108,7 @@ def xyzzy(*args, **kwargs):
 
 class flexiblemethod:
 	def __init__(self, method):
+		# don't bother propagating __doc__, method_closure will take care of that.
 		self._method = method
 		self._classmethod = method
 

@@ -2,12 +2,12 @@ from pathlib import PurePath
 
 def is_byteslike(obj):
 	"""Test whether `obj` is a byteslike object."""
-    try:
-        memoryview(obj)
-    except TypeError:
-        return False
-    else:
-        return True
+	try:
+		memoryview(obj)
+	except TypeError:
+		return False
+	else:
+		return True
 
 def ensure_bytes(obj):
 	"""
@@ -47,5 +47,5 @@ def ensure_str(obj):
 	if isinstance(obj, str):
 		return obj
 	if isinstance(obj, Path):
-		return str(Path)
+		return str(obj)
 	raise TypeError("expect byteslike, str or Path, not %s" % type(obj).__name__)
