@@ -1,7 +1,7 @@
 """Represent a backup"""
 
 from fruitbak.share import Share
-from fruitbak.util import Clarity, initializer, lockingclass, unlocked, ensure_byteslike
+from fruitbak.util import Initializer, initializer, lockingclass, unlocked, ensure_byteslike
 
 from hardhat import normalize as hardhat_normalize
 from hashset import Hashset
@@ -21,7 +21,7 @@ except ImportError:
 		return int(time() * 1000000000.0)
 
 @lockingclass
-class Backup(Clarity):
+class Backup(Initializer):
 	"""Represent a finished backup.
 
 	As time goes by hosts accrue backups. This class represents

@@ -4,9 +4,9 @@ from threading import Condition
 from collections import deque, OrderedDict
 from sys import stderr
 
-from fruitbak.util import Clarity, initializer, MinHeapMap, MinWeakHeapMap
+from fruitbak.util import Initializer, initializer, MinHeapMap, MinWeakHeapMap
 
-class PoolAction(Clarity):
+class PoolAction(Initializer):
 	done = False
 	cond = None
 	hash = None
@@ -38,7 +38,7 @@ class PoolPutAction(PoolAction):
 class PoolDelAction(PoolAction):
 	pass
 
-class PoolReadahead(Clarity):
+class PoolReadahead(Initializer):
 	agent = None
 	iterator = None
 	serial = None
@@ -157,7 +157,7 @@ class PoolReadahead(Clarity):
 
 		agent.register_readahead(self)
 
-class PoolAgent(Clarity):
+class PoolAgent(Initializer):
 	@initializer
 	def lock(self):
 		return self.pool.lock

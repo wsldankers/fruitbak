@@ -3,12 +3,12 @@ from weakref import ref as weakref, WeakValueDictionary
 from threading import Condition, RLock
 from sys import stderr
 
-from fruitbak.util import Clarity, initializer, MinWeakHeapMap, weakproperty, locked, NLock
+from fruitbak.util import Initializer, initializer, MinWeakHeapMap, weakproperty, locked, NLock
 from fruitbak.pool.storage import Filesystem
 from fruitbak.pool.agent import PoolAgent
 from fruitbak.config import configurable, configurable_function
 
-class Pool(Clarity):
+class Pool(Initializer):
 	def __init__(self, *args, **kwargs):
 		self.lock = NLock()
 		super().__init__(*args, **kwargs)

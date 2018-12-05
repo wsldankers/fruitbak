@@ -1,4 +1,4 @@
-from fruitbak.util import Clarity, initializer, sysopen, sysopendir, fd, fallback
+from fruitbak.util import Initializer, initializer, sysopen, sysopendir, fd, fallback
 from fruitbak.pool.storage import Storage
 from fruitbak.pool.agent import PoolReadahead, PoolAction
 from fruitbak.config import configurable

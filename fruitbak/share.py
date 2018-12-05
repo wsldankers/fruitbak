@@ -1,7 +1,7 @@
 """Represent hosts to back up"""
 
 from fruitbak.dentry import Dentry, HardlinkDentry, dentry_layout_size
-from fruitbak.util import Clarity, initializer, lockingclass, unlocked, ensure_byteslike
+from fruitbak.util import Initializer, initializer, lockingclass, unlocked, ensure_byteslike
 
 from hardhat import Hardhat, normalize as hardhat_normalize
 
@@ -20,7 +20,7 @@ class MissingLinkError(ShareError):
     pass
 
 @lockingclass
-class Share(Clarity):
+class Share(Initializer):
 	"""Represent a share to back up.
 
 	Hosts have "shares" (usually filesystems/mountpoints for Unix

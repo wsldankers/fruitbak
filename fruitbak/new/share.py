@@ -1,4 +1,4 @@
-from fruitbak.util import Clarity, initializer, xyzzy
+from fruitbak.util import Initializer, initializer, xyzzy
 from fruitbak.config import configurable, configurable_function
 
 from hardhat import HardhatMaker
@@ -12,7 +12,7 @@ except ImportError:
 	def time_ns():
 		return int(time() * 1000000000.0)
 
-class NewShare(Clarity):
+class NewShare(Initializer):
 	@configurable
 	def name(self):
 		return self.path

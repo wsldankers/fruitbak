@@ -54,7 +54,7 @@ from os.path import samestat
 from stat import S_ISDIR, S_ISREG, S_ISLNK
 from pathlib import PurePath
 
-from fruitbak.util.clarity import Clarity, initializer, flexiblemethod
+from fruitbak.util.oo import Initializer, initializer, flexiblemethod
 from fruitbak.util.strbytes import is_byteslike
 
 try:
@@ -105,7 +105,7 @@ def opener(mode = 0o666, **kwargs):
 		return os_open(unpath(path), flags|O_CLOEXEC|O_NOCTTY, mode = mode, **kwargs)
 	return opener
 
-class DirEntry(Clarity):
+class DirEntry(Initializer):
 	"""DirEntry(*, name, dir_fd)
 
 	Older versions of `os.scandir` do not accept a file descriptor as an

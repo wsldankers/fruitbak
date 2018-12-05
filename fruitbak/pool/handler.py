@@ -1,9 +1,9 @@
-from fruitbak.util import Clarity, stub, initializer, locked, weakproperty
+from fruitbak.util import Initializer, stub, initializer, locked, weakproperty
 
 from threading import RLock
 from concurrent.futures import ThreadPoolExecutor
 
-class Handler(Clarity):
+class Handler(Initializer):
 	def __init__(self, *args, **kwargs):
 		self.lock = RLock()
 		return super().__init__(*args, **kwargs)

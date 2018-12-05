@@ -39,7 +39,7 @@ from stat import *
 from io import RawIOBase, TextIOWrapper
 from struct import pack, unpack, Struct
 
-from fruitbak.util import Clarity, initializer, ensure_byteslike, ensure_str
+from fruitbak.util import Initializer, initializer, ensure_byteslike, ensure_str
 
 class DentryError(Exception):
 	"""Something Dentry-related went wrong.
@@ -118,7 +118,7 @@ DENTRY_FORMAT_SUPPORTED_FLAGS = DENTRY_FORMAT_FLAG_HARDLINK
 """Bitmask of all supported format flags. Any dentries with flags not in
 this bitmask will be rejected."""
 
-class DENTRY_TYPE(Clarity):
+class DENTRY_TYPE(Initializer):
 	"""Represent the file types supported by Fruitbak. Returned by the
 	Dentry type() method. Note that hardlinks are a seperate type in
 	Fruitbak, so an entry that is a hardlink to a regular file is
@@ -314,7 +314,7 @@ class DentryIO(RawIOBase):
 
 		return n
 
-class DentryHashes(Clarity):
+class DentryHashes(Initializer):
 	"""DentryHashes(*, hashes = None, hash_size = None)
 	Wrapper for concatenated hashes that allows iteration as well as
 	retrieving the underlying byteslike object.
@@ -354,7 +354,7 @@ class DentryHashes(Clarity):
 	def __bytes__(self):
 		return self.hashes
 
-class Dentry(Clarity):
+class Dentry(Initializer):
 	"""Represent entries in a filesystem. Can be initialized by either
 	passing a wire format encoded byteslike object as `encoded` or
 	by setting all desired attributes manually.

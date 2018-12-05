@@ -5,12 +5,12 @@ from json import dump as dump_json
 
 from hashset import Hashset
 
-from fruitbak.util import Clarity, initializer, xyzzy
+from fruitbak.util import Initializer, initializer, xyzzy
 from fruitbak.config import configurable, configurable_function
 from fruitbak.new.share import NewShare, time_ns
 from fruitbak.transfer import LocalTransfer
 
-class NewBackup(Clarity):
+class NewBackup(Initializer):
 	@initializer
 	def fruitbak(self):
 		return self.host.fruitbak

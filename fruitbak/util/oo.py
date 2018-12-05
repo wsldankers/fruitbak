@@ -136,7 +136,7 @@ def stub(f):
 		raise NotImplementedError(f.__qualname__)
 	return toe
 
-class Clarity:
+class Initializer:
 	def __init__(self, **kwargs):
 		for pair in kwargs.items():
 			setattr(self, *pair)

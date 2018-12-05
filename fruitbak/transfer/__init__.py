@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from fruitbak.util import Clarity, initializer
+from fruitbak.util import Initializer, initializer
 
-class Transfer(Clarity):
+class Transfer(Initializer):
 	@initializer
 	def fruitbak(self):
 		return self.newshare.fruitbak

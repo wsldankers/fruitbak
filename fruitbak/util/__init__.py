@@ -1,4 +1,4 @@
-from fruitbak.util.clarity import *
+from fruitbak.util.oo import *
 from fruitbak.util.click import *
 from fruitbak.util.fd import *
 from fruitbak.util.heapmap import *

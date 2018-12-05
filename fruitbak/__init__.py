@@ -1,6 +1,6 @@
 """Top-level object for a Fruitbak installation"""
 
-from fruitbak.util import Clarity, initializer, sysopendir, lockingclass, unlocked
+from fruitbak.util import Initializer, initializer, sysopendir, lockingclass, unlocked
 from fruitbak.host import Host
 from fruitbak.pool import Pool
 from fruitbak.config import Config, configurable, configurable_function
@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import chain
 
 @lockingclass
-class Fruitbak(Clarity):
+class Fruitbak(Initializer):
 	"""Top-level object for a Fruitbak installation.
 
 	For each Fruitbak installation you should instantiate a Fruitbak

@@ -1,4 +1,4 @@
-from fruitbak.util import Clarity, initializer, sysopen, sysopendir, xyzzy
+from fruitbak.util import Initializer, initializer, sysopen, sysopendir, xyzzy
 from fruitbak.dentry import Dentry
 from fruitbak.transfer import Transfer
 

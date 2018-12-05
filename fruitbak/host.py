@@ -1,6 +1,6 @@
 """Represent hosts to back up"""
 
-from fruitbak.util import Clarity, initializer
+from fruitbak.util import Initializer, initializer
 from fruitbak.config import Config, configurable
 from fruitbak.backup import Backup
 from fruitbak.new.backup import NewBackup
@@ -47,7 +47,7 @@ def ffs(x):
 
 	return total
 
-class Host(Clarity):
+class Host(Initializer):
 	"""Represent hosts to back up.
 
 	These can be either hosts that have been backed up in the past

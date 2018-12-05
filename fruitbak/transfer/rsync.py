@@ -1,4 +1,4 @@
-from fruitbak.util import Clarity, initializer, ensure_bytes
+from fruitbak.util import Initializer, initializer, ensure_bytes
 from fruitbak.dentry import Dentry
 from fruitbak.transfer import Transfer
 from fruitbak.config import configurable
