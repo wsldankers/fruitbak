@@ -5,4 +5,5 @@ API Documentation
 
    dentry
    util/fd
+   util/oo
    util/strbytes
