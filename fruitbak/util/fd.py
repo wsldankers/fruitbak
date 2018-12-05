@@ -3,6 +3,7 @@ functionality as methods::
 
 	dir_fd = opendir("/tmp")
 	fd = dir_fd.open("temprace", O_CREAT, 0666)
+	fd.truncate(4096)
 	fd.close()
 	dir_fd.unlink("temprace")
 
