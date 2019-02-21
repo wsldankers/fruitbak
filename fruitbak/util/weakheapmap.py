@@ -1,5 +1,3 @@
-#! /usr/bin/python3
-
 from .locking import lockingclass, unlocked
 from weakref import ref as weakref
 from sys import stderr

@@ -1,10 +1,25 @@
-#! /usr/bin/python3
+"""Collection of weakref-related utility functions
+
+This "collection" of weakref-related utility functions currently only
+contains one class (weakproperty)."""
 
 import weakref
-from threading import RLock
 
 class weakproperty(property):
+	"""A property that keeps a weak reference.
+
+	Unlike a normal property it doesn't call functions for
+	getting/setting/deleting but just stores the value in the object's
+	dictionary. The function you'd decorate with this property is used
+	as an initializer that is called when the attribute is retrieved and
+	the property was either never set, it was deleted, or the weak
+	reference was lost."""
+
 	def __init__(prop, f):
+		"""Create a new weakproperty using f as the intializer function.
+
+		The name of the supplied initializer function is also as the key
+		into the object's dictionary."""
 		name = f.__name__
 
 		def getter(self):

@@ -1,8 +1,24 @@
-#! /usr/bin/python3
+"""Heap queue object that also allows dictionary style access.
+
+A variation on the heap queue that allows you to add and remove entries
+as if it was a dictionary. The value of each item you add is used for
+comparison (using the < operator) when maintaining the heap property.
+
+It comes in two variants, one (MinHeapMap) that extracts the smallest
+element when you call pop(), and one (MaxHeapMap) that extracts the
+largest.
+
+This implementation keeps the heap consistent even if the comparison
+functions of the items throw an exception. It is threadsafe."""
+
+# TODO: use a namedtuple for HeapMapNode
+# TODO: add a counter field to that namedtuple just after key
+#       that functions as a tie-breaker and makes the heap stable.
 
 from .locking import lockingclass, unlocked
 from collections.abc import Set
 
+# Internal class that represents a node in the heapmap.
 class HeapMapNode:
 	__slots__ = ('key', 'value', 'index')
 	def __init__(self, key, value, index):
@@ -10,6 +26,7 @@ class HeapMapNode:
 		self.value = value
 		self.index = index
 
+# Internal class that is returned for HeapMap.values()
 class HeapMapValueView:
 	__slots__ = ('mapping')
 
@@ -26,6 +43,7 @@ class HeapMapValueView:
 				return True
 		return False
 
+# Internal class that is returned for HeapMap.items()
 class HeapMapItemView(Set):
 	__slots__ = ('mapping')
 
@@ -47,7 +65,9 @@ class HeapMapItemView(Set):
 # datatype: supports both extractmax and fetching by key
 @lockingclass
 class MinHeapMap:
+	"""HeapMap variant that makes pop() return the smallest element."""
 	def __init__(self, items = None, **kwargs):
+		"""Initialize the HeapMap using the same interface as dict()."""
 		heap = []
 		mapping = {}
 
@@ -363,13 +383,11 @@ class MinHeapMap:
 
 	@unlocked
 	def values(self):
-		for i in self.heap:
-			yield i.value
+		return HeapMapValueView(self)
 
 	@unlocked
 	def items(self):
-		for i in self.heap:
-			yield i.key, i.value
+		return HeapMapItemView(self)
 
 	def clear(self):
 		self.heap.clear()

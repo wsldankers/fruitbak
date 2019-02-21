@@ -1,5 +1,3 @@
-#! /usr/bin/python3
-
 from threading import Lock, RLock
 
 class unlockedmethod:
