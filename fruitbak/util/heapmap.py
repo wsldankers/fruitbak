@@ -8,6 +8,9 @@ It comes in two variants, one (MinHeapMap) that extracts the smallest
 element when you call pop(), and one (MaxHeapMap) that extracts the
 largest.
 
+Inconsistent results from the comparison functions will result in an
+inconsistent heap.
+
 This implementation keeps the heap consistent even if the comparison
 functions of the items throw an exception. It is threadsafe."""
 
