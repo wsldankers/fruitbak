@@ -435,7 +435,7 @@ class MinWeakHeapMap:
 
 	@unlocked
 	def copy(self):
-		return type(self)(self)
+		return type(self)(self.items())
 
 	@unlocked
 	@classmethod

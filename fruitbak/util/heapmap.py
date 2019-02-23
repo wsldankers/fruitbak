@@ -14,6 +14,9 @@ functions of the items throw an exception. It is threadsafe."""
 # TODO: use a namedtuple for HeapMapNode
 # TODO: add a counter field to that namedtuple just after key
 #       that functions as a tie-breaker and makes the heap stable.
+# TODO: implement move_to_end(key, True) using the counter
+# TODO: use collections.abc.MutableMapping as base class
+# TODO: use collections.abc.MappingView as base class
 
 from .locking import lockingclass, unlocked
 from collections.abc import Set
@@ -33,6 +36,9 @@ class HeapMapValueView:
 	def __init__(self, heapmap):
 		self.mapping = heapmap.mapping
 
+	def __len__(self):
+		return len(self.mapping)
+
 	def __iter__(self):
 		for node in self.mapping:
 			yield node.value
@@ -50,6 +56,9 @@ class HeapMapItemView(Set):
 	def __init__(self, heapmap):
 		self.mapping = heapmap.mapping
 
+	def __len__(self):
+		return len(self.mapping)
+
 	def __iter__(self):
 		for node in heapmap.mapping:
 			yield node.key, node.value
@@ -65,9 +74,20 @@ class HeapMapItemView(Set):
 # datatype: supports both extractmax and fetching by key
 @lockingclass
 class MinHeapMap:
-	"""HeapMap variant that makes pop() return the smallest element."""
+	"""__init__(items = None, **kwargs)
+
+	HeapMap variant that makes pop() return the smallest element.
+
+	Initialized using the same interface as dict().
+
+	:param items: Add this dict or an iterable of size 2 iterables
+		to the HeapMap as initial values.
+	:type items: dict or iter(iter)
+	:param dict kwargs: Add all keyword items to the HeapMap as
+		initial values.
+	"""
+
 	def __init__(self, items = None, **kwargs):
-		"""Initialize the HeapMap using the same interface as dict()."""
 		heap = []
 		mapping = {}
 
@@ -351,6 +371,12 @@ class MinHeapMap:
 		return a < b
 
 	def pop(self, key = None):
+		"""Remove and return the value in the heap corresponding to the specified key.
+		If key is absent or None, remove and return the smallest value in the heap.
+
+		:param key: The key of the value to remove and return.
+		:return: The value corresponding to key."""
+
 		if key is None:
 			ret = self.heap[0]
 			del self[ret.key]
@@ -360,6 +386,13 @@ class MinHeapMap:
 		return ret.value
 
 	def popitem(self, key = None):
+		"""Remove and return a tuple of the key and the value in the heap
+		corresponding to the specified key. If key is absent or None, remove and
+		return the smallest item in the heap.
+
+		:param key: The key of the item to remove and return.
+		:return: A tuple of (key, value) corresponding to key."""
+
 		if key is None:
 			ret = self.heap[0]
 			key = ret.key
@@ -370,15 +403,35 @@ class MinHeapMap:
 
 	@unlocked
 	def peek(self):
+		"""Return the value in the heap corresponding to the specified key.
+		If key is absent or None, return the smallest value in the heap.
+
+		:param key: The key of the value to return.
+		:return: The value corresponding to key."""
+
 		return self.heap[0].value
 
 	@unlocked
 	def peekitem(self):
+		"""Return a tuple of the key and the value in the heap corresponding to the
+		specified key. If key is absent or None, return the smallest item in the
+		heap.
+
+		:param key: The key of the item to return.
+		:return: A tuple of (key, value) corresponding to key."""
+
 		item = self.heap[0]
 		return item.key, item.value
 
 	@unlocked
 	def keys(self):
+		"""Return a tuple of the key and the value in the heap corresponding to the
+		specified key. If key is absent or None, return the smallest item in the
+		heap.
+
+		:param key: The key of the item to return.
+		:return: A tuple of (key, value) corresponding to key."""
+
 		return self.mapping.keys()
 
 	@unlocked
@@ -399,7 +452,7 @@ class MinHeapMap:
 
 	@unlocked
 	def copy(self):
-		return type(self)(self.heap)
+		return type(self)(self.items())
 
 	@unlocked
 	@classmethod

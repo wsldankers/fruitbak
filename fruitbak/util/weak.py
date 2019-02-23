@@ -10,16 +10,24 @@ class weakproperty(property):
 
 	Unlike a normal property it doesn't call functions for
 	getting/setting/deleting but just stores the value in the object's
-	dictionary. The function you'd decorate with this property is used
-	as an initializer that is called when the attribute is retrieved and
-	the property was either never set, it was deleted, or the weak
-	reference was lost."""
+	dictionary.
+
+	The function you'd decorate with this property is used as an
+	initializer that is called when the attribute is retrieved and the
+	property was either never set, it was deleted, or the weak reference
+	was lost.
+
+	The name of the supplied initializer function is also used as the key
+	for the object's dictionary.
+
+	Because it is implemented as a property with preset get/set/delete
+	functions, any attempts to change the get/set/delete functions will
+	break it.
+
+	:param function f: Called with self as an argument when the property
+		is dereferenced and no value was available in the dictionary."""
 
 	def __init__(prop, f):
-		"""Create a new weakproperty using f as the intializer function.
-
-		The name of the supplied initializer function is also as the key
-		into the object's dictionary."""
 		name = f.__name__
 
 		def getter(self):
@@ -27,17 +35,19 @@ class weakproperty(property):
 			try:
 				weak = dict[name]
 			except KeyError:
-				value = f(self)
-				def unsetter(weak):
-					try:
-						if dict[name] is weak:
-							del dict[name]
-					except KeyError:
-						pass
-				weak = weakref.ref(value, unsetter)
-				dict[name] = weak
-				return value
-			return weak()
+				pass
+			else:
+				return weak()
+			value = f(self)
+			def unsetter(weak):
+				try:
+					if dict[name] is weak:
+						del dict[name]
+				except KeyError:
+					pass
+			weak = weakref.ref(value, unsetter)
+			dict[name] = weak
+			return value
 
 		def setter(self, value):
 			dict = self.__dict__
