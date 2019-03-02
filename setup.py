@@ -10,4 +10,5 @@ setup(
 	name = name,
 	version = version,
 	packages = find_packages(),
+	test_suite = 'tests',
 )

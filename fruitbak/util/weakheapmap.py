@@ -471,7 +471,7 @@ class WeakHeapMap:
 class MinWeakHeapMap(WeakHeapMap):
 	@unlocked
 	def _compare(self, a, b):
-		return b > a
+		return a < b
 
 	def reversed(self):
 		return MaxWeakHeapMap(self)

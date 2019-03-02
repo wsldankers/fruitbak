@@ -14,24 +14,29 @@ inconsistent heap.
 This implementation keeps the heap consistent even if the comparison
 functions of the items throw an exception. It is threadsafe."""
 
-# TODO: use a namedtuple for HeapMapNode
-# TODO: add a counter field to that namedtuple just after key
-#       that functions as a tie-breaker and makes the heap stable.
 # TODO: implement move_to_end(key, True) using the counter
 # TODO: use collections.abc.MutableMapping as base class
 # TODO: use collections.abc.MappingView as base class
 
 from .oo import stub
-from .locking import lockingclass, unlocked
+from .locking import lockingclass, unlocked, locked
 from collections.abc import Set
+from collections import namedtuple
 
 # Internal class that represents a node in the heapmap.
 class HeapMapNode:
-	__slots__ = ('key', 'value', 'index')
-	def __init__(self, key, value, index):
+	__slots__ = ('key', 'counter', 'value', 'index')
+	def __init__(self, key, counter, value, index):
 		self.key = key
+		self.counter = counter
 		self.value = value
 		self.index = index
+
+	def __lt__(self, other):
+		return self.counter < other.counter if self.value == other.value else self.value < other.value
+
+	def __repr__(self):
+		return 'HeapMapNode(key = %r, counter = %d, value = %r, index = %d)' % (self.key, self.counter, self.value, self.index)
 
 # Internal class that is returned for HeapMap.values()
 class HeapMapValueView:
@@ -92,26 +97,34 @@ class HeapMap:
 		initial values.
 	"""
 
+	_counter = 0
+
 	def __init__(self, items = None, **kwargs):
 		heap = []
 		mapping = {}
+		counter = self._counter
+		counter_increment = self._counter_increment
 
 		if items is None:
 			pass
 		elif hasattr(items, 'items'):
 			for key, value in items.items():
-				mapping[key] = container = HeapMapNode(key, value, len(heap))
+				mapping[key] = container = HeapMapNode(key, counter, value, len(heap))
+				counter += counter_increment
 				heap.append(container)
 		elif hasattr(items, 'keys'):
 			for key in items.keys():
-				mapping[key] = container = HeapMapNode(key, items[key], len(heap))
+				mapping[key] = container = HeapMapNode(key, counter, items[key], len(heap))
+				counter += counter_increment
 				heap.append(container)
 		else:
 			for key, value in items:
-				mapping[key] = container = HeapMapNode(key, value, len(heap))
+				mapping[key] = container = HeapMapNode(key, counter, value, len(heap))
+				counter += counter_increment
 				heap.append(container)
 		for key, value in kwargs.items():
-			mapping[key] = container = HeapMapNode(key, value, len(heap))
+			mapping[key] = container = HeapMapNode(key, counter, value, len(heap))
+			counter += counter_increment
 			heap.append(container)
 
 		# the following loop runs in amortized O(n) time:
@@ -128,10 +141,10 @@ class HeapMap:
 				other_child_index = child_index + 1
 				if other_child_index < heap_len:
 					other_child = heap[other_child_index]
-					if self._compare(other_child.value, child.value):
+					if self._compare(other_child, child):
 						child = other_child
 						child_index = other_child_index
-				if self._compare(child.value, value):
+				if self._compare(child, container):
 					heap[index] = child
 					child.index = index
 					index = child_index
@@ -143,6 +156,7 @@ class HeapMap:
 				
 		self.heap = heap
 		self.mapping = mapping
+		self._counter = counter
 
 	def __str__(self):
 		ret = ""
@@ -181,18 +195,21 @@ class HeapMap:
 		if container is None:
 			index = heap_len
 
+			index = heap_len
+			counter = self._counter
+			container = HeapMapNode(key, counter, value, index)
+			self._counter = counter + 1
+
 			while index:
 				parent_index = (index - 1) // 2
 				parent = heap[parent_index]
-				is_greater = bool(self._compare(value, parent.value))
+				is_greater = bool(self._compare(container, parent))
 				answers.append(is_greater)
 				if is_greater:
 					index = parent_index
 				else:
 					break
 
-			index = heap_len
-			container = HeapMapNode(key, value, index)
 			mapping[key] = container
 			heap.append(container)
 			answers.reverse()
@@ -211,11 +228,12 @@ class HeapMap:
 			heap[index] = container
 		else:
 			index = container.index
+			comparison = HeapMapNode(value, container.counter, container.key, container.index)
 
 			while index:
 				parent_index = (index - 1) // 2
 				parent = heap[parent_index]
-				is_greater = bool(self._compare(value, parent.value))
+				is_greater = bool(self._compare(comparison, parent))
 				answers.append(is_greater)
 				if is_greater:
 					index = parent_index
@@ -231,12 +249,12 @@ class HeapMap:
 					other_child_index = child_index + 1
 					if other_child_index < heap_len:
 						other_child = heap[other_child_index]
-						is_greater = bool(self._compare(other_child.value, child.value))
+						is_greater = bool(self._compare(other_child, child))
 						answers.append(is_greater)
 						if is_greater:
 							child = other_child
 							child_index = other_child_index
-					is_greater = bool(self._compare(child.value, value))
+					is_greater = bool(self._compare(child, comparison))
 					answers.append(is_greater)
 					if is_greater:
 						index = child_index
@@ -303,7 +321,7 @@ class HeapMap:
 			while index:
 				parent_index = (index - 1) // 2
 				parent = heap[parent_index]
-				is_greater = bool(self._compare(value, parent.value))
+				is_greater = bool(self._compare(replacement, parent))
 				answers.append(is_greater)
 				if is_greater:
 					index = parent_index
@@ -319,12 +337,12 @@ class HeapMap:
 				other_child_index = child_index + 1
 				if other_child_index < heap_len:
 					other_child = heap[other_child_index]
-					is_greater = bool(self._compare(other_child.value, child.value))
+					is_greater = bool(self._compare(other_child, child))
 					answers.append(is_greater)
 					if is_greater:
 						child = other_child
 						child_index = other_child_index
-				is_greater = bool(self._compare(child.value, value))
+				is_greater = bool(self._compare(child, replacement))
 				answers.append(is_greater)
 				if is_greater:
 					index = child_index
@@ -373,7 +391,7 @@ class HeapMap:
 
 	def pop(self, key = None):
 		"""Remove and return the value in the heap corresponding to the specified key.
-		If key is absent or None, remove and return the smallest value in the heap.
+		If key is absent or None, remove and return the smallest/largest value in the heap.
 
 		:param key: The key of the value to remove and return.
 		:return: The value corresponding to key."""
@@ -386,10 +404,25 @@ class HeapMap:
 			del self[key]
 		return ret.value
 
+	def popkey(self, key = None):
+		"""Remove and return the key in the heap equal to the specified key.
+		If key is absent or None, remove and return the smallest/largest value in the heap.
+
+		:param key: The key of the value to remove and return.
+		:return: The value corresponding to key."""
+
+		if key is None:
+			ret = self.heap[0]
+			del self[ret.key]
+		else:
+			ret = self[key]
+			del self[key]
+		return ret.key
+
 	def popitem(self, key = None):
 		"""Remove and return a tuple of the key and the value in the heap
 		corresponding to the specified key. If key is absent or None, remove and
-		return the smallest item in the heap.
+		return the smallest/largest item in the heap.
 
 		:param key: The key of the item to remove and return.
 		:return: A tuple of (key, value) corresponding to key."""
@@ -544,13 +577,14 @@ class MinHeapMap(HeapMap):
 		to the HeapMap as initial values.
 	:type items: dict or iter(iter)
 	:param dict kwargs: Add all keyword items to the HeapMap as
-		initial values.
-	"""
+		initial values."""
 
-	@unlocked
+	_counter_increment = 1
+
 	def _compare(self, a, b):
 		return a < b
 
+	@locked
 	def reversed(self):
 		return MaxHeapMap(self)
 
@@ -565,12 +599,13 @@ class MaxHeapMap(HeapMap):
 		to the HeapMap as initial values.
 	:type items: dict or iter(iter)
 	:param dict kwargs: Add all keyword items to the HeapMap as
-		initial values.
-	"""
+		initial values."""
 
-	@unlocked
+	_counter_increment = -1
+
 	def _compare(self, a, b):
 		return b < a
 
+	@locked
 	def reversed(self):
 		return MinHeapMap(self)
