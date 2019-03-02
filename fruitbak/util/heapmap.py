@@ -20,6 +20,7 @@ functions of the items throw an exception. It is threadsafe."""
 # TODO: implement move_to_end(key, True) using the counter
 # TODO: use collections.abc.MutableMapping as base class
 # TODO: use collections.abc.MappingView as base class
+# TODO: create a HeapMap base class for MinHeapMap and MaxHeapMap
 
 from .locking import lockingclass, unlocked
 from collections.abc import Set
@@ -428,47 +429,93 @@ class MinHeapMap:
 
 	@unlocked
 	def keys(self):
-		"""Return a tuple of the key and the value in the heap corresponding to the
-		specified key. If key is absent or None, return the smallest item in the
-		heap.
+		"""Return a view of the keys.
 
-		:param key: The key of the item to return.
-		:return: A tuple of (key, value) corresponding to key."""
+		:return: A view of the keys of the mapping."""
 
 		return self.mapping.keys()
 
 	@unlocked
 	def values(self):
+		"""Return a view of the values.
+
+		:return: A view of the values of the mapping."""
+
 		return HeapMapValueView(self)
 
 	@unlocked
 	def items(self):
+		"""Return a view of the keys and values.
+
+		:return: A view of the keys and values of the mapping, in a tuple each."""
+
 		return HeapMapItemView(self)
 
 	def clear(self):
+		"""Empty the HeapMap by removing all keys and values."""
+
 		self.heap.clear()
 		self.mapping.clear()
 
-	@unlocked
 	def reversed(self):
+		"""Create a new HeapMap that pops in the opposite direction, i.e., returns
+		the largest item instead of the smallest or vice-versa. This is a shallow copy.
+
+		:return: The new HeapMap."""
+
 		return MaxHeapMap(self)
 
-	@unlocked
 	def copy(self):
+		"""Create a shallow copy of this HeapMap.
+
+		:return: The new HeapMap."""
+
 		return type(self)(self.items())
 
 	@unlocked
 	@classmethod
-	def fromkeys(cls, keys, value = None):
-		return cls(dict.fromkeys(keys, value))
+	def fromkeys(cls, iterable, value = None):
+		"""Create a new HeapMap with keys from iterable and values set to value.
 
-	def setdefault(self, key, value = None):
+		fromkeys() is a class method that returns a new HeapMap.
+
+		:param iter iterable: The iterable that provides the keys.
+		:param value: The value to use for all items. Defaults to None.
+		:return: The new HeapMap."""
+
+		return cls(dict.fromkeys(iterable, value))
+
+	def setdefault(self, key, default = None):
+		"""If key is in the HeapMap, return its value. If not, insert key with a
+		value of default and return default.
+
+		:param key: The key to look op and/or insert.
+		:param default: The value to use if the key is not in the HeapMap.
+		:return: Either the existing value or the default."""
+
 		mapping = self.mapping
-		if key in mapping:
-			return mapping[key].value
-		self[key] = value
+		try:
+			node = mapping[key]
+		except KeyError:
+			pass
+		else:
+			return node.value
+		self[key] = default
+		return default
 
-	def update(self, items = None, **kwargs):
+	def update(self, other = None, **kwargs):
+		"""Update the dictionary with the key/value pairs from other, overwriting
+		existing keys. Return None.
+
+		update() accepts either another dictionary-like object and/or an iterable
+		of key/value pairs (as tuples or other iterables of length two).
+		If keyword arguments are specified, the HeapMap is then updated with
+		those key/value pairs: h.update(red = 1, blue = 2).
+
+		:param other: Add these items to the HeapMap.
+		:type other: dict or iter(iter)
+		:param dict kwargs: Add all keyword items to the HeapMap."""
+
 		if self:
 			if items is None:
 				pass
