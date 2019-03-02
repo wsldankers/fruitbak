@@ -20,8 +20,8 @@ functions of the items throw an exception. It is threadsafe."""
 # TODO: implement move_to_end(key, True) using the counter
 # TODO: use collections.abc.MutableMapping as base class
 # TODO: use collections.abc.MappingView as base class
-# TODO: create a HeapMap base class for MinHeapMap and MaxHeapMap
 
+from .oo import stub
 from .locking import lockingclass, unlocked
 from collections.abc import Set
 
@@ -77,10 +77,11 @@ class HeapMapItemView(Set):
 
 # datatype: supports both extractmax and fetching by key
 @lockingclass
-class MinHeapMap:
+class HeapMap:
 	"""__init__(items = None, **kwargs)
 
-	HeapMap variant that makes pop() return the smallest element.
+	Base class for MinHeapMap and MaxHeapMap. Do not instantiate
+	directly, use one of the subclasses.
 
 	Initialized using the same interface as dict().
 
@@ -127,10 +128,10 @@ class MinHeapMap:
 				other_child_index = child_index + 1
 				if other_child_index < heap_len:
 					other_child = heap[other_child_index]
-					if self.compare(other_child.value, child.value):
+					if self._compare(other_child.value, child.value):
 						child = other_child
 						child_index = other_child_index
-				if self.compare(child.value, value):
+				if self._compare(child.value, value):
 					heap[index] = child
 					child.index = index
 					index = child_index
@@ -183,7 +184,7 @@ class MinHeapMap:
 			while index:
 				parent_index = (index - 1) // 2
 				parent = heap[parent_index]
-				is_greater = bool(self.compare(value, parent.value))
+				is_greater = bool(self._compare(value, parent.value))
 				answers.append(is_greater)
 				if is_greater:
 					index = parent_index
@@ -214,7 +215,7 @@ class MinHeapMap:
 			while index:
 				parent_index = (index - 1) // 2
 				parent = heap[parent_index]
-				is_greater = bool(self.compare(value, parent.value))
+				is_greater = bool(self._compare(value, parent.value))
 				answers.append(is_greater)
 				if is_greater:
 					index = parent_index
@@ -230,12 +231,12 @@ class MinHeapMap:
 					other_child_index = child_index + 1
 					if other_child_index < heap_len:
 						other_child = heap[other_child_index]
-						is_greater = bool(self.compare(other_child.value, child.value))
+						is_greater = bool(self._compare(other_child.value, child.value))
 						answers.append(is_greater)
 						if is_greater:
 							child = other_child
 							child_index = other_child_index
-					is_greater = bool(self.compare(child.value, value))
+					is_greater = bool(self._compare(child.value, value))
 					answers.append(is_greater)
 					if is_greater:
 						index = child_index
@@ -302,7 +303,7 @@ class MinHeapMap:
 			while index:
 				parent_index = (index - 1) // 2
 				parent = heap[parent_index]
-				is_greater = bool(self.compare(value, parent.value))
+				is_greater = bool(self._compare(value, parent.value))
 				answers.append(is_greater)
 				if is_greater:
 					index = parent_index
@@ -318,12 +319,12 @@ class MinHeapMap:
 				other_child_index = child_index + 1
 				if other_child_index < heap_len:
 					other_child = heap[other_child_index]
-					is_greater = bool(self.compare(other_child.value, child.value))
+					is_greater = bool(self._compare(other_child.value, child.value))
 					answers.append(is_greater)
 					if is_greater:
 						child = other_child
 						child_index = other_child_index
-				is_greater = bool(self.compare(child.value, value))
+				is_greater = bool(self._compare(child.value, value))
 				answers.append(is_greater)
 				if is_greater:
 					index = child_index
@@ -369,10 +370,6 @@ class MinHeapMap:
 
 		heap[index] = replacement
 		replacement.index = index
-
-	@unlocked
-	def compare(self, a, b):
-		return a < b
 
 	def pop(self, key = None):
 		"""Remove and return the value in the heap corresponding to the specified key.
@@ -457,14 +454,6 @@ class MinHeapMap:
 		self.heap.clear()
 		self.mapping.clear()
 
-	def reversed(self):
-		"""Create a new HeapMap that pops in the opposite direction, i.e., returns
-		the largest item instead of the smallest or vice-versa. This is a shallow copy.
-
-		:return: The new HeapMap."""
-
-		return MaxHeapMap(self)
-
 	def copy(self):
 		"""Create a shallow copy of this HeapMap.
 
@@ -533,8 +522,54 @@ class MinHeapMap:
 		else:
 			self.__init__(items, **kwargs)
 
-class MaxHeapMap(MinHeapMap):
-	def compare(self, a, b):
+	@stub
+	def _compare(self, a, b):
+		pass
+
+	@stub
+	def reversed(self):
+		"""Create a new HeapMap that pops in the opposite direction, i.e., returns
+		the largest item instead of the smallest or vice-versa. This is a shallow copy.
+
+		:return: The new HeapMap."""
+
+class MinHeapMap(HeapMap):
+	"""__init__(items = None, **kwargs)
+
+	HeapMap variant that makes pop() return the smallest element.
+
+	Initialized using the same interface as dict().
+
+	:param items: Add this dict or an iterable of size 2 iterables
+		to the HeapMap as initial values.
+	:type items: dict or iter(iter)
+	:param dict kwargs: Add all keyword items to the HeapMap as
+		initial values.
+	"""
+
+	@unlocked
+	def _compare(self, a, b):
+		return a < b
+
+	def reversed(self):
+		return MaxHeapMap(self)
+
+class MaxHeapMap(HeapMap):
+	"""__init__(items = None, **kwargs)
+
+	HeapMap variant that makes pop() return the largest element.
+
+	Initialized using the same interface as dict().
+
+	:param items: Add this dict or an iterable of size 2 iterables
+		to the HeapMap as initial values.
+	:type items: dict or iter(iter)
+	:param dict kwargs: Add all keyword items to the HeapMap as
+		initial values.
+	"""
+
+	@unlocked
+	def _compare(self, a, b):
 		return b < a
 
 	def reversed(self):

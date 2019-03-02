@@ -83,7 +83,7 @@ class WeakHeapMapItemView(Set):
 
 # datatype: supports both extractmin and fetching by key
 @lockingclass
-class MinWeakHeapMap:
+class WeakHeapMap:
 	in_delete = 0
 
 	def __init__(self, items = None, **kwargs):
@@ -127,10 +127,10 @@ class MinWeakHeapMap:
 				other_child_index = child_index + 1
 				if other_child_index < heap_len:
 					other_child = heap[other_child_index]
-					if self.compare(other_child.value, child.value):
+					if self._compare(other_child.value, child.value):
 						child = other_child
 						child_index = other_child_index
-				if self.compare(child.value, value):
+				if self._compare(child.value, value):
 					heap[index] = child
 					child.index = index
 					index = child_index
@@ -188,7 +188,7 @@ class MinWeakHeapMap:
 			while index:
 				parent_index = (index - 1) // 2
 				parent = heap[parent_index]
-				is_greater = bool(self.compare(value, parent.value))
+				is_greater = bool(self._compare(value, parent.value))
 				answers.append(is_greater)
 				if is_greater:
 					index = parent_index
@@ -219,7 +219,7 @@ class MinWeakHeapMap:
 			while index:
 				parent_index = (index - 1) // 2
 				parent = heap[parent_index]
-				is_greater = bool(self.compare(value, parent.value))
+				is_greater = bool(self._compare(value, parent.value))
 				answers.append(is_greater)
 				if is_greater:
 					index = parent_index
@@ -235,12 +235,12 @@ class MinWeakHeapMap:
 					other_child_index = child_index + 1
 					if other_child_index < heap_len:
 						other_child = heap[other_child_index]
-						is_greater = bool(self.compare(other_child.value, child.value))
+						is_greater = bool(self._compare(other_child.value, child.value))
 						answers.append(is_greater)
 						if is_greater:
 							child = other_child
 							child_index = other_child_index
-					is_greater = bool(self.compare(child.value, value))
+					is_greater = bool(self._compare(child.value, value))
 					answers.append(is_greater)
 					if is_greater:
 						index = child_index
@@ -310,7 +310,7 @@ class MinWeakHeapMap:
 			while index:
 				parent_index = (index - 1) // 2
 				parent = heap[parent_index]
-				is_greater = bool(self.compare(value, parent.value))
+				is_greater = bool(self._compare(value, parent.value))
 				answers.append(is_greater)
 				if is_greater:
 					index = parent_index
@@ -326,12 +326,12 @@ class MinWeakHeapMap:
 				other_child_index = child_index + 1
 				if other_child_index < heap_len:
 					other_child = heap[other_child_index]
-					is_greater = bool(self.compare(other_child.value, child.value))
+					is_greater = bool(self._compare(other_child.value, child.value))
 					answers.append(is_greater)
 					if is_greater:
 						child = other_child
 						child_index = other_child_index
-				is_greater = bool(self.compare(child.value, value))
+				is_greater = bool(self._compare(child.value, value))
 				answers.append(is_greater)
 				if is_greater:
 					index = child_index
@@ -377,10 +377,6 @@ class MinWeakHeapMap:
 
 		heap[index] = replacement
 		replacement.index = index
-
-	@unlocked
-	def compare(self, a, b):
-		return a < b
 
 	def pop(self, key = None):
 		if key is None:
@@ -430,10 +426,6 @@ class MinWeakHeapMap:
 		self.mapping.clear()
 
 	@unlocked
-	def reversed(self):
-		return MaxWeakHeapMap(self)
-
-	@unlocked
 	def copy(self):
 		return type(self)(self.items())
 
@@ -467,8 +459,25 @@ class MinWeakHeapMap:
 		else:
 			self.__init__(items, **kwargs)
 
-class MaxWeakHeapMap(MinWeakHeapMap):
-	def compare(self, a, b):
+	@stub
+	def _compare(self, a, b):
+		pass
+
+	@stub
+	def reversed(self):
+		pass
+
+class MinWeakHeapMap(WeakHeapMap):
+	@unlocked
+	def _compare(self, a, b):
+		return b > a
+
+	def reversed(self):
+		return MaxWeakHeapMap(self)
+
+class MaxWeakHeapMap(WeakHeapMap):
+	@unlocked
+	def _compare(self, a, b):
 		return b < a
 
 	def reversed(self):
