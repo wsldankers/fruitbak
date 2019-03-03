@@ -1,8 +1,10 @@
 """Heap queue object that also allows dictionary style access.
 
-A variation on the heap queue that allows you to add and remove entries
-as if it was a dictionary. The value of each item you add is used for
-comparison (using the < operator) when maintaining the heap property.
+A variation on the heap queue that allows you to add and remove entries as
+if it was a dictionary. The value of each item you add is used for
+comparison when maintaining the heap property. This comparison is done
+using the < operator exclusively, so for custom value objects you only need
+to implement __lt__().
 
 It comes in two variants, one (MinHeapMap) that extracts the smallest
 element when you call pop(), and one (MaxHeapMap) that extracts the
@@ -25,18 +27,20 @@ from collections import namedtuple
 
 # Internal class that represents a node in the heapmap.
 class HeapMapNode:
-	__slots__ = ('key', 'counter', 'value', 'index')
-	def __init__(self, key, counter, value, index):
+	__slots__ = ('key', 'value', 'index', 'counter')
+	def __init__(self, key, value, index, counter):
 		self.key = key
-		self.counter = counter
 		self.value = value
 		self.index = index
+		self.counter = counter
 
 	def __lt__(self, other):
-		return self.counter < other.counter if self.value == other.value else self.value < other.value
+		self_value = self.value
+		other_value = other.value
+		return self_value < other_value or not other_value < self_value and self.counter < other.counter
 
 	def __repr__(self):
-		return 'HeapMapNode(key = %r, counter = %d, value = %r, index = %d)' % (self.key, self.counter, self.value, self.index)
+		return 'HeapMapNode(key = %r, value = %r, index = %d, counter = %d)' % (self.key, self.value, self.index, self.counter)
 
 # Internal class that is returned for HeapMap.values()
 class HeapMapValueView:
@@ -109,21 +113,21 @@ class HeapMap:
 			pass
 		elif hasattr(items, 'items'):
 			for key, value in items.items():
-				mapping[key] = container = HeapMapNode(key, counter, value, len(heap))
+				mapping[key] = container = HeapMapNode(key, value, len(heap), counter)
 				counter += counter_increment
 				heap.append(container)
 		elif hasattr(items, 'keys'):
 			for key in items.keys():
-				mapping[key] = container = HeapMapNode(key, counter, items[key], len(heap))
+				mapping[key] = container = HeapMapNode(key, items[key], len(heap), counter)
 				counter += counter_increment
 				heap.append(container)
 		else:
 			for key, value in items:
-				mapping[key] = container = HeapMapNode(key, counter, value, len(heap))
+				mapping[key] = container = HeapMapNode(key, value, len(heap), counter)
 				counter += counter_increment
 				heap.append(container)
 		for key, value in kwargs.items():
-			mapping[key] = container = HeapMapNode(key, counter, value, len(heap))
+			mapping[key] = container = HeapMapNode(key, value, len(heap), counter)
 			counter += counter_increment
 			heap.append(container)
 
@@ -197,7 +201,7 @@ class HeapMap:
 
 			index = heap_len
 			counter = self._counter
-			container = HeapMapNode(key, counter, value, index)
+			container = HeapMapNode(key, value, index, counter)
 			self._counter = counter + 1
 
 			while index:
