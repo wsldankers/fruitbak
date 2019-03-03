@@ -37,7 +37,7 @@ class HeapMapNode:
 	def __lt__(self, other):
 		self_value = self.value
 		other_value = other.value
-		return self_value < other_value or not other_value < self_value and self.counter < other.counter
+		return self.counter < other.counter and not other_value < self_value or self_value < other_value
 
 	def __repr__(self):
 		return 'HeapMapNode(key = %r, value = %r, index = %d, counter = %d)' % (self.key, self.value, self.index, self.counter)
