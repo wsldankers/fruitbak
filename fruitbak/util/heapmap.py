@@ -228,7 +228,7 @@ class HeapMap:
 			heap[index] = container
 		else:
 			index = container.index
-			comparison = HeapMapNode(value, container.counter, container.key, container.index)
+			comparison = HeapMapNode(container.key, container.counter, value, container.index)
 
 			while index:
 				parent_index = (index - 1) // 2
