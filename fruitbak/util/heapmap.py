@@ -114,29 +114,28 @@ class HeapMap:
 		elif hasattr(items, 'items'):
 			for key, value in items.items():
 				mapping[key] = container = HeapMapNode(key, value, len(heap), counter)
-				counter += counter_increment
 				heap.append(container)
+				counter += counter_increment
 		elif hasattr(items, 'keys'):
 			for key in items.keys():
 				mapping[key] = container = HeapMapNode(key, items[key], len(heap), counter)
-				counter += counter_increment
 				heap.append(container)
+				counter += counter_increment
 		else:
 			for key, value in items:
 				mapping[key] = container = HeapMapNode(key, value, len(heap), counter)
-				counter += counter_increment
 				heap.append(container)
+				counter += counter_increment
 		for key, value in kwargs.items():
 			mapping[key] = container = HeapMapNode(key, value, len(heap), counter)
-			counter += counter_increment
 			heap.append(container)
+			counter += counter_increment
 
 		# the following loop runs in amortized O(n) time:
 		heap_len = len(heap)
 		for i in range((heap_len - 1) // 2, -1, -1):
 			index = i
 			container = heap[index]
-			value = container.value
 			while True:
 				child_index = index * 2 + 1
 				if child_index >= heap_len:
@@ -198,11 +197,8 @@ class HeapMap:
 		container = mapping.get(key)
 		if container is None:
 			index = heap_len
-
-			index = heap_len
 			counter = self._counter
 			container = HeapMapNode(key, value, index, counter)
-			self._counter = counter + 1
 
 			while index:
 				parent_index = (index - 1) // 2
@@ -214,6 +210,7 @@ class HeapMap:
 				else:
 					break
 
+			index = heap_len
 			mapping[key] = container
 			heap.append(container)
 			answers.reverse()
@@ -228,6 +225,7 @@ class HeapMap:
 				else:
 					break
 
+			self._counter = counter + self._counter_increment
 			container.index = index
 			heap[index] = container
 		else:
@@ -316,7 +314,6 @@ class HeapMap:
 			return
 
 		replacement = heap[heap_len]
-		value = replacement.value
 		answers = []
 
 		# don't try to bubble up if the deleted item was the

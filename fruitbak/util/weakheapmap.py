@@ -1,11 +1,11 @@
 from .oo import stub
-from .locking import lockingclass, unlocked
+from .locking import lockingclass, unlocked, locked
 from weakref import ref as weakref
 from sys import stderr
 from collections.abc import Set
 from traceback import print_exc
 
-class FakeWeakHeapMapNode:
+class FakeKeyWeakHeapMapNode:
 	__slots__ = ('id', 'hash')
 	def __init__(self, id, hash):
 		self.id = id
@@ -17,16 +17,27 @@ class FakeWeakHeapMapNode:
 	def __eq__(self, other):
 		return self.id == other.id
 
+class FakeValueWeakHeapMapNode:
+	__slots__ = ('value', 'counter')
+	def __init__(self, value, counter):
+		self.value = value
+		self.counter = counter
+
+	def __lt__(self, other):
+		self_value = self.value
+		other_value = other.value
+		return self.counter < other.counter and not other_value < self_value or self_value < other_value
+
 class WeakHeapMapNode:
-	__slots__ = ('weakkey', 'value', 'index', 'id', 'hash')
-	def __init__(self, key, value, index, weakheapmap):
+	__slots__ = ('weakkey', 'value', 'index', 'counter', 'id', 'hash')
+	def __init__(self, key, value, index, counter, weakheapmap):
 		key_id = id(key)
 		key_hash = hash(key)
 
 		def finalizer(weakkey):
 			heapmap = weakheapmap()
 			if heapmap is not None:
-				fakenode = FakeWeakHeapMapNode(key_id, key_hash)
+				fakenode = FakeKeyWeakHeapMapNode(key_id, key_hash)
 				try:
 					heapmap._delnode(heapmap.mapping[fakenode])
 				except KeyError:
@@ -37,6 +48,7 @@ class WeakHeapMapNode:
 		self.weakkey = weakref(key, finalizer)
 		self.value = value
 		self.index = index
+		self.counter = counter
 		self.id = key_id
 		self.hash = key_hash
 
@@ -45,6 +57,11 @@ class WeakHeapMapNode:
 
 	def __eq__(self, other):
 		return self.id == other.id
+
+	def __lt__(self, other):
+		self_value = self.value
+		other_value = other.value
+		return self.counter < other.counter and not other_value < self_value or self_value < other_value
 
 class WeakHeapMapValueView:
 	__slots__ = ('mapping')
@@ -77,7 +94,7 @@ class WeakHeapMapItemView(Set):
 	def __contains__(self, item):
 		key, value = item
 		try:
-			node = self.mapping[FakeWeakHeapMapNode(id(key), hash(key))]
+			node = self.mapping[FakeKeyWeakHeapMapNode(id(key), hash(key))]
 		except KeyError:
 			return False
 		return node.value == value
@@ -85,41 +102,46 @@ class WeakHeapMapItemView(Set):
 # datatype: supports both extractmin and fetching by key
 @lockingclass
 class WeakHeapMap:
-	in_delete = 0
+	_counter = 0
 
 	def __init__(self, items = None, **kwargs):
 		heap = []
 		mapping = {}
+		counter = self._counter
+		counter_increment = self._counter_increment
 		weakself = weakref(self)
 
 		if items is None:
 			pass
 		elif hasattr(items, 'items'):
 			for key, value in items.items():
-				container = WeakHeapMapNode(key, value, len(heap), weakself)
+				container = WeakHeapMapNode(key, value, len(heap), counter, weakself)
 				mapping[container] = container
 				heap.append(container)
+				counter += counter_increment
 		elif hasattr(items, 'keys'):
 			for key in items.keys():
-				container = WeakHeapMapNode(key, items[key], len(heap), weakself)
+				container = WeakHeapMapNode(key, items[key], len(heap), counter, weakself)
 				mapping[container] = container
 				heap.append(container)
+				counter += counter_increment
 		else:
 			for key, value in items:
-				container = WeakHeapMapNode(key, value, len(heap), weakself)
+				container = WeakHeapMapNode(key, value, len(heap), counter, weakself)
 				mapping[container] = container
 				heap.append(container)
+				counter += counter_increment
 		for key, value in kwargs.items():
-			container = WeakHeapMapNode(key, value, len(heap), weakself)
+			container = WeakHeapMapNode(key, value, len(heap), counter, weakself)
 			mapping[container] = container
 			heap.append(container)
+			counter += counter_increment
 
 		# the following loop runs in amortized O(n) time:
 		heap_len = len(heap)
 		for i in range((heap_len - 1) // 2, -1, -1):
 			index = i
 			container = heap[index]
-			value = container.value
 			while True:
 				child_index = index * 2 + 1
 				if child_index >= heap_len:
@@ -128,10 +150,10 @@ class WeakHeapMap:
 				other_child_index = child_index + 1
 				if other_child_index < heap_len:
 					other_child = heap[other_child_index]
-					if self._compare(other_child.value, child.value):
+					if self._compare(other_child, child):
 						child = other_child
 						child_index = other_child_index
-				if self._compare(child.value, value):
+				if self._compare(child, container):
 					heap[index] = child
 					child.index = index
 					index = child_index
@@ -166,7 +188,7 @@ class WeakHeapMap:
 
 	@unlocked
 	def __contains__(self, key):
-		return FakeWeakHeapMapNode(id(key), hash(key)) in self.mapping
+		return FakeKeyWeakHeapMapNode(id(key), hash(key)) in self.mapping
 
 	@unlocked
 	def __len__(self):
@@ -174,17 +196,19 @@ class WeakHeapMap:
 
 	@unlocked
 	def __getitem__(self, key):
-		return self.mapping[FakeWeakHeapMapNode(id(key), hash(key))].value
+		return self.mapping[FakeKeyWeakHeapMapNode(id(key), hash(key))].value
 
 	def __setitem__(self, key, value):
 		mapping = self.mapping
 		heap = self.heap
 		heap_len = len(heap)
 		answers = []
-		fakenode = FakeWeakHeapMapNode(id(key), hash(key))
+		fakenode = FakeKeyWeakHeapMapNode(id(key), hash(key))
 		container = mapping.get(fakenode)
 		if container is None:
 			index = heap_len
+			counter = self._counter
+			container = WeakHeapMapNode(key, value, index, counter, self.weakself)
 
 			while index:
 				parent_index = (index - 1) // 2
@@ -197,7 +221,6 @@ class WeakHeapMap:
 					break
 
 			index = heap_len
-			container = WeakHeapMapNode(key, value, index, self.weakself)
 			mapping[container] = container
 			heap.append(container)
 			answers.reverse()
@@ -212,15 +235,17 @@ class WeakHeapMap:
 				else:
 					break
 
+			self._counter = counter + self._counter_increment
 			container.index = index
 			heap[index] = container
 		else:
 			index = container.index
+			comparison = FakeValueWeakHeapMapNode(value, container.counter)
 
 			while index:
 				parent_index = (index - 1) // 2
 				parent = heap[parent_index]
-				is_greater = bool(self._compare(value, parent.value))
+				is_greater = bool(self._compare(comparison, parent))
 				answers.append(is_greater)
 				if is_greater:
 					index = parent_index
@@ -236,12 +261,12 @@ class WeakHeapMap:
 					other_child_index = child_index + 1
 					if other_child_index < heap_len:
 						other_child = heap[other_child_index]
-						is_greater = bool(self._compare(other_child.value, child.value))
+						is_greater = bool(self._compare(other_child, child))
 						answers.append(is_greater)
 						if is_greater:
 							child = other_child
 							child_index = other_child_index
-					is_greater = bool(self._compare(child.value, value))
+					is_greater = bool(self._compare(child, comparison))
 					answers.append(is_greater)
 					if is_greater:
 						index = child_index
@@ -286,7 +311,7 @@ class WeakHeapMap:
 				heap[index] = container
 
 	def __delitem__(self, key):
-		self._delnode(self.mapping[FakeWeakHeapMapNode(id(key), hash(key))])
+		self._delnode(self.mapping[FakeKeyWeakHeapMapNode(id(key), hash(key))])
 
 	@unlocked
 	def _delnode(self, victim):
@@ -302,7 +327,6 @@ class WeakHeapMap:
 			return
 
 		replacement = heap[heap_len]
-		value = replacement.value
 		answers = []
 
 		# don't try to bubble up if the deleted item was the
@@ -311,7 +335,7 @@ class WeakHeapMap:
 			while index:
 				parent_index = (index - 1) // 2
 				parent = heap[parent_index]
-				is_greater = bool(self._compare(value, parent.value))
+				is_greater = bool(self._compare(replacement, parent))
 				answers.append(is_greater)
 				if is_greater:
 					index = parent_index
@@ -327,12 +351,12 @@ class WeakHeapMap:
 				other_child_index = child_index + 1
 				if other_child_index < heap_len:
 					other_child = heap[other_child_index]
-					is_greater = bool(self._compare(other_child.value, child.value))
+					is_greater = bool(self._compare(other_child, child))
 					answers.append(is_greater)
 					if is_greater:
 						child = other_child
 						child_index = other_child_index
-				is_greater = bool(self._compare(child.value, value))
+				is_greater = bool(self._compare(child, replacement))
 				answers.append(is_greater)
 				if is_greater:
 					index = child_index
@@ -383,17 +407,27 @@ class WeakHeapMap:
 		if key is None:
 			ret = self.heap[0]
 			del self[ret.key]
+			return ret.value
 		else:
 			ret = self[key]
 			del self[key]
-		return ret.value
+			return ret
+
+	def popkey(self, key = None):
+		if key is None:
+			ret = self.heap[0]
+		else:
+			ret = self.mapping[FakeKeyWeakHeapMapNode(id(key), hash(key))]
+		key = ret.weakkey()
+		del self[key]
+		return key
 
 	def popitem(self, key = None):
 		if key is None:
 			ret = self.heap[0]
-			key = ret.key
 		else:
-			ret = self[key]
+			ret = self.mapping[FakeKeyWeakHeapMapNode(id(key), hash(key))]
+		key = ret.weakkey()
 		del self[key]
 		return key, ret.value
 
@@ -437,7 +471,7 @@ class WeakHeapMap:
 
 	def setdefault(self, key, value = None):
 		mapping = self.mapping
-		fakenode = FakeWeakHeapMapNode(id(key), hash(key))
+		fakenode = FakeKeyWeakHeapMapNode(id(key), hash(key))
 		if fakenode in mapping:
 			return mapping[fakenode].value
 		self[key] = value
@@ -469,17 +503,21 @@ class WeakHeapMap:
 		pass
 
 class MinWeakHeapMap(WeakHeapMap):
-	@unlocked
+	_counter_increment = 1
+
 	def _compare(self, a, b):
 		return a < b
 
+	@locked
 	def reversed(self):
 		return MaxWeakHeapMap(self)
 
 class MaxWeakHeapMap(WeakHeapMap):
-	@unlocked
+	_counter_increment = -1
+
 	def _compare(self, a, b):
 		return b < a
 
+	@locked
 	def reversed(self):
 		return MinWeakHeapMap(self)
