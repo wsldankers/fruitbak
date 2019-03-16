@@ -7,9 +7,9 @@ from traceback import print_exc
 
 class FakeKeyWeakHeapMapNode:
 	__slots__ = ('id', 'hash')
-	def __init__(self, id, hash):
+	def __init__(self, id):
 		self.id = id
-		self.hash = hash
+		self.hash = hash(id)
 
 	def __hash__(self):
 		return self.hash
@@ -32,12 +32,11 @@ class WeakHeapMapNode:
 	__slots__ = ('weakkey', 'value', 'index', 'counter', 'id', 'hash')
 	def __init__(self, key, value, index, counter, weakheapmap):
 		key_id = id(key)
-		key_hash = hash(key)
 
 		def finalizer(weakkey):
 			heapmap = weakheapmap()
 			if heapmap is not None:
-				fakenode = FakeKeyWeakHeapMapNode(key_id, key_hash)
+				fakenode = FakeKeyWeakHeapMapNode(key_id)
 				try:
 					heapmap._delnode(heapmap.mapping[fakenode])
 				except KeyError:
@@ -50,7 +49,7 @@ class WeakHeapMapNode:
 		self.index = index
 		self.counter = counter
 		self.id = key_id
-		self.hash = key_hash
+		self.hash = hash(key_id)
 
 	def __hash__(self):
 		return self.hash
@@ -94,7 +93,7 @@ class WeakHeapMapItemView(Set):
 	def __contains__(self, item):
 		key, value = item
 		try:
-			node = self.mapping[FakeKeyWeakHeapMapNode(id(key), hash(key))]
+			node = self.mapping[FakeKeyWeakHeapMapNode(id(key))]
 		except KeyError:
 			return False
 		return node.value == value
@@ -188,7 +187,7 @@ class WeakHeapMap:
 
 	@unlocked
 	def __contains__(self, key):
-		return FakeKeyWeakHeapMapNode(id(key), hash(key)) in self.mapping
+		return FakeKeyWeakHeapMapNode(id(key)) in self.mapping
 
 	@unlocked
 	def __len__(self):
@@ -196,14 +195,14 @@ class WeakHeapMap:
 
 	@unlocked
 	def __getitem__(self, key):
-		return self.mapping[FakeKeyWeakHeapMapNode(id(key), hash(key))].value
+		return self.mapping[FakeKeyWeakHeapMapNode(id(key))].value
 
 	def __setitem__(self, key, value):
 		mapping = self.mapping
 		heap = self.heap
 		heap_len = len(heap)
 		answers = []
-		fakenode = FakeKeyWeakHeapMapNode(id(key), hash(key))
+		fakenode = FakeKeyWeakHeapMapNode(id(key))
 		container = mapping.get(fakenode)
 		if container is None:
 			index = heap_len
@@ -311,7 +310,7 @@ class WeakHeapMap:
 				heap[index] = container
 
 	def __delitem__(self, key):
-		self._delnode(self.mapping[FakeKeyWeakHeapMapNode(id(key), hash(key))])
+		self._delnode(self.mapping[FakeKeyWeakHeapMapNode(id(key))])
 
 	@unlocked
 	def _delnode(self, victim):
@@ -417,7 +416,7 @@ class WeakHeapMap:
 		if key is None:
 			ret = self.heap[0]
 		else:
-			ret = self.mapping[FakeKeyWeakHeapMapNode(id(key), hash(key))]
+			ret = self.mapping[FakeKeyWeakHeapMapNode(id(key))]
 		key = ret.weakkey()
 		del self[key]
 		return key
@@ -426,7 +425,7 @@ class WeakHeapMap:
 		if key is None:
 			ret = self.heap[0]
 		else:
-			ret = self.mapping[FakeKeyWeakHeapMapNode(id(key), hash(key))]
+			ret = self.mapping[FakeKeyWeakHeapMapNode(id(key))]
 		key = ret.weakkey()
 		del self[key]
 		return key, ret.value
@@ -471,7 +470,7 @@ class WeakHeapMap:
 
 	def setdefault(self, key, value = None):
 		mapping = self.mapping
-		fakenode = FakeKeyWeakHeapMapNode(id(key), hash(key))
+		fakenode = FakeKeyWeakHeapMapNode(id(key))
 		if fakenode in mapping:
 			return mapping[fakenode].value
 		self[key] = value
