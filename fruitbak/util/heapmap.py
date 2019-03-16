@@ -10,13 +10,17 @@ It comes in two variants, one (MinHeapMap) that extracts the smallest
 element when you call pop(), and one (MaxHeapMap) that extracts the
 largest.
 
+Entries with equal keys are extracted in insertion order. Iteration is in
+insertion order if your Python dict iterates in insertion order (Python 
+>3.7).
+
 Inconsistent results from the comparison functions will result in an
 inconsistent heap.
 
 This implementation keeps the heap consistent even if the comparison
 functions of the items throw an exception. It is threadsafe."""
 
-# TODO: implement move_to_end(key, True) using the serial
+# TODO: implement move_to_end(key, value) using the serial
 # TODO: use collections.abc.MutableMapping as base class
 # TODO: use collections.abc.MappingView as base class
 
@@ -104,61 +108,73 @@ class HeapMap:
 	_serial = 0
 
 	def __init__(self, items = None, **kwargs):
-		heap = []
-		mapping = {}
-		serial = self._serial
+		self.heap = []
+		self.mapping = {}
 
-		if items is None:
-			pass
-		elif hasattr(items, 'items'):
-			for key, value in items.items():
-				mapping[key] = container = HeapMapNode(key, value, len(heap), serial)
-				heap.append(container)
-				serial += 1
-		elif hasattr(items, 'keys'):
-			for key in items.keys():
-				mapping[key] = container = HeapMapNode(key, items[key], len(heap), serial)
-				heap.append(container)
-				serial += 1
-		else:
-			for key, value in items:
-				mapping[key] = container = HeapMapNode(key, value, len(heap), serial)
-				heap.append(container)
-				serial += 1
-		for key, value in kwargs.items():
-			mapping[key] = container = HeapMapNode(key, value, len(heap), serial)
-			heap.append(container)
-			serial += 1
+		self._fill_initial(items, kwargs)
 
-		# the following loop runs in amortized O(n) time:
-		heap_len = len(heap)
-		for i in range((heap_len - 1) // 2, -1, -1):
-			index = i
-			container = heap[index]
-			while True:
-				child_index = index * 2 + 1
-				if child_index >= heap_len:
-					break
-				child = heap[child_index]
-				other_child_index = child_index + 1
-				if other_child_index < heap_len:
-					other_child = heap[other_child_index]
-					if self._compare(other_child, child):
-						child = other_child
-						child_index = other_child_index
-				if self._compare(child, container):
-					heap[index] = child
-					child.index = index
-					index = child_index
-				else:
-					break
-			if index != i:
-				heap[index] = container
-				container.index = index
-				
-		self.heap = heap
-		self.mapping = mapping
-		self._serial = serial
+	@unlocked
+	def _fill_initial(self, items, kwargs):
+		heap = self.heap
+		mapping = self.mapping
+
+		assert not heap
+
+		heap_len = 0
+
+		try:
+			if items is None:
+				pass
+			elif hasattr(items, 'items'):
+				for key, value in items.items():
+					mapping[key] = container = HeapMapNode(key, value, len(heap), heap_len)
+					heap.append(container)
+					heap_len += 1
+			elif hasattr(items, 'keys'):
+				for key in items.keys():
+					mapping[key] = container = HeapMapNode(key, items[key], len(heap), heap_len)
+					heap.append(container)
+					heap_len += 1
+			else:
+				for key, value in items:
+					mapping[key] = container = HeapMapNode(key, value, len(heap), heap_len)
+					heap.append(container)
+					heap_len += 1
+			for key, value in kwargs.items():
+				mapping[key] = container = HeapMapNode(key, value, len(heap), heap_len)
+				heap.append(container)
+				heap_len += 1
+
+			# the following loop runs in amortized O(n) time:
+			for i in range((heap_len - 1) // 2, -1, -1):
+				index = i
+				container = heap[index]
+				while True:
+					child_index = index * 2 + 1
+					if child_index >= heap_len:
+						break
+					child = heap[child_index]
+					other_child_index = child_index + 1
+					if other_child_index < heap_len:
+						other_child = heap[other_child_index]
+						if self._compare(other_child, child):
+							child = other_child
+							child_index = other_child_index
+					if self._compare(child, container):
+						heap[index] = child
+						child.index = index
+						index = child_index
+					else:
+						break
+				if index != i:
+					heap[index] = container
+					container.index = index
+
+			self._serial = heap_len
+		except:
+			heap.clear()
+			mapping.clear()
+			raise
 
 	def __str__(self):
 		ret = ""
@@ -189,6 +205,10 @@ class HeapMap:
 		return self.mapping[key].value
 
 	def __setitem__(self, key, value):
+		return self._setitem(key, value)
+
+	@unlocked
+	def _setitem(self, key, value):
 		mapping = self.mapping
 		heap = self.heap
 		heap_len = len(heap)
@@ -300,16 +320,18 @@ class HeapMap:
 				heap[index] = container
 
 	def __delitem__(self, key):
-		mapping = self.mapping
-		victim = mapping[key]
+		self._delnode(self.mapping[key])
+
+	def _delnode(self, victim):
 		index = victim.index
 
+		mapping = self.mapping
 		heap = self.heap
 		heap_len = len(heap) - 1
 
 		if index == heap_len:
 			heap.pop()
-			del mapping[key]
+			del mapping[victim.key]
 			return
 
 		replacement = heap[heap_len]
@@ -349,7 +371,7 @@ class HeapMap:
 				else:
 					break
 
-		del mapping[key]
+		del mapping[victim.key]
 		heap.pop()
 		index = victim.index
 		answers.reverse()
@@ -398,10 +420,9 @@ class HeapMap:
 
 		if key is None:
 			ret = self.heap[0]
-			del self[ret.key]
 		else:
-			ret = self[key]
-			del self[key]
+			ret = self.mapping[key]
+		self._delnode(ret)
 		return ret.value
 
 	def popkey(self, key = None):
@@ -413,10 +434,9 @@ class HeapMap:
 
 		if key is None:
 			ret = self.heap[0]
-			del self[ret.key]
 		else:
-			ret = self[key]
-			del self[key]
+			ret = self.mapping[key]
+		self._delnode(ret)
 		return ret.key
 
 	def popitem(self, key = None):
@@ -431,8 +451,8 @@ class HeapMap:
 			ret = self.heap[0]
 			key = ret.key
 		else:
-			ret = self[key]
-		del self[key]
+			ret = self.mapping[key]
+		self._delnode(ret)
 		return key, ret.value
 
 	@unlocked
@@ -522,7 +542,7 @@ class HeapMap:
 			pass
 		else:
 			return node.value
-		self[key] = default
+		self._setitem(key, default)
 		return default
 
 	def update(self, other = None, **kwargs):
@@ -538,22 +558,22 @@ class HeapMap:
 		:type other: dict or iter(iter)
 		:param dict kwargs: Add all keyword items to the HeapMap."""
 
-		if self:
+		if self.heap:
 			if items is None:
 				pass
 			elif hasattr(items, 'items'):
 				for key, value in items.items():
-					self[key] = value
+					self._setitem(key, value)
 			elif hasattr(items, 'keys'):
 				for key in items.keys():
-					self[key] = items[key]
+					self._setitem(key, items[key])
 			else:
 				for key, value in items:
-					self[key] = value
+					self._setitem(key, value)
 			for key, value in kwargs.items():
-				self[key] = value
+				self._setitem(key, value)
 		else:
-			self.__init__(items, **kwargs)
+			self._fill_initial(items, kwargs)
 
 	@stub
 	def _compare(self, a, b):
