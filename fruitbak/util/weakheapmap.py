@@ -25,13 +25,17 @@ class FakeValueWeakHeapMapNode:
 		self.value = value
 		self.serial = serial
 
-class WeakHeapMapNode:
-	__slots__ = 'weakkey', 'value', 'index', 'serial', 'initial', 'id', 'hash'
+class WeakHeapMapNode(weakref):
+	__slots__ = 'value', 'index', 'serial', 'initial', 'id', 'hash'
 
-	def __init__(self, key, value, index, serial, finalizer):
+	def __new__(type, key, finalizer, value, index, serial):
+		return super(type, WeakHeapMapNode).__new__(type, key, finalizer)
+
+	def __init__(self, key, finalizer, value, index, serial):
+		super().__init__(key, finalizer)
+
 		key_id = id(key)
 
-		self.weakkey = KeyedRef(key, finalizer, (key_id, serial))
 		self.value = value
 		self.index = index
 		self.serial = serial
@@ -44,11 +48,6 @@ class WeakHeapMapNode:
 
 	def __eq__(self, other):
 		return self.id == other.id
-
-	def __lt__(self, other):
-		self_value = self.value
-		other_value = other.value
-		return self.serial < other.serial and not other_value < self_value or self_value < other_value
 
 class WeakHeapMapValueView:
 	__slots__ = 'mapping',
@@ -74,7 +73,7 @@ class WeakHeapMapItemView(Set):
 
 	def __iter__(self):
 		for node in heapmap.mapping:
-			key = node.weakkey()
+			key = node()
 			if key is not None:
 				yield key, node.value
 
@@ -97,44 +96,42 @@ class WeakHeapMap:
 		serial = self._serial
 		weakself = weakref(self)
 
-		def finalizer(weakkey):
-			key_id, initial = weakkey.key
+		def finalizer(node):
 			heapmap = weakself()
 			if heapmap is not None:
-				fakenode = FakeKeyWeakHeapMapNode(key_id)
 				with heapmap.lock:
 					try:
-						node = heapmap.mapping[fakenode]
-					except KeyError:
+						found = heapmap.heap[node.index]
+					except IndexError:
 						pass
 					except:
 						print_exc(file = stderr)
 					else:
-						if node.initial == initial:
+						if found is node:
 							heapmap._delnode(node)
 
 		if items is None:
 			pass
 		elif hasattr(items, 'items'):
 			for key, value in items.items():
-				container = WeakHeapMapNode(key, value, len(heap), serial, finalizer)
+				container = WeakHeapMapNode(key, finalizer, value, len(heap), serial)
 				mapping[container] = container
 				heap.append(container)
 				serial += 1
 		elif hasattr(items, 'keys'):
 			for key in items.keys():
-				container = WeakHeapMapNode(key, items[key], len(heap), serial, finalizer)
+				container = WeakHeapMapNode(key, finalizer, items[key], len(heap), serial)
 				mapping[container] = container
 				heap.append(container)
 				serial += 1
 		else:
 			for key, value in items:
-				container = WeakHeapMapNode(key, value, len(heap), serial, finalizer)
+				container = WeakHeapMapNode(key, finalizer, value, len(heap), serial)
 				mapping[container] = container
 				heap.append(container)
 				serial += 1
 		for key, value in kwargs.items():
-			container = WeakHeapMapNode(key, value, len(heap), serial, finalizer)
+			container = WeakHeapMapNode(key, finalizer, value, len(heap), serial)
 			mapping[container] = container
 			heap.append(container)
 			serial += 1
@@ -183,8 +180,7 @@ class WeakHeapMap:
 	def __iter__(self):
 		mapping = self.mapping
 		for node in mapping:
-			weakkey = node.weakkey
-			key = node.weakkey()
+			key = node()
 			if key is not None:
 				yield key
 
@@ -210,7 +206,7 @@ class WeakHeapMap:
 		if container is None:
 			index = heap_len
 			serial = self._serial
-			container = WeakHeapMapNode(key, value, index, serial, self.finalizer)
+			container = WeakHeapMapNode(key, self.finalizer, value, index, serial)
 
 			while index:
 				parent_index = (index - 1) // 2
@@ -420,8 +416,8 @@ class WeakHeapMap:
 			ret = self.heap[0]
 		else:
 			ret = self.mapping[FakeKeyWeakHeapMapNode(id(key))]
-		key = ret.weakkey()
-		del self[key]
+		key = ret()
+		self._delnode(ret)
 		return key
 
 	def popitem(self, key = None):
@@ -429,8 +425,8 @@ class WeakHeapMap:
 			ret = self.heap[0]
 		else:
 			ret = self.mapping[FakeKeyWeakHeapMapNode(id(key))]
-		key = ret.weakkey()
-		del self[key]
+		key = ret()
+		self._delnode(ret)
 		return key, ret.value
 
 	@unlocked
@@ -439,12 +435,12 @@ class WeakHeapMap:
 
 	@unlocked
 	def peekkey(self):
-		return self.heap[0].weakkey()
+		return self.heap[0]()
 
 	@unlocked
 	def peekitem(self):
 		item = self.heap[0]
-		return item.weakkey(), item.value
+		return item(), item.value
 
 	@unlocked
 	def keys(self):
