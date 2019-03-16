@@ -1,3 +1,28 @@
+"""Heap queue object with dictionary style access using weakref keys.
+
+A variation on the heap queue that allows you to add and remove entries as
+if it was a dictionary. The value of each item you add is used for
+comparison when maintaining the heap property. This comparison is done
+using the < operator exclusively, so for custom value objects you only need
+to implement __lt__().
+
+An important difference with weakref.WeakKeyDictionary is that keys are
+identified purely by object identity.
+
+It comes in two variants, one (MinWeakHeapMap) that extracts the smallest
+element when you call pop(), and one (MaxWeakHeapMap) that extracts the
+largest.
+
+Inconsistent results from the comparison functions will result in an
+inconsistent heap.
+
+This implementation keeps the heap consistent even if the comparison
+functions of the items throw an exception. It is threadsafe."""
+
+# TODO: implement move_to_end(key, True) using the serial
+# TODO: use collections.abc.MutableMapping as base class
+# TODO: use collections.abc.MappingView as base class
+
 from .oo import stub
 from .locking import lockingclass, unlocked, locked
 from weakref import ref as weakref, KeyedRef
@@ -26,7 +51,7 @@ class FakeValueWeakHeapMapNode:
 		self.serial = serial
 
 class WeakHeapMapNode(weakref):
-	__slots__ = 'value', 'index', 'serial', 'initial', 'id', 'hash'
+	__slots__ = 'value', 'index', 'serial', 'id', 'hash'
 
 	def __new__(type, key, finalizer, value, index, serial):
 		return super(type, WeakHeapMapNode).__new__(type, key, finalizer)
@@ -39,7 +64,6 @@ class WeakHeapMapNode(weakref):
 		self.value = value
 		self.index = index
 		self.serial = serial
-		self.initial = serial # like serial but does not change
 		self.id = key_id
 		self.hash = hash(key_id)
 
@@ -91,9 +115,6 @@ class WeakHeapMap:
 	_serial = 0
 
 	def __init__(self, items = None, **kwargs):
-		heap = []
-		mapping = {}
-		serial = self._serial
 		weakself = weakref(self)
 
 		def finalizer(node):
@@ -110,61 +131,80 @@ class WeakHeapMap:
 						if found is node:
 							heapmap._delnode(node)
 
-		if items is None:
-			pass
-		elif hasattr(items, 'items'):
-			for key, value in items.items():
-				container = WeakHeapMapNode(key, finalizer, value, len(heap), serial)
-				mapping[container] = container
-				heap.append(container)
-				serial += 1
-		elif hasattr(items, 'keys'):
-			for key in items.keys():
-				container = WeakHeapMapNode(key, finalizer, items[key], len(heap), serial)
-				mapping[container] = container
-				heap.append(container)
-				serial += 1
-		else:
-			for key, value in items:
-				container = WeakHeapMapNode(key, finalizer, value, len(heap), serial)
-				mapping[container] = container
-				heap.append(container)
-				serial += 1
-		for key, value in kwargs.items():
-			container = WeakHeapMapNode(key, finalizer, value, len(heap), serial)
-			mapping[container] = container
-			heap.append(container)
-			serial += 1
-
-		# the following loop runs in amortized O(n) time:
-		heap_len = len(heap)
-		for i in range((heap_len - 1) // 2, -1, -1):
-			index = i
-			container = heap[index]
-			while True:
-				child_index = index * 2 + 1
-				if child_index >= heap_len:
-					break
-				child = heap[child_index]
-				other_child_index = child_index + 1
-				if other_child_index < heap_len:
-					other_child = heap[other_child_index]
-					if self._compare(other_child, child):
-						child = other_child
-						child_index = other_child_index
-				if self._compare(child, container):
-					heap[index] = child
-					child.index = index
-					index = child_index
-				else:
-					break
-			if index != i:
-				heap[index] = container
-				container.index = index
-				
-		self.heap = heap
-		self.mapping = mapping
+		self.heap = []
+		self.mapping = {}
 		self.finalizer = finalizer
+
+		self._replace_all(items, kwargs)
+
+	@unlocked
+	def _replace_all(self, items, kwargs):
+		heap = self.heap
+		mapping = self.mapping
+		finalizer = self.finalizer
+		serial = 0
+
+		heap.clear()
+		mapping.clear()
+
+		try:
+			if items is None:
+				pass
+			elif hasattr(items, 'items'):
+				for key, value in items.items():
+					container = WeakHeapMapNode(key, finalizer, value, len(heap), serial)
+					mapping[container] = container
+					heap.append(container)
+					serial += 1
+			elif hasattr(items, 'keys'):
+				for key in items.keys():
+					container = WeakHeapMapNode(key, finalizer, items[key], len(heap), serial)
+					mapping[container] = container
+					heap.append(container)
+					serial += 1
+			else:
+				for key, value in items:
+					container = WeakHeapMapNode(key, finalizer, value, len(heap), serial)
+					mapping[container] = container
+					heap.append(container)
+					serial += 1
+			for key, value in kwargs.items():
+				container = WeakHeapMapNode(key, finalizer, value, len(heap), serial)
+				mapping[container] = container
+				heap.append(container)
+				serial += 1
+
+			# the following loop runs in amortized O(n) time:
+			heap_len = len(heap)
+			for i in range((heap_len - 1) // 2, -1, -1):
+				index = i
+				container = heap[index]
+				while True:
+					child_index = index * 2 + 1
+					if child_index >= heap_len:
+						break
+					child = heap[child_index]
+					other_child_index = child_index + 1
+					if other_child_index < heap_len:
+						other_child = heap[other_child_index]
+						if self._compare(other_child, child):
+							child = other_child
+							child_index = other_child_index
+					if self._compare(child, container):
+						heap[index] = child
+						child.index = index
+						index = child_index
+					else:
+						break
+				if index != i:
+					heap[index] = container
+					container.index = index
+
+			self._serial = serial
+		except:
+			heap.clear()
+			mapping.clear()
+			raise
 
 	def __str__(self):
 		ret = ""
@@ -197,13 +237,29 @@ class WeakHeapMap:
 		return self.mapping[FakeKeyWeakHeapMapNode(id(key))].value
 
 	def __setitem__(self, key, value):
+		return self._setitem(key, value)
+
+	@unlocked
+	def _setitem(self, key, value):
 		mapping = self.mapping
 		heap = self.heap
 		heap_len = len(heap)
 		answers = []
 		fakenode = FakeKeyWeakHeapMapNode(id(key))
 		container = mapping.get(fakenode)
-		if container is None:
+		container_key = None if container is None else container()
+		if container_key is None:
+			if container is not None:
+				# So it exists, but is dead. To prevent a race condition,
+				# we give it a unique, different id so it doesn't conflict
+				# with the new key being added. For this we use the id()
+				# of the container itself since it's unique and occupied.
+				del mapping[container]
+				container_id = id(container)
+				container.id = container_id
+				container.hash = hash(container_id)
+				mapping[container] = container
+
 			index = heap_len
 			serial = self._serial
 			container = WeakHeapMapNode(key, self.finalizer, value, index, serial)
@@ -309,7 +365,11 @@ class WeakHeapMap:
 				heap[index] = container
 
 	def __delitem__(self, key):
-		self._delnode(self.mapping[FakeKeyWeakHeapMapNode(id(key))])
+		node = self.mapping[FakeKeyWeakHeapMapNode(id(key))]
+		node_key = node()
+		if node_key is None:
+			raise KeyError(key)
+		self._delnode(node)
 
 	@unlocked
 	def _delnode(self, victim):
@@ -403,31 +463,41 @@ class WeakHeapMap:
 
 	def pop(self, key = None):
 		if key is None:
-			ret = self.heap[0]
-			del self[ret.key]
-			return ret.value
+			while True:
+				ret = self.heap[0]
+				ret_key = ret()
+				self._delnode(ret)
+				if ret_key is not None:
+					return ret.value
 		else:
-			ret = self[key]
-			del self[key]
-			return ret
+			ret = self.mapping[FakeKeyWeakHeapMapNode(id(key))]
+			ret_key = ret()
+			if ret_key is None:
+				raise KeyError(key)
+			self._delnode(ret)
+			return ret.value
 
 	def popkey(self, key = None):
 		if key is None:
 			ret = self.heap[0]
 		else:
 			ret = self.mapping[FakeKeyWeakHeapMapNode(id(key))]
-		key = ret()
+		ret_key = ret()
+		if ret_key is None:
+			raise KeyError(key)
 		self._delnode(ret)
-		return key
+		return ret_key
 
 	def popitem(self, key = None):
 		if key is None:
 			ret = self.heap[0]
 		else:
 			ret = self.mapping[FakeKeyWeakHeapMapNode(id(key))]
-		key = ret()
+		ret_key = ret()
+		if ret_key is None:
+			raise KeyError(key)
 		self._delnode(ret)
-		return key, ret.value
+		return ret_key, ret.value
 
 	@unlocked
 	def peek(self):
@@ -457,6 +527,7 @@ class WeakHeapMap:
 	def clear(self):
 		self.heap.clear()
 		self.mapping.clear()
+		self._serial = 0
 
 	@unlocked
 	def copy(self):
@@ -467,12 +538,20 @@ class WeakHeapMap:
 	def fromkeys(cls, keys, value = None):
 		return cls(dict.fromkeys(keys, value))
 
-	def setdefault(self, key, value = None):
+	def setdefault(self, key, default = None):
 		mapping = self.mapping
 		fakenode = FakeKeyWeakHeapMapNode(id(key))
-		if fakenode in mapping:
-			return mapping[fakenode].value
-		self[key] = value
+		try:
+			ret = mapping[fakenode]
+		except KeyError:
+			ret_key = None
+		else:
+			ret_key = ret()
+		if ret_key is None:
+			self._setitem(key, default)
+			return default
+		else:
+			return ret.value
 
 	def update(self, items = None, **kwargs):
 		if self:
@@ -480,17 +559,17 @@ class WeakHeapMap:
 				pass
 			elif hasattr(items, 'items'):
 				for key, value in items.items():
-					self[key] = value
+					self._setitem(key, value)
 			elif hasattr(items, 'keys'):
 				for key in items.keys():
-					self[key] = items[key]
+					self._setitem(key, items[key])
 			else:
 				for key, value in items:
-					self[key] = value
+					self._setitem(key, value)
 			for key, value in kwargs.items():
-				self[key] = value
+				self._setitem(key, value)
 		else:
-			self.__init__(items, **kwargs)
+			self._replace_all(items, kwargs)
 
 	@stub
 	def _compare(self, a, b):
