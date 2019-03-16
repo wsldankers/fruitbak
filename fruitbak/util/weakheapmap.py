@@ -6,12 +6,17 @@ comparison when maintaining the heap property. This comparison is done
 using the < operator exclusively, so for custom value objects you only need
 to implement __lt__().
 
-An important difference with weakref.WeakKeyDictionary is that keys are
-identified purely by object identity.
+An important difference with both fruitbak.util.HeapMap and
+weakref.WeakKeyDictionary is that keys are identified purely by object
+identity.
 
 It comes in two variants, one (MinWeakHeapMap) that extracts the smallest
 element when you call pop(), and one (MaxWeakHeapMap) that extracts the
 largest.
+
+Entries with equal keys are extracted in insertion order. Iteration is in
+insertion order if your Python dict iterates in insertion order (Python
+>3.7).
 
 Inconsistent results from the comparison functions will result in an
 inconsistent heap.
@@ -19,7 +24,7 @@ inconsistent heap.
 This implementation keeps the heap consistent even if the comparison
 functions of the items throw an exception. It is threadsafe."""
 
-# TODO: implement move_to_end(key, True) using the serial
+# TODO: implement move_to_end(key, value) using the serial
 # TODO: use collections.abc.MutableMapping as base class
 # TODO: use collections.abc.MappingView as base class
 
@@ -135,44 +140,44 @@ class WeakHeapMap:
 		self.mapping = {}
 		self.finalizer = finalizer
 
-		self._replace_all(items, kwargs)
+		self._fill_initial(items, kwargs)
 
 	@unlocked
-	def _replace_all(self, items, kwargs):
+	def _fill_initial(self, items, kwargs):
 		heap = self.heap
 		mapping = self.mapping
 		finalizer = self.finalizer
-		serial = 0
 
-		heap.clear()
-		mapping.clear()
+		assert not heap
+
+		heap_len = 0
 
 		try:
 			if items is None:
 				pass
 			elif hasattr(items, 'items'):
 				for key, value in items.items():
-					container = WeakHeapMapNode(key, finalizer, value, len(heap), serial)
+					container = WeakHeapMapNode(key, finalizer, value, len(heap), heap_len)
 					mapping[container] = container
 					heap.append(container)
-					serial += 1
+					heap_len += 1
 			elif hasattr(items, 'keys'):
 				for key in items.keys():
-					container = WeakHeapMapNode(key, finalizer, items[key], len(heap), serial)
+					container = WeakHeapMapNode(key, finalizer, items[key], len(heap), heap_len)
 					mapping[container] = container
 					heap.append(container)
-					serial += 1
+					heap_len += 1
 			else:
 				for key, value in items:
-					container = WeakHeapMapNode(key, finalizer, value, len(heap), serial)
+					container = WeakHeapMapNode(key, finalizer, value, len(heap), heap_len)
 					mapping[container] = container
 					heap.append(container)
-					serial += 1
+					heap_len += 1
 			for key, value in kwargs.items():
-				container = WeakHeapMapNode(key, finalizer, value, len(heap), serial)
+				container = WeakHeapMapNode(key, finalizer, value, len(heap), heap_len)
 				mapping[container] = container
 				heap.append(container)
-				serial += 1
+				heap_len += 1
 
 			# the following loop runs in amortized O(n) time:
 			heap_len = len(heap)
@@ -200,7 +205,7 @@ class WeakHeapMap:
 					heap[index] = container
 					container.index = index
 
-			self._serial = serial
+			self._serial = heap_len
 		except:
 			heap.clear()
 			mapping.clear()
@@ -245,8 +250,7 @@ class WeakHeapMap:
 		heap = self.heap
 		heap_len = len(heap)
 		answers = []
-		fakenode = FakeKeyWeakHeapMapNode(id(key))
-		container = mapping.get(fakenode)
+		container = mapping.get(FakeKeyWeakHeapMapNode(id(key)))
 		container_key = None if container is None else container()
 		if container_key is None:
 			if container is not None:
@@ -554,7 +558,7 @@ class WeakHeapMap:
 			return ret.value
 
 	def update(self, items = None, **kwargs):
-		if self:
+		if self.heap:
 			if items is None:
 				pass
 			elif hasattr(items, 'items'):
@@ -569,7 +573,7 @@ class WeakHeapMap:
 			for key, value in kwargs.items():
 				self._setitem(key, value)
 		else:
-			self._replace_all(items, kwargs)
+			self._fill_initial(items, kwargs)
 
 	@stub
 	def _compare(self, a, b):
