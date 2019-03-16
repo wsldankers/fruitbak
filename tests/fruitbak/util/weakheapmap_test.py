@@ -21,10 +21,12 @@ class TestWeakHeapMap(TestCase):
 		h = MinWeakHeapMap(data)
 		for x in range(26):
 			self.assertEqual(h.popkey(), dummy(chr(ord('z') - x)))
+
 		data = [(dummy(chr(ord('z') - x)), -x) for x in range(26)]
 		h = MinWeakHeapMap(data)
 		for x in range(26):
 			self.assertEqual(h.popkey(), dummy(chr(ord('a') + x)))
+
 		h = MinWeakHeapMap(data)
 		data.pop()
 		gc()
@@ -32,6 +34,14 @@ class TestWeakHeapMap(TestCase):
 		del data
 		gc()
 		self.assertEqual(len(h), 0)
+
+		data = [(dummy(chr(ord('a') + x)), 0) for x in range(26)]
+		h = MinWeakHeapMap(data)
+		h.move_to_end(data[13][0])
+		data.append(data[13])
+		data[13:14] = []
+		for x, d in enumerate(data):
+			self.assertEqual(h.popitem(), d)
 
 if __name__ == '__main__':
 	main()

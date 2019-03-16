@@ -20,14 +20,15 @@ inconsistent heap.
 This implementation keeps the heap consistent even if the comparison
 functions of the items throw an exception. It is threadsafe."""
 
-# TODO: implement move_to_end(key, value) using the serial
 # TODO: use collections.abc.MutableMapping as base class
 # TODO: use collections.abc.MappingView as base class
 
 from .oo import stub
 from .locking import lockingclass, unlocked, locked
 from collections.abc import Set
-from collections import namedtuple
+
+class _NoValue: pass
+_no_value = _NoValue()
 
 # Internal class that represents a node in the heapmap.
 class HeapMapNode:
@@ -205,15 +206,18 @@ class HeapMap:
 		return self.mapping[key].value
 
 	def __setitem__(self, key, value):
-		return self._setitem(key, value)
+		self._setitem(key, value)
 
 	@unlocked
 	def _setitem(self, key, value):
+		self._setnode(self, self.mapping.get(key), key, value)
+
+	@unlocked
+	def _setnode(self, container, key, value):
 		mapping = self.mapping
 		heap = self.heap
 		heap_len = len(heap)
 		answers = []
-		container = mapping.get(key)
 		if container is None:
 			index = heap_len
 			serial = self._serial
@@ -574,6 +578,38 @@ class HeapMap:
 				self._setitem(key, value)
 		else:
 			self._fill_initial(items, kwargs)
+
+	def move_to_end(self, key, value = _no_value):
+		"""move_to_end(self, key, [value])
+		Move an existing key behind all other entries with the same value.
+
+		If the entry already exists and a value is provided, update the entry
+		with that value.
+
+		If the entry does not exist and a value is provided, insert it.
+
+		If the entry does not exist and a value is not provided, raise KeyError.
+
+		:param key: The key for entry to add or update.
+		:param value: The new value for the entry (optional)."""
+
+		ret = self.mapping.get(key)
+		if ret is None:
+			if value is _no_value:
+				raise KeyError(key)
+			self._setnode(ret, key, value)
+		else:
+			old_serial = ret.serial
+			serial = self._serial
+			ret.serial = serial
+			if value is _no_value:
+				value = ret.value
+			try:
+				self._setnode(ret, key, value)
+			except:
+				ret.serial = old_serial
+				raise
+			self._serial = serial + 1
 
 	@stub
 	def _compare(self, a, b):

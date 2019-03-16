@@ -24,7 +24,6 @@ inconsistent heap.
 This implementation keeps the heap consistent even if the comparison
 functions of the items throw an exception. It is threadsafe."""
 
-# TODO: implement move_to_end(key, value) using the serial
 # TODO: use collections.abc.MutableMapping as base class
 # TODO: use collections.abc.MappingView as base class
 
@@ -34,6 +33,9 @@ from weakref import ref as weakref, KeyedRef
 from sys import stderr
 from collections.abc import Set
 from traceback import print_exc
+
+class _NoValue: pass
+_no_value = _NoValue()
 
 class FakeKeyWeakHeapMapNode:
 	__slots__ = 'id', 'hash'
@@ -242,15 +244,18 @@ class WeakHeapMap:
 		return self.mapping[FakeKeyWeakHeapMapNode(id(key))].value
 
 	def __setitem__(self, key, value):
-		return self._setitem(key, value)
+		self._setitem(key, value)
 
 	@unlocked
 	def _setitem(self, key, value):
+		self._setnode(mapping.get(FakeKeyWeakHeapMapNode(id(key))))
+
+	@unlocked
+	def _setnode(self, container, key, value):
 		mapping = self.mapping
 		heap = self.heap
 		heap_len = len(heap)
 		answers = []
-		container = mapping.get(FakeKeyWeakHeapMapNode(id(key)))
 		container_key = None if container is None else container()
 		if container_key is None:
 			if container is not None:
@@ -552,7 +557,7 @@ class WeakHeapMap:
 		else:
 			ret_key = ret()
 		if ret_key is None:
-			self._setitem(key, default)
+			self._setnode(ret, key, default)
 			return default
 		else:
 			return ret.value
@@ -574,6 +579,38 @@ class WeakHeapMap:
 				self._setitem(key, value)
 		else:
 			self._fill_initial(items, kwargs)
+
+	def move_to_end(self, key, value = _no_value):
+		"""move_to_end(self, key, [value])
+		Move an existing key behind all other entries with the same value.
+
+		If the entry already exists and a value is provided, update the entry
+		with that value.
+
+		If the entry does not exist and a value is provided, insert it.
+
+		If the entry does not exist and a value is not provided, raise KeyError.
+
+		:param key: The key for entry to add or update.
+		:param value: The new value for the entry (optional)."""
+
+		ret = self.mapping.get(FakeKeyWeakHeapMapNode(id(key)))
+		if ret is None:
+			if value is _no_value:
+				raise KeyError(key)
+			self._setnode(ret, key, value)
+		else:
+			old_serial = ret.serial
+			serial = self._serial
+			ret.serial = serial
+			if value is _no_value:
+				value = ret.value
+			try:
+				self._setnode(ret, key, value)
+			except:
+				ret.serial = old_serial
+				raise
+			self._serial = serial + 1
 
 	@stub
 	def _compare(self, a, b):
