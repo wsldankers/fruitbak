@@ -16,7 +16,7 @@ inconsistent heap.
 This implementation keeps the heap consistent even if the comparison
 functions of the items throw an exception. It is threadsafe."""
 
-# TODO: implement move_to_end(key, True) using the counter
+# TODO: implement move_to_end(key, True) using the serial
 # TODO: use collections.abc.MutableMapping as base class
 # TODO: use collections.abc.MappingView as base class
 
@@ -27,20 +27,20 @@ from collections import namedtuple
 
 # Internal class that represents a node in the heapmap.
 class HeapMapNode:
-	__slots__ = ('key', 'value', 'index', 'counter')
-	def __init__(self, key, value, index, counter):
+	__slots__ = ('key', 'value', 'index', 'serial')
+	def __init__(self, key, value, index, serial):
 		self.key = key
 		self.value = value
 		self.index = index
-		self.counter = counter
+		self.serial = serial
 
 	def __lt__(self, other):
 		self_value = self.value
 		other_value = other.value
-		return self.counter < other.counter and not other_value < self_value or self_value < other_value
+		return self.serial < other.serial and not other_value < self_value or self_value < other_value
 
 	def __repr__(self):
-		return 'HeapMapNode(key = %r, value = %r, index = %d, counter = %d)' % (self.key, self.value, self.index, self.counter)
+		return 'HeapMapNode(key = %r, value = %r, index = %d, serial = %d)' % (self.key, self.value, self.index, self.serial)
 
 # Internal class that is returned for HeapMap.values()
 class HeapMapValueView:
@@ -101,35 +101,35 @@ class HeapMap:
 		initial values.
 	"""
 
-	_counter = 0
+	_serial = 0
 
 	def __init__(self, items = None, **kwargs):
 		heap = []
 		mapping = {}
-		counter = self._counter
-		counter_increment = self._counter_increment
+		serial = self._serial
+		serial_increment = self._serial_increment
 
 		if items is None:
 			pass
 		elif hasattr(items, 'items'):
 			for key, value in items.items():
-				mapping[key] = container = HeapMapNode(key, value, len(heap), counter)
+				mapping[key] = container = HeapMapNode(key, value, len(heap), serial)
 				heap.append(container)
-				counter += counter_increment
+				serial += serial_increment
 		elif hasattr(items, 'keys'):
 			for key in items.keys():
-				mapping[key] = container = HeapMapNode(key, items[key], len(heap), counter)
+				mapping[key] = container = HeapMapNode(key, items[key], len(heap), serial)
 				heap.append(container)
-				counter += counter_increment
+				serial += serial_increment
 		else:
 			for key, value in items:
-				mapping[key] = container = HeapMapNode(key, value, len(heap), counter)
+				mapping[key] = container = HeapMapNode(key, value, len(heap), serial)
 				heap.append(container)
-				counter += counter_increment
+				serial += serial_increment
 		for key, value in kwargs.items():
-			mapping[key] = container = HeapMapNode(key, value, len(heap), counter)
+			mapping[key] = container = HeapMapNode(key, value, len(heap), serial)
 			heap.append(container)
-			counter += counter_increment
+			serial += serial_increment
 
 		# the following loop runs in amortized O(n) time:
 		heap_len = len(heap)
@@ -159,7 +159,7 @@ class HeapMap:
 				
 		self.heap = heap
 		self.mapping = mapping
-		self._counter = counter
+		self._serial = serial
 
 	def __str__(self):
 		ret = ""
@@ -197,8 +197,8 @@ class HeapMap:
 		container = mapping.get(key)
 		if container is None:
 			index = heap_len
-			counter = self._counter
-			container = HeapMapNode(key, value, index, counter)
+			serial = self._serial
+			container = HeapMapNode(key, value, index, serial)
 
 			while index:
 				parent_index = (index - 1) // 2
@@ -225,12 +225,12 @@ class HeapMap:
 				else:
 					break
 
-			self._counter = counter + self._counter_increment
+			self._serial = serial + self._serial_increment
 			container.index = index
 			heap[index] = container
 		else:
 			index = container.index
-			comparison = HeapMapNode(container.key, container.counter, value, container.index)
+			comparison = HeapMapNode(container.key, container.serial, value, container.index)
 
 			while index:
 				parent_index = (index - 1) // 2
@@ -580,7 +580,7 @@ class MinHeapMap(HeapMap):
 	:param dict kwargs: Add all keyword items to the HeapMap as
 		initial values."""
 
-	_counter_increment = 1
+	_serial_increment = 1
 
 	def _compare(self, a, b):
 		return a < b
@@ -602,7 +602,7 @@ class MaxHeapMap(HeapMap):
 	:param dict kwargs: Add all keyword items to the HeapMap as
 		initial values."""
 
-	_counter_increment = -1
+	_serial_increment = -1
 
 	def _compare(self, a, b):
 		return b < a

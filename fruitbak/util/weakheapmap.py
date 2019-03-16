@@ -18,19 +18,19 @@ class FakeKeyWeakHeapMapNode:
 		return self.id == other.id
 
 class FakeValueWeakHeapMapNode:
-	__slots__ = ('value', 'counter')
-	def __init__(self, value, counter):
+	__slots__ = ('value', 'serial')
+	def __init__(self, value, serial):
 		self.value = value
-		self.counter = counter
+		self.serial = serial
 
 	def __lt__(self, other):
 		self_value = self.value
 		other_value = other.value
-		return self.counter < other.counter and not other_value < self_value or self_value < other_value
+		return self.serial < other.serial and not other_value < self_value or self_value < other_value
 
 class WeakHeapMapNode:
-	__slots__ = ('weakkey', 'value', 'index', 'counter', 'id', 'hash')
-	def __init__(self, key, value, index, counter, weakheapmap):
+	__slots__ = ('weakkey', 'value', 'index', 'serial', 'id', 'hash')
+	def __init__(self, key, value, index, serial, weakheapmap):
 		key_id = id(key)
 
 		def finalizer(weakkey):
@@ -47,7 +47,7 @@ class WeakHeapMapNode:
 		self.weakkey = weakref(key, finalizer)
 		self.value = value
 		self.index = index
-		self.counter = counter
+		self.serial = serial
 		self.id = key_id
 		self.hash = hash(key_id)
 
@@ -60,7 +60,7 @@ class WeakHeapMapNode:
 	def __lt__(self, other):
 		self_value = self.value
 		other_value = other.value
-		return self.counter < other.counter and not other_value < self_value or self_value < other_value
+		return self.serial < other.serial and not other_value < self_value or self_value < other_value
 
 class WeakHeapMapValueView:
 	__slots__ = ('mapping')
@@ -101,40 +101,40 @@ class WeakHeapMapItemView(Set):
 # datatype: supports both extractmin and fetching by key
 @lockingclass
 class WeakHeapMap:
-	_counter = 0
+	_serial = 0
 
 	def __init__(self, items = None, **kwargs):
 		heap = []
 		mapping = {}
-		counter = self._counter
-		counter_increment = self._counter_increment
+		serial = self._serial
+		serial_increment = self._serial_increment
 		weakself = weakref(self)
 
 		if items is None:
 			pass
 		elif hasattr(items, 'items'):
 			for key, value in items.items():
-				container = WeakHeapMapNode(key, value, len(heap), counter, weakself)
+				container = WeakHeapMapNode(key, value, len(heap), serial, weakself)
 				mapping[container] = container
 				heap.append(container)
-				counter += counter_increment
+				serial += serial_increment
 		elif hasattr(items, 'keys'):
 			for key in items.keys():
-				container = WeakHeapMapNode(key, items[key], len(heap), counter, weakself)
+				container = WeakHeapMapNode(key, items[key], len(heap), serial, weakself)
 				mapping[container] = container
 				heap.append(container)
-				counter += counter_increment
+				serial += serial_increment
 		else:
 			for key, value in items:
-				container = WeakHeapMapNode(key, value, len(heap), counter, weakself)
+				container = WeakHeapMapNode(key, value, len(heap), serial, weakself)
 				mapping[container] = container
 				heap.append(container)
-				counter += counter_increment
+				serial += serial_increment
 		for key, value in kwargs.items():
-			container = WeakHeapMapNode(key, value, len(heap), counter, weakself)
+			container = WeakHeapMapNode(key, value, len(heap), serial, weakself)
 			mapping[container] = container
 			heap.append(container)
-			counter += counter_increment
+			serial += serial_increment
 
 		# the following loop runs in amortized O(n) time:
 		heap_len = len(heap)
@@ -206,8 +206,8 @@ class WeakHeapMap:
 		container = mapping.get(fakenode)
 		if container is None:
 			index = heap_len
-			counter = self._counter
-			container = WeakHeapMapNode(key, value, index, counter, self.weakself)
+			serial = self._serial
+			container = WeakHeapMapNode(key, value, index, serial, self.weakself)
 
 			while index:
 				parent_index = (index - 1) // 2
@@ -234,12 +234,12 @@ class WeakHeapMap:
 				else:
 					break
 
-			self._counter = counter + self._counter_increment
+			self._serial = serial + self._serial_increment
 			container.index = index
 			heap[index] = container
 		else:
 			index = container.index
-			comparison = FakeValueWeakHeapMapNode(value, container.counter)
+			comparison = FakeValueWeakHeapMapNode(value, container.serial)
 
 			while index:
 				parent_index = (index - 1) // 2
@@ -502,7 +502,7 @@ class WeakHeapMap:
 		pass
 
 class MinWeakHeapMap(WeakHeapMap):
-	_counter_increment = 1
+	_serial_increment = 1
 
 	def _compare(self, a, b):
 		return a < b
@@ -512,7 +512,7 @@ class MinWeakHeapMap(WeakHeapMap):
 		return MaxWeakHeapMap(self)
 
 class MaxWeakHeapMap(WeakHeapMap):
-	_counter_increment = -1
+	_serial_increment = -1
 
 	def _compare(self, a, b):
 		return b < a
