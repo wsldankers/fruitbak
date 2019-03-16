@@ -1,12 +1,13 @@
 from .oo import stub
 from .locking import lockingclass, unlocked, locked
-from weakref import ref as weakref
+from weakref import ref as weakref, KeyedRef
 from sys import stderr
 from collections.abc import Set
 from traceback import print_exc
 
 class FakeKeyWeakHeapMapNode:
-	__slots__ = ('id', 'hash')
+	__slots__ = 'id', 'hash'
+
 	def __init__(self, id):
 		self.id = id
 		self.hash = hash(id)
@@ -18,36 +19,23 @@ class FakeKeyWeakHeapMapNode:
 		return self.id == other.id
 
 class FakeValueWeakHeapMapNode:
-	__slots__ = ('value', 'serial')
+	__slots__ = 'value', 'serial'
+
 	def __init__(self, value, serial):
 		self.value = value
 		self.serial = serial
 
-	def __lt__(self, other):
-		self_value = self.value
-		other_value = other.value
-		return self.serial < other.serial and not other_value < self_value or self_value < other_value
-
 class WeakHeapMapNode:
-	__slots__ = ('weakkey', 'value', 'index', 'serial', 'id', 'hash')
-	def __init__(self, key, value, index, serial, weakheapmap):
+	__slots__ = 'weakkey', 'value', 'index', 'serial', 'initial', 'id', 'hash'
+
+	def __init__(self, key, value, index, serial, finalizer):
 		key_id = id(key)
 
-		def finalizer(weakkey):
-			heapmap = weakheapmap()
-			if heapmap is not None:
-				fakenode = FakeKeyWeakHeapMapNode(key_id)
-				try:
-					heapmap._delnode(heapmap.mapping[fakenode])
-				except KeyError:
-					pass
-				except:
-					print_exc(file = stderr)
-
-		self.weakkey = weakref(key, finalizer)
+		self.weakkey = KeyedRef(key, finalizer, (key_id, serial))
 		self.value = value
 		self.index = index
 		self.serial = serial
+		self.initial = serial # like serial but does not change
 		self.id = key_id
 		self.hash = hash(key_id)
 
@@ -63,7 +51,7 @@ class WeakHeapMapNode:
 		return self.serial < other.serial and not other_value < self_value or self_value < other_value
 
 class WeakHeapMapValueView:
-	__slots__ = ('mapping')
+	__slots__ = 'mapping',
 
 	def __init__(self, heapmap):
 		self.mapping = heapmap.mapping
@@ -79,7 +67,7 @@ class WeakHeapMapValueView:
 		return False
 
 class WeakHeapMapItemView(Set):
-	__slots__ = ('mapping')
+	__slots__ = 'mapping',
 
 	def __init__(self, heapmap):
 		self.mapping = heapmap.mapping
@@ -107,34 +95,49 @@ class WeakHeapMap:
 		heap = []
 		mapping = {}
 		serial = self._serial
-		serial_increment = self._serial_increment
 		weakself = weakref(self)
+
+		def finalizer(weakkey):
+			key_id, initial = weakkey.key
+			heapmap = weakself()
+			if heapmap is not None:
+				fakenode = FakeKeyWeakHeapMapNode(key_id)
+				with heapmap.lock:
+					try:
+						node = heapmap.mapping[fakenode]
+					except KeyError:
+						pass
+					except:
+						print_exc(file = stderr)
+					else:
+						if node.initial == initial:
+							heapmap._delnode(node)
 
 		if items is None:
 			pass
 		elif hasattr(items, 'items'):
 			for key, value in items.items():
-				container = WeakHeapMapNode(key, value, len(heap), serial, weakself)
+				container = WeakHeapMapNode(key, value, len(heap), serial, finalizer)
 				mapping[container] = container
 				heap.append(container)
-				serial += serial_increment
+				serial += 1
 		elif hasattr(items, 'keys'):
 			for key in items.keys():
-				container = WeakHeapMapNode(key, items[key], len(heap), serial, weakself)
+				container = WeakHeapMapNode(key, items[key], len(heap), serial, finalizer)
 				mapping[container] = container
 				heap.append(container)
-				serial += serial_increment
+				serial += 1
 		else:
 			for key, value in items:
-				container = WeakHeapMapNode(key, value, len(heap), serial, weakself)
+				container = WeakHeapMapNode(key, value, len(heap), serial, finalizer)
 				mapping[container] = container
 				heap.append(container)
-				serial += serial_increment
+				serial += 1
 		for key, value in kwargs.items():
-			container = WeakHeapMapNode(key, value, len(heap), serial, weakself)
+			container = WeakHeapMapNode(key, value, len(heap), serial, finalizer)
 			mapping[container] = container
 			heap.append(container)
-			serial += serial_increment
+			serial += 1
 
 		# the following loop runs in amortized O(n) time:
 		heap_len = len(heap)
@@ -164,7 +167,7 @@ class WeakHeapMap:
 				
 		self.heap = heap
 		self.mapping = mapping
-		self.weakself = weakself
+		self.finalizer = finalizer
 
 	def __str__(self):
 		ret = ""
@@ -207,12 +210,12 @@ class WeakHeapMap:
 		if container is None:
 			index = heap_len
 			serial = self._serial
-			container = WeakHeapMapNode(key, value, index, serial, self.weakself)
+			container = WeakHeapMapNode(key, value, index, serial, self.finalizer)
 
 			while index:
 				parent_index = (index - 1) // 2
 				parent = heap[parent_index]
-				is_greater = bool(self._compare(value, parent.value))
+				is_greater = bool(self._compare(container, parent))
 				answers.append(is_greater)
 				if is_greater:
 					index = parent_index
@@ -234,7 +237,7 @@ class WeakHeapMap:
 				else:
 					break
 
-			self._serial = serial + self._serial_increment
+			self._serial = serial + 1
 			container.index = index
 			heap[index] = container
 		else:
@@ -502,20 +505,20 @@ class WeakHeapMap:
 		pass
 
 class MinWeakHeapMap(WeakHeapMap):
-	_serial_increment = 1
-
 	def _compare(self, a, b):
-		return a < b
+		a_value = a.value
+		b_value = b.value
+		return a.serial < b.serial and not b_value < a_value or a_value < b_value
 
 	@locked
 	def reversed(self):
 		return MaxWeakHeapMap(self)
 
 class MaxWeakHeapMap(WeakHeapMap):
-	_serial_increment = -1
-
 	def _compare(self, a, b):
-		return b < a
+		a_value = a.value
+		b_value = b.value
+		return a.serial < b.serial and not a_value < b_value or b_value < a_value
 
 	@locked
 	def reversed(self):

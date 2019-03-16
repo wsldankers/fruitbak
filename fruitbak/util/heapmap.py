@@ -27,7 +27,7 @@ from collections import namedtuple
 
 # Internal class that represents a node in the heapmap.
 class HeapMapNode:
-	__slots__ = ('key', 'value', 'index', 'serial')
+	__slots__ = 'key', 'value', 'index', 'serial'
 	def __init__(self, key, value, index, serial):
 		self.key = key
 		self.value = value
@@ -44,7 +44,7 @@ class HeapMapNode:
 
 # Internal class that is returned for HeapMap.values()
 class HeapMapValueView:
-	__slots__ = ('mapping')
+	__slots__ = 'mapping',
 
 	def __init__(self, heapmap):
 		self.mapping = heapmap.mapping
@@ -64,7 +64,7 @@ class HeapMapValueView:
 
 # Internal class that is returned for HeapMap.items()
 class HeapMapItemView(Set):
-	__slots__ = ('mapping')
+	__slots__ = 'mapping',
 
 	def __init__(self, heapmap):
 		self.mapping = heapmap.mapping
@@ -107,7 +107,6 @@ class HeapMap:
 		heap = []
 		mapping = {}
 		serial = self._serial
-		serial_increment = self._serial_increment
 
 		if items is None:
 			pass
@@ -115,21 +114,21 @@ class HeapMap:
 			for key, value in items.items():
 				mapping[key] = container = HeapMapNode(key, value, len(heap), serial)
 				heap.append(container)
-				serial += serial_increment
+				serial += 1
 		elif hasattr(items, 'keys'):
 			for key in items.keys():
 				mapping[key] = container = HeapMapNode(key, items[key], len(heap), serial)
 				heap.append(container)
-				serial += serial_increment
+				serial += 1
 		else:
 			for key, value in items:
 				mapping[key] = container = HeapMapNode(key, value, len(heap), serial)
 				heap.append(container)
-				serial += serial_increment
+				serial += 1
 		for key, value in kwargs.items():
 			mapping[key] = container = HeapMapNode(key, value, len(heap), serial)
 			heap.append(container)
-			serial += serial_increment
+			serial += 1
 
 		# the following loop runs in amortized O(n) time:
 		heap_len = len(heap)
@@ -225,7 +224,7 @@ class HeapMap:
 				else:
 					break
 
-			self._serial = serial + self._serial_increment
+			self._serial = serial + 1
 			container.index = index
 			heap[index] = container
 		else:
@@ -580,10 +579,10 @@ class MinHeapMap(HeapMap):
 	:param dict kwargs: Add all keyword items to the HeapMap as
 		initial values."""
 
-	_serial_increment = 1
-
 	def _compare(self, a, b):
-		return a < b
+		a_value = a.value
+		b_value = b.value
+		return a.serial < b.serial and not b_value < a_value or a_value < b_value
 
 	@locked
 	def reversed(self):
@@ -602,10 +601,10 @@ class MaxHeapMap(HeapMap):
 	:param dict kwargs: Add all keyword items to the HeapMap as
 		initial values."""
 
-	_serial_increment = -1
-
 	def _compare(self, a, b):
-		return b < a
+		a_value = a.value
+		b_value = b.value
+		return a.serial < b.serial and not a_value < b_value or b_value < a_value
 
 	@locked
 	def reversed(self):
