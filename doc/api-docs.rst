@@ -11,4 +11,5 @@ API Documentation
    util/locking
    util/oo
    util/strbytes
+   util/tabulate
    util/weak

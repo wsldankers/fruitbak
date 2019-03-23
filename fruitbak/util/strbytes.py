@@ -1,16 +1,16 @@
 """Functions to convert between str and bytes objects. Typically used to
 handle filenames that may not be in the same encoding as the local
 filesystem, so they use a generic UTF-8 with surrogateescape encoding
-scheme."""
+scheme.
+
+See `the Python 3 glossary on ‘bytes-like object’
+<https://docs.python.org/3/glossary.html#term-bytes-like-object>`_ for
+details on what it means for an object to be bytes-like."""
 
 from pathlib import PurePath
 
 def is_byteslike(obj):
 	"""Test whether `obj` is a bytes-like object.
-
-	See `the Python 3 glossary on ‘bytes-like object’
-	<https://docs.python.org/3/glossary.html#term-bytes-like-object>`_ for
-	details on what it means for an object to be bytes-like.
 
 	:param obj: The object to test
 	:return: Whether the object is bytes-like.
