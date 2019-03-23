@@ -20,6 +20,12 @@ AC_CACHE_CHECK([for the full path of Python 3], [ac_cv_path_PYTHON], [
 ])
 AC_SUBST([PYTHON], [$ac_cv_path_PYTHON])
 
+# for the compile script
+AC_PATH_PROG(PERL, perl)
+case $PERL in '')
+	AC_MSG_ERROR([cannot find perl in your PATH.])
+esac
+
 AC_CONFIG_COMMANDS([scriptconfig], [echo "$allconfigvars" >scriptconfig], [
 allconfigvars=\$(cat <<'__CONFIGVARS_EOT'
 $(for ax_var in $ac_subst_vars
