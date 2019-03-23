@@ -9,3 +9,4 @@ API Documentation
    util/strbytes
    util/weak
    util/heapmap
+   util/weakheapmap

@@ -14,12 +14,13 @@ It comes in two variants, one (MinWeakHeapMap) that extracts the smallest
 element when you call pop(), and one (MaxWeakHeapMap) that extracts the
 largest.
 
-Entries with equal keys are extracted in insertion order. Iteration is in
-insertion order if your Python dict iterates in insertion order (Python
->3.7).
+Entries with equal values are extracted in insertion order. Iteration is in
+insertion order if your Python's dict implementation iterates in insertion
+order (Python >3.7).
 
 Inconsistent results from the comparison functions will result in an
-inconsistent heap.
+inconsistent heap. Comparison functions with side effects cause undefined
+behavior if these side effects affect the WeakHeapMap.
 
 This implementation keeps the heap consistent even if the comparison
 functions of the items throw an exception. It is threadsafe."""
@@ -37,6 +38,8 @@ from traceback import print_exc
 class _NoValue: pass
 _no_value = _NoValue()
 
+# Internal class to fake a node for key lookup purposes.
+# Real WeakHeapMapNodes are expensive because they inherit from weakref.
 class FakeKeyWeakHeapMapNode:
 	__slots__ = 'id', 'hash'
 
@@ -50,6 +53,8 @@ class FakeKeyWeakHeapMapNode:
 	def __eq__(self, other):
 		return self.id == other.id
 
+# Internal class to fake a node for value comparison purposes.
+# Real WeakHeapMapNodes are expensive because they inherit from weakref.
 class FakeValueWeakHeapMapNode:
 	__slots__ = 'value', 'serial'
 
@@ -57,6 +62,7 @@ class FakeValueWeakHeapMapNode:
 		self.value = value
 		self.serial = serial
 
+# Internal class that represents a node in the weakheapmap.
 class WeakHeapMapNode(weakref):
 	__slots__ = 'value', 'index', 'serial', 'id', 'hash'
 
@@ -80,6 +86,23 @@ class WeakHeapMapNode(weakref):
 	def __eq__(self, other):
 		return self.id == other.id
 
+# Internal class that is returned for HeapMap.keys()
+class WeakHeapMapKeyView(Set):
+	__slots__ = 'mapping',
+
+	def __init__(self, heapmap):
+		self.mapping = heapmap.mapping
+
+	def __iter__(self):
+		for node in heapmap.mapping:
+			key = node()
+			if key is not None:
+				yield key
+
+	def __contains__(self, key):
+		return FakeKeyWeakHeapMapNode(id(key)) in self.mapping
+
+# Internal class that is returned for WeakHeapMap.values()
 class WeakHeapMapValueView:
 	__slots__ = 'mapping',
 
@@ -96,6 +119,7 @@ class WeakHeapMapValueView:
 				return True
 		return False
 
+# Internal class that is returned for HeapMap.items()
 class WeakHeapMapItemView(Set):
 	__slots__ = 'mapping',
 
@@ -119,6 +143,20 @@ class WeakHeapMapItemView(Set):
 # datatype: supports both extractmin and fetching by key
 @lockingclass
 class WeakHeapMap:
+	"""__init__(items = None, **kwargs)
+
+	Base class for MinWeakHeapMap and MaxWeakHeapMap. Do not instantiate
+	directly, use one of the subclasses.
+
+	Initialized using the same interface as dict().
+
+	:param items: Add this dict or an iterable of size 2 iterables
+		to the WeakHeapMap as initial values.
+	:type items: dict or iter(iter)
+	:param dict kwargs: Add all keyword items to the HeapMap as
+		initial values.
+	"""
+
 	_serial = 0
 
 	def __init__(self, items = None, **kwargs):
@@ -216,7 +254,7 @@ class WeakHeapMap:
 	def __str__(self):
 		ret = ""
 		for v in self.heap:
-			ret += str(v.key) + " " + str(v.value) + " " + str(v.index) + "\n"
+			ret += str(v.weakkey()) + " " + str(v.value) + " " + str(v.index) + "\n"
 		return ret
 
 	@unlocked
@@ -470,84 +508,151 @@ class WeakHeapMap:
 		heap[index] = replacement
 		replacement.index = index
 
+	@unlocked
 	def pop(self, key = None):
+		"""Remove and return the value in the heap corresponding to the specified key.
+		If key is absent or None, remove and return the smallest/largest value in the heap.
+
+		:param key: The key of the value to remove and return.
+		:return: The value corresponding to key."""
+
+		return self.popitem(key)[1]
+
+	@unlocked
+	def popkey(self, key = None):
+		"""Remove and return the key in the heap equal to the specified key.
+		If key is absent or None, remove and return the smallest/largest value in the heap.
+
+		:param key: The key of the value to remove and return.
+		:return: The value corresponding to key."""
+
+		return self.popitem(key)[0]
+
+	def popitem(self, key = None):
+		"""Remove and return a tuple of the key and the value in the heap
+		corresponding to the specified key. If key is absent or None, remove and
+		return the smallest/largest item in the heap.
+
+		:param key: The key of the item to remove and return.
+		:return: A tuple of (key, value) corresponding to key."""
+
 		if key is None:
+			ret = self.heap[0]
 			while True:
 				ret = self.heap[0]
 				ret_key = ret()
 				self._delnode(ret)
 				if ret_key is not None:
-					return ret.value
+					return ret_key, ret.value
 		else:
 			ret = self.mapping[FakeKeyWeakHeapMapNode(id(key))]
 			ret_key = ret()
 			if ret_key is None:
 				raise KeyError(key)
 			self._delnode(ret)
-			return ret.value
+			return ret_key, ret.value
 
-	def popkey(self, key = None):
+	@unlocked
+	def peek(self, key = None):
+		"""Return the value in the heap corresponding to the specified key.
+		If key is absent or None, return the smallest value in the heap.
+
+		:param key: The key of the value to return.
+		:return: The value corresponding to key."""
+
+		return self.peekitem(key)[1]
+
+	@unlocked
+	def peekkey(self, key = None):
+		"""Return the key in the heap corresponding to the specified key.
+		If key is absent or None, return the smallest value in the heap.
+
+		:param key: The key to look up and return.
+		:return: The value corresponding to key."""
+
+		return self.peekitem(key)[0]
+
+	def peekitem(self, key = None):
+		"""Return a tuple of the key and the value in the heap corresponding to the
+		specified key. If key is absent or None, return the smallest item in the
+		heap.
+
+		:param key: The key of the item to return.
+		:return: A tuple of (key, value) corresponding to key."""
+
 		if key is None:
-			ret = self.heap[0]
+			while True:
+				ret = self.heap[0]
+				ret_key = ret()
+				if ret_key is not None:
+					return ret_key, ret.value
+				self._delnode(ret)
 		else:
 			ret = self.mapping[FakeKeyWeakHeapMapNode(id(key))]
-		ret_key = ret()
-		if ret_key is None:
-			raise KeyError(key)
-		self._delnode(ret)
-		return ret_key
-
-	def popitem(self, key = None):
-		if key is None:
-			ret = self.heap[0]
-		else:
-			ret = self.mapping[FakeKeyWeakHeapMapNode(id(key))]
-		ret_key = ret()
-		if ret_key is None:
-			raise KeyError(key)
-		self._delnode(ret)
-		return ret_key, ret.value
-
-	@unlocked
-	def peek(self):
-		return self.heap[0].value
-
-	@unlocked
-	def peekkey(self):
-		return self.heap[0]()
-
-	@unlocked
-	def peekitem(self):
-		item = self.heap[0]
-		return item(), item.value
+			ret_key = ret()
+			if ret_key is None:
+				raise KeyError(key)
+			return ret_key, ret.value
 
 	@unlocked
 	def keys(self):
-		return self
+		"""Return a view of the keys.
+
+		:return: A view of the keys of the mapping."""
+
+		return WeakHeapMapKeyView(self)
 
 	@unlocked
 	def values(self):
+		"""Return a view of the values.
+
+		:return: A view of the values of the mapping."""
+
 		return WeakHeapMapValueView(self)
 
 	@unlocked
 	def items(self):
+		"""Return a view of the keys and values.
+
+		:return: A view of the keys and values of the mapping, in a tuple each."""
+
 		return WeakHeapMapItemView(self)
 
 	def clear(self):
+		"""Empty the WeakHeapMap by removing all keys and values."""
+
 		self.heap.clear()
 		self.mapping.clear()
 		self._serial = 0
 
-	@unlocked
 	def copy(self):
+		"""Create a shallow copy of this HeapMap.
+
+		:return: The new HeapMap."""
+
 		return type(self)(self.items())
 
 	@unlocked
 	@classmethod
 	def fromkeys(cls, keys, value = None):
+		"""Create a new WeakHeapMap with keys from iterable and values set to value.
+
+		fromkeys() is a class method that returns a new HeapMap.
+
+		:param iter iterable: The iterable that provides the keys.
+		:param value: The value to use for all items. Defaults to None.
+		:return: The new HeapMap."""
+
 		return cls(dict.fromkeys(keys, value))
 
 	def setdefault(self, key, default = None):
+		"""If key is in the WeakHeapMap, return its value. If not, insert key with a
+		value of default and return default.
+
+		:param key: The key to look up and/or insert.
+		:param default: The value to use if the key is not in the HeapMap.
+		:return: Either the existing value or the default."""
+
 		mapping = self.mapping
 		fakenode = FakeKeyWeakHeapMapNode(id(key))
 		try:
@@ -563,6 +668,18 @@ class WeakHeapMap:
 			return ret.value
 
 	def update(self, items = None, **kwargs):
+		"""Update the dictionary with the key/value pairs from other, overwriting
+		existing keys. Return None.
+
+		update() accepts either another dictionary-like object and/or an iterable
+		of key/value pairs (as tuples or other iterables of length two).
+		If keyword arguments are specified, the HeapMap is then updated with
+		those key/value pairs: h.update(red = 1, blue = 2).
+
+		:param other: Add these items to the HeapMap.
+		:type other: dict or iter(iter)
+		:param dict kwargs: Add all keyword items to the HeapMap."""
+
 		if self.heap:
 			if items is None:
 				pass
@@ -618,9 +735,24 @@ class WeakHeapMap:
 
 	@stub
 	def reversed(self):
-		pass
+		"""Create a new WeakHeapMap that pops in the opposite direction, i.e., returns
+		the largest item instead of the smallest or vice-versa. This is a shallow copy.
+
+		:return: The new HeapMap."""
 
 class MinWeakHeapMap(WeakHeapMap):
+	"""__init__(items = None, **kwargs)
+
+	WeakHeapMap variant that makes pop() return the smallest element.
+
+	Initialized using the same interface as dict().
+
+	:param items: Add this dict or an iterable of size 2 iterables
+		to the HeapMap as initial values.
+	:type items: dict or iter(iter)
+	:param dict kwargs: Add all keyword items to the HeapMap as
+		initial values."""
+
 	def _compare(self, a, b):
 		a_value = a.value
 		b_value = b.value
@@ -631,6 +763,18 @@ class MinWeakHeapMap(WeakHeapMap):
 		return MaxWeakHeapMap(self)
 
 class MaxWeakHeapMap(WeakHeapMap):
+	"""__init__(items = None, **kwargs)
+
+	WeakHeapMap variant that makes pop() return the largest element.
+
+	Initialized using the same interface as dict().
+
+	:param items: Add this dict or an iterable of size 2 iterables
+		to the HeapMap as initial values.
+	:type items: dict or iter(iter)
+	:param dict kwargs: Add all keyword items to the HeapMap as
+		initial values."""
+
 	def _compare(self, a, b):
 		a_value = a.value
 		b_value = b.value

@@ -10,12 +10,13 @@ It comes in two variants, one (MinHeapMap) that extracts the smallest
 element when you call pop(), and one (MaxHeapMap) that extracts the
 largest.
 
-Entries with equal keys are extracted in insertion order. Iteration is in
-insertion order if your Python dict iterates in insertion order (Python 
->3.7).
+Entries with equal values are extracted in insertion order. Iteration is in
+insertion order if your Python's dict implementation iterates in insertion
+order (Python >3.7).
 
 Inconsistent results from the comparison functions will result in an
-inconsistent heap.
+inconsistent heap. Comparison functions with side effects cause undefined
+behavior if these side effects affect the HeapMap.
 
 This implementation keeps the heap consistent even if the comparison
 functions of the items throw an exception. It is threadsafe."""
@@ -38,11 +39,6 @@ class HeapMapNode:
 		self.value = value
 		self.index = index
 		self.serial = serial
-
-	def __lt__(self, other):
-		self_value = self.value
-		other_value = other.value
-		return self.serial < other.serial and not other_value < self_value or self_value < other_value
 
 	def __repr__(self):
 		return 'HeapMapNode(key = %r, value = %r, index = %d, serial = %d)' % (self.key, self.value, self.index, self.serial)
@@ -422,12 +418,7 @@ class HeapMap:
 		:param key: The key of the value to remove and return.
 		:return: The value corresponding to key."""
 
-		if key is None:
-			ret = self.heap[0]
-		else:
-			ret = self.mapping[key]
-		self._delnode(ret)
-		return ret.value
+		return self.popitem(key)[1]
 
 	def popkey(self, key = None):
 		"""Remove and return the key in the heap equal to the specified key.
@@ -436,12 +427,7 @@ class HeapMap:
 		:param key: The key of the value to remove and return.
 		:return: The value corresponding to key."""
 
-		if key is None:
-			ret = self.heap[0]
-		else:
-			ret = self.mapping[key]
-		self._delnode(ret)
-		return ret.key
+		return self.popitem(key)[0]
 
 	def popitem(self, key = None):
 		"""Remove and return a tuple of the key and the value in the heap
@@ -460,17 +446,27 @@ class HeapMap:
 		return key, ret.value
 
 	@unlocked
-	def peek(self):
+	def peek(self, key = None):
 		"""Return the value in the heap corresponding to the specified key.
 		If key is absent or None, return the smallest value in the heap.
 
 		:param key: The key of the value to return.
 		:return: The value corresponding to key."""
 
-		return self.heap[0].value
+		return self.peekitem(key)[1]
 
 	@unlocked
-	def peekitem(self):
+	def peekkey(self, key = None):
+		"""Return the key in the heap corresponding to the specified key.
+		If key is absent or None, return the smallest value in the heap.
+
+		:param key: The key to look up and return.
+		:return: The value corresponding to key."""
+
+		return self.peekitem(key)[0]
+
+	@unlocked
+	def peekitem(self, key = None):
 		"""Return a tuple of the key and the value in the heap corresponding to the
 		specified key. If key is absent or None, return the smallest item in the
 		heap.
@@ -478,7 +474,10 @@ class HeapMap:
 		:param key: The key of the item to return.
 		:return: A tuple of (key, value) corresponding to key."""
 
-		item = self.heap[0]
+		if key is None:
+			item = self.heap[0]
+		else:
+			item = self.mapping[key]
 		return item.key, item.value
 
 	@unlocked
@@ -535,7 +534,7 @@ class HeapMap:
 		"""If key is in the HeapMap, return its value. If not, insert key with a
 		value of default and return default.
 
-		:param key: The key to look op and/or insert.
+		:param key: The key to look up and/or insert.
 		:param default: The value to use if the key is not in the HeapMap.
 		:return: Either the existing value or the default."""
 
