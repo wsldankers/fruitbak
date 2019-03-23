@@ -210,7 +210,7 @@ class HeapMap:
 
 	@unlocked
 	def _setitem(self, key, value):
-		self._setnode(self, self.mapping.get(key), key, value)
+		self._setnode(self.mapping.get(key), key, value)
 
 	@unlocked
 	def _setnode(self, container, key, value):

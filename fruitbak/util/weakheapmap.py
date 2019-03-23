@@ -248,7 +248,7 @@ class WeakHeapMap:
 
 	@unlocked
 	def _setitem(self, key, value):
-		self._setnode(mapping.get(FakeKeyWeakHeapMapNode(id(key))))
+		self._setnode(self.mapping.get(FakeKeyWeakHeapMapNode(id(key))), key, value)
 
 	@unlocked
 	def _setnode(self, container, key, value):

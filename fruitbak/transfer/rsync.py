@@ -73,7 +73,7 @@ class RsyncTransfer(Transfer):
 		command = (b'/usr/bin/rsync',) + RsyncFetch.required_options + one_filesystem + (bytes(self.path),)
 
 		def entry_callback(name, size, mtime, mode, uid, user, gid, group, major, minor, symlink, hardlink):
-			dentry = Dentry(name = name, size = size, mtime = mtime, mode = mode, uid = uid, gid = gid)
+			dentry = Dentry(name = name, size = size, mtime = mtime * 1000000000, mode = mode, uid = uid, gid = gid)
 			if hardlink is None:
 				if dentry.is_file:
 					ref_dentry = reference.get(name)
