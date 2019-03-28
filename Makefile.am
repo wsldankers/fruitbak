@@ -3,11 +3,10 @@ supportbindir = $(pkgdatadir)/bin
 #sbindir = $(exec_prefix)/sbin
 
 bin_SCRIPTS = bin/fruitbak
-supportbin_SCRIPTS = bin/fruitbak-rsyncp-recv
 #man_MANS = $(bin_SCRIPTS:=.1)
 
-CLEANFILES = $(bin_SCRIPTS) $(bin_SCRIPTS:=.tmp) $(supportbin_SCRIPTS) $(supportbin_SCRIPTS:=.tmp) $(man_MANS)
-EXTRA_DIST = $(bin_SCRIPTS:=.py) $(supportbin_SCRIPTS:=.pl)
+CLEANFILES = $(bin_SCRIPTS) $(bin_SCRIPTS:=.tmp) $(man_MANS)
+EXTRA_DIST = $(bin_SCRIPTS:=.py)
 
 .py:
 	mkdir -p $$(dirname $@)
