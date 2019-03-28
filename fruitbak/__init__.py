@@ -1,4 +1,51 @@
-"""Top-level object for a Fruitbak installation"""
+"""Top-level object for a Fruitbak installation.
+
+The `Fruitbak` object defined here is the entry point for all Fruitbak
+functionality such as browsing the stored backups, creating new backups
+and performing maintenance.
+
+The basic structure of Fruitbak when it comes to browsing the on-disk data
+is that of a number of hosts, each of which has a number of backups, each
+of which has a number of ‘shares’, each of which has a list of
+directory entries that were backed up.
+
+In a diagram:
+
+* fruitbak
+	* host1
+		* backup1
+			* share1
+				* directory1
+				* directory1/file1
+				* directory1/file2
+				* file2
+			* share2
+				* directory1
+				* directory1/file
+		* backup2
+			* share1
+				* directory1
+				* ...
+			* share2
+				* directory1
+				* ...
+	* host2
+		* backup1
+			* share1
+				* directory1
+				* ...
+
+A share is part of a host that needs to be backed up. For a UNIX system
+that might be a mount point or just a directory. For a Windows system that
+would usually be a drive (such as ``C:`` or ``D:``).
+
+Each of the above entities has a direct equivalent in the codebase. The
+top-level object (`Fruitbak`) is defined in this file. Use this object to
+access a specific host or the list of all host. The `Host` objects you get
+from this can be used to access or list all backups under that host,
+etcetera, down to the `Dentry` objects that represent individual files and
+directories. You should never create `Host`, `Backup` or `Share` objects
+directly."""
 
 from fruitbak.util import Initializer, initializer, sysopendir, lockingclass, unlocked
 from fruitbak.host import Host
@@ -18,11 +65,18 @@ from itertools import chain
 
 @lockingclass
 class Fruitbak(Initializer):
-	"""Top-level object for a Fruitbak installation.
+	"""Fruitbak(*, confdir = (required)))
+	Instantiate a top-level object for accessing a Fruitbak installation.
 
-	For each Fruitbak installation you should instantiate a Fruitbak
-	object as a starting point for accessing its configuration and
-	backed up hosts.
+	The `Fruitbak` object is the starting point for all Fruitbak functionality
+	such as browsing the stored backups, creating new backups and performing
+	maintenance.
+
+	:param confdir: The configuration directory (required).
+	:type confdir: Path or str or bytes
+	:param rootdir: The root directory for all other directories.
+	:type rootdir: Path or str or bytes
+	
 	"""
 
 	@initializer
@@ -45,7 +99,6 @@ class Fruitbak(Initializer):
 
 	@configurable
 	def rootdir(self):
-		assert False
 		for envvar in ('FRUITBAK_ROOT', 'HOME'):
 			dir = getenv(envvar)
 			if dir is not None:

@@ -3,6 +3,7 @@ API Documentation
 
 .. toctree::
 
+   fruitbak
    dentry
    util/click
    util/fd
