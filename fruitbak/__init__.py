@@ -15,25 +15,27 @@ In a diagram:
 	* host1
 		* backup1
 			* share1
+				* file1
 				* directory1
-				* directory1/file1
 				* directory1/file2
-				* file2
+				* directory1/file3
+				* …
 			* share2
 				* directory1
 				* directory1/file
+				* …
 		* backup2
 			* share1
 				* directory1
-				* ...
+				* …
 			* share2
 				* directory1
-				* ...
+				* …
 	* host2
 		* backup1
 			* share1
 				* directory1
-				* ...
+				* …
 
 A share is part of a host that needs to be backed up. For a UNIX system
 that might be a mount point or just a directory. For a Windows system that
@@ -41,7 +43,7 @@ would usually be a drive (such as ``C:`` or ``D:``).
 
 Each of the above entities has a direct equivalent in the codebase. The
 top-level object (`Fruitbak`) is defined in this file. Use this object to
-access a specific host or the list of all host. The `Host` objects you get
+access a specific host or the list of all hosts. The `Host` objects you get
 from this can be used to access or list all backups under that host,
 etcetera, down to the `Dentry` objects that represent individual files and
 directories. You should never create `Host`, `Backup` or `Share` objects
@@ -65,26 +67,38 @@ from itertools import chain
 
 @lockingclass
 class Fruitbak(Initializer):
-	"""Fruitbak(*, confdir = (required)))
+	"""Fruitbak(*, confdir = None, rootdir = None)
 	Instantiate a top-level object for accessing a Fruitbak installation.
 
 	The `Fruitbak` object is the starting point for all Fruitbak functionality
 	such as browsing the stored backups, creating new backups and performing
 	maintenance.
 
-	:param confdir: The configuration directory (required).
+	:param confdir: The configuration directory.
 	:type confdir: Path or str or bytes
 	:param rootdir: The root directory for all other directories.
-	:type rootdir: Path or str or bytes
-	
-	"""
+	:type rootdir: Path or str or bytes"""
 
 	@initializer
 	def config(self):
+		"""The global configuration for Fruitbak, loaded from ``global.py``.
+
+		:type: fruitbak.Config"""
+
 		return Config('global', dir_fd = self.confdir_fd)
 
 	@initializer
 	def confdir(self):
+		"""The configuration directory for Fruitbak. Defaults to the
+		value of the ``$FRUITBAK_CONF`` environment variable, or, if that
+		is not available, the ``conf`` directory.
+
+		This property is normally only used by `confdir_fd`, which opens
+		it relative to `rootdir` if available and in the current directory
+		if not.
+
+		:type: Path"""
+
 		CONF = getenv('FRUITBAK_CONF')
 		if CONF is not None:
 			return Path(CONF)
@@ -92,6 +106,13 @@ class Fruitbak(Initializer):
 
 	@initializer
 	def confdir_fd(self):
+		"""A file descriptor for the configuration directory.
+		The configuration directory (as determined by `confdir`) is opened
+		relative to `rootdir` if available and in the current directory
+		if not.
+
+		:type: fruitbak.util.fd.fd"""
+
 		if 'rootdir' in self.__dict__:
 			return self.rootdir_fd.sysopendir(self.confdir)
 		else:
@@ -99,6 +120,16 @@ class Fruitbak(Initializer):
 
 	@configurable
 	def rootdir(self):
+		"""The root directory for Fruitbak. Defaults to the value of the
+		``$FRUITBAK_ROOT`` environment variable, or, if that is not available,
+		the value of the ``$HOME`` environment variable.
+
+		This property is normally only used by `rootdir_fd`.
+
+		This property is user-configurable.
+
+		:type: Path"""
+
 		for envvar in ('FRUITBAK_ROOT', 'HOME'):
 			dir = getenv(envvar)
 			if dir is not None:
@@ -111,10 +142,26 @@ class Fruitbak(Initializer):
 
 	@initializer
 	def rootdir_fd(self):
+		"""A file descriptor for the root directory.
+		The root directory (as determined by `rootdir`) is opened relative to the
+		current directory.
+
+		:type: fruitbak.util.fd.fd"""
+
 		return sysopendir(self.rootdir)
 
 	@configurable
 	def hostdir(self):
+		"""The directory containing per-host backup metadata.
+		Defaults to ``host``.
+
+		This property is normally only used by `hostdir_fd`.
+
+		This property is user-configurable.
+
+		:type: Path"""
+
+		# Will get converted to a Path by hostdir.prepare:
 		return 'host'
 
 	@hostdir.prepare
@@ -123,10 +170,23 @@ class Fruitbak(Initializer):
 
 	@initializer
 	def hostdir_fd(self):
+		"""A file descriptor for the host directory.
+		This directory (the path being determined by `rootdir`) is opened relative
+		to the `rootdir` directory.
+
+		:type: fruitbak.util.fd.fd"""
+
 		return self.rootdir_fd.sysopendir(self.hostdir)
 
 	@configurable
 	def max_parallel_backups(self):
+		"""The number of backups that Fruitbak will run in parallel.
+		Defaults to 1.
+
+		This property is user-configurable.
+
+		:type: int"""
+
 		return 1
 
 	@max_parallel_backups.validate
@@ -138,6 +198,13 @@ class Fruitbak(Initializer):
 
 	@configurable
 	def max_workers(self):
+		"""The number of I/O worker threads that Fruitbak will use.
+		Defaults to 32.
+
+		This property is user-configurable.
+
+		:type: int"""
+
 		return 32
 
 	@max_workers.validate
@@ -149,29 +216,52 @@ class Fruitbak(Initializer):
 
 	@initializer
 	def executor(self):
+		"""A `ThreadPoolExecutor` with `max_workers` threads, suitable for I/O purposes.
+
+		:type: concurrent.futures.ThreadPoolExecutor"""
+
 		return ThreadPoolExecutor(max_workers = self.max_workers)
 
 	@initializer
 	def cpu_executor(self):
+		"""A `ThreadPoolExecutor` with as many threads as the number of available
+		CPU cores/threads, suitable for CPU purposes.
+
+		:type: concurrent.futures.ThreadPoolExecutor"""
+
 		return ThreadPoolExecutor(max_workers = len(sched_getaffinity(0)))
 
 	@configurable
 	def hash_algo(data):
+		"""A class compatible with hashlib.sha256 that is used to hash chunks
+		in the Fruitbak pool. Defaults to hashlib.sha256.
+
+		The constructor is invoked without arguments and must return an object
+		that implements the `update` and `digest` methods.
+
+		This property is user-configurable.
+
+		This property is only used by `hash_func`.
+
+		This property is only used if `hash_func` is not set or configured.
+
+		:type: class"""
+
 		from hashlib import sha256
 		return sha256
 
-	@initializer
-	def hashfunc(self):
+	@configurable
+	def hash_func(self):
 		hash_algo = self.hash_algo
-		def hashfunc(data):
+		def hash_func(data):
 			h = hash_algo()
 			h.update(data)
 			return h.digest()
-		return hashfunc
+		return hash_func
 
 	@initializer
 	def hash_size(self):
-		return len(self.hashfunc(b''))
+		return len(self.hash_func(b''))
 
 	@configurable
 	def chunk_size(self):

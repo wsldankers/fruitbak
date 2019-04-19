@@ -23,14 +23,19 @@ class _getinitializer:
 		try:
 			objdict = obj.__dict__
 		except AttributeError:
-			# This typically happens when querying for docstrings,
-			# so return something with the appropriate docstring.
-			return self
-		# Do an explicit check to accommodate a threaded scenario:
+			if obj is None:
+				# This typically happens when querying for docstrings,
+				# so return something with the appropriate docstring.
+				return self
+			raise
+
+		# Do an explicit check to accommodate the threaded scenario:
 		# even if this getter is protected by a lock, that lock is
-		# not taken when python checks whether the attribute exists
-		# in the __dict__. So when we run, another thread might
-		# have caused the __dict__ entry to be populated.
+		# not taken during the moment that python checks whether the
+		# attribute exists in the __dict__.
+		# There is an interval between python's check for the entry's
+		# presence in the __dict__ and our acquiring the lock in which
+		# another thread might have populated the __dict__ entry.
 		try:
 			return objdict[name]
 		except KeyError:

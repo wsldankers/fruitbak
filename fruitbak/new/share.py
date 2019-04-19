@@ -117,8 +117,8 @@ class NewShare(Initializer):
 		return self.newbackup.hashes_fp
 
 	@initializer
-	def hashfunc(self):
-		return self.fruitbak.hashfunc
+	def hash_func(self):
+		return self.fruitbak.hash_func
 
 	def put_chunk(self, *args):
 		if len(args) > 2:
@@ -130,7 +130,7 @@ class NewShare(Initializer):
 		else:
 			raise TypeError("missing argument")
 		if hash is None:
-			hash = self.hashfunc(value)
+			hash = self.hash_func(value)
 		if hash not in self.predecessor_hashes:
 			self.agent.put_chunk(hash, value, async = True)
 		return hash

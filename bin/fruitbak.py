@@ -328,28 +328,28 @@ def pooltest():
 
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 
-	hashfunc = fbak.hashfunc
+	hash_func = fbak.hash_func
 
 	def readahead():
 		for i in range(200):
-			yield hashfunc(str(i).encode())
+			yield hash_func(str(i).encode())
 
 	pool = fbak.pool
 	agent = pool.agent()
 
-	agent.put_chunk(hashfunc(b'foo'), b'foo', async = True)
+	agent.put_chunk(hash_func(b'foo'), b'foo', async = True)
 
 	for i in range(200):
 		data = str(i).encode()
-		agent.put_chunk(hashfunc(data), data, async = True)
+		agent.put_chunk(hash_func(data), data, async = True)
 
 	agent.sync()
 
 	reader = agent.readahead(readahead())
 
-	print("get_chunk:", agent.get_chunk(hashfunc(b'foo')))
+	print("get_chunk:", agent.get_chunk(hash_func(b'foo')))
 
-	action = agent.get_chunk(hashfunc(b'foo'), async = True)
+	action = agent.get_chunk(hash_func(b'foo'), async = True)
 
 	print("async get_chunk:", action.sync())
 
@@ -371,9 +371,9 @@ def pooltest():
 def fstest():
 	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
 	data = "derp".encode()
-	hashfunc = fbak.hashfunc
-	fbak.pool.agent().put_chunk(hashfunc(data), data)
-	del hashfunc
+	hash_func = fbak.hash_func
+	fbak.pool.agent().put_chunk(hash_func(data), data)
+	del hash_func
 	del fbak
 	sleep(1)
 

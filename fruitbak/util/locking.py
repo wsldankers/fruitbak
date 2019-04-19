@@ -57,8 +57,19 @@ class lockednondatadescriptor:
 		self.descriptor = descriptor
 
 	def __get__(self, obj, *args, **kwargs):
-		with obj.lock:
-			return self.descriptor.__get__(obj, *args, **kwargs)
+		try:
+			lock = obj.lock
+		except AttributeError:
+			if obj is not None:
+				raise
+		else:
+			with lock:
+				return self.descriptor.__get__(obj, *args, **kwargs)
+
+		# This means the descriptor was invoked in the class context.
+		# We have nothing we need to lock in that case, so just call
+		# the original descriptor's __get__ method without a lock.
+		return self.descriptor.__get__(obj, *args, **kwargs)
 
 class lockeddatadescriptor(lockednondatadescriptor):
 	"""Decorator that acquires the lock when the data descriptor is invoked

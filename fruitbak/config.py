@@ -14,13 +14,23 @@ class configurable:
 	def __get__(self, obj, objtype = None):
 		initializer = self._initializer
 		name = initializer.__name__
-		config = obj.config
+
+		try:
+			config = obj.config
+		except AttributeError:
+			if obj is None:
+				# This typically happens when querying for docstrings,
+				# so return something with the appropriate docstring.
+				return self
+			raise
+
 		try:
 			value = config[name]
 		except KeyError:
 			value = initializer(obj)
 		else:
 			value = self._validate(obj, value)
+
 		value = self._prepare(obj, value)
 		setattr(obj, name, value)
 		return value
