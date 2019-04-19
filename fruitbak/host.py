@@ -81,10 +81,11 @@ class Host(Initializer):
 
 	@initializer
 	def config(self):
+		env = self.env
 		try:
-			return Config(Path('host') / self.name, env = self.env, dir_fd = self.fruitbak.confdir_fd)
+			return Config('common', Path('host') / self.name, env = env, preseed = env, dir_fd = self.fruitbak.confdir_fd)
 		except FileNotFoundError:
-			return Config(preseed = dict(auto = False))
+			return Config('common', preseed = dict(env, auto = False))
 
 	@configurable
 	def auto(self):
