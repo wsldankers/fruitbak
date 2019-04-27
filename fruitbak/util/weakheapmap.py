@@ -281,7 +281,38 @@ class WeakHeapMap:
 	def __getitem__(self, key):
 		return self.mapping[FakeKeyWeakHeapMapNode(id(key))].value
 
+	def get(key, default = None):
+		"""Return the value for `key` if `key` is in the mapping, else `default`.
+		If `default` is not given, it defaults to `None`, so that this method never
+		raises a `KeyError`.
+
+		:param key: The key to look up.
+		:param default: The value to return if `key` was not found.
+		:return: The value belonging to `key` or `default` if it was not found."""
+
+		mapping = self.mapping
+		fakekey = FakeKeyWeakHeapMapNode(id(key))
+		try:
+			node = mapping[fakekey]
+		except KeyError:
+			pass
+		else:
+			node_key = node()
+			if node_key is not None:
+				return node.value
+
+		return default
+
 	def __setitem__(self, key, value):
+		self._setitem(key, value)
+
+	def add(self, key, value):
+		"""Add the `key` to the mapping with value `value`. If the key already
+		exists it will be overwritten.
+
+		:param key: The key to add.
+		:param value: The value to add."""
+
 		self._setitem(key, value)
 
 	@unlocked
@@ -417,6 +448,34 @@ class WeakHeapMap:
 		if node_key is None:
 			raise KeyError(key)
 		self._delnode(node)
+
+	def remove(self, key):
+		"""Remove the item corresponding to the specified key.
+		Raises `KeyError` if `key` is not contained in the set.
+
+		:param key: The key to remove."""
+
+		node = self.mapping[FakeKeyWeakHeapMapNode(id(key))]
+		node_key = node()
+		if node_key is None:
+			raise KeyError(key)
+		self._delnode(node)
+
+	def discard(self, key):
+		"""Remove the item corresponding to the specified key, if it is present.
+
+		:param key: The key to remove."""
+
+		mapping = self.mapping
+		fakekey = FakeKeyWeakHeapMapNode(id(key))
+		try:
+			node = mapping[fakekey]
+		except KeyError:
+			pass
+		else:
+			node_key = node()
+			if node_key is not None:
+				self._delnode(node)
 
 	@unlocked
 	def _delnode(self, victim):
