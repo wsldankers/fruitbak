@@ -25,17 +25,15 @@ behavior if these side effects affect the WeakHeapMap.
 This implementation keeps the heap consistent even if the comparison
 functions of the items throw an exception. It is threadsafe."""
 
-# TODO: use collections.abc.MutableMapping as base class
-# TODO: use collections.abc.MappingView as base class
-
 from .oo import stub
 from .locking import lockingclass, unlocked, locked
 from weakref import ref as weakref, KeyedRef
 from sys import stderr
-from collections.abc import Set
+from collections.abc import MutableMapping, KeysView, ValuesView, ItemsView
 from traceback import print_exc
 
-class _NoValue: pass
+class _NoValue:
+	__slots__ = ()
 _no_value = _NoValue()
 
 # Internal class to fake a node for key lookup purposes.
@@ -87,31 +85,23 @@ class WeakHeapMapNode(weakref):
 		return self.id == other.id
 
 # Internal class that is returned for HeapMap.keys()
-class WeakHeapMapKeyView(Set):
-	__slots__ = 'mapping',
-
+class WeakHeapMapKeysView(KeysView):
 	def __init__(self, heapmap):
-		self.mapping = heapmap.mapping
+		super().__init__(heapmap.mapping)
+
+	def __contains__(self, key):
+		return FakeKeyWeakHeapMapNode(id(key)) in self._mapping
 
 	def __iter__(self):
-		for node in heapmap.mapping:
+		for node in self._mapping:
 			key = node()
 			if key is not None:
 				yield key
 
-	def __contains__(self, key):
-		return FakeKeyWeakHeapMapNode(id(key)) in self.mapping
-
 # Internal class that is returned for WeakHeapMap.values()
-class WeakHeapMapValueView:
-	__slots__ = 'mapping',
-
+class WeakHeapMapValuesView(ValuesView):
 	def __init__(self, heapmap):
-		self.mapping = heapmap.mapping
-
-	def __iter__(self):
-		for node in self.mapping:
-			yield node.value
+		super().__init__(heapmap.mapping)
 
 	def __contains__(self, value):
 		for node in self.mapping:
@@ -119,18 +109,14 @@ class WeakHeapMapValueView:
 				return True
 		return False
 
-# Internal class that is returned for HeapMap.items()
-class WeakHeapMapItemView(Set):
-	__slots__ = 'mapping',
-
-	def __init__(self, heapmap):
-		self.mapping = heapmap.mapping
-
 	def __iter__(self):
-		for node in heapmap.mapping:
-			key = node()
-			if key is not None:
-				yield key, node.value
+		for node in self.mapping:
+			yield node.value
+
+# Internal class that is returned for HeapMap.items()
+class WeakHeapMapItemsView(ItemsView):
+	def __init__(self, heapmap):
+		super().__init__(heapmap.mapping)
 
 	def __contains__(self, item):
 		key, value = item
@@ -138,11 +124,18 @@ class WeakHeapMapItemView(Set):
 			node = self.mapping[FakeKeyWeakHeapMapNode(id(key))]
 		except KeyError:
 			return False
-		return node.value == value
+		v = node.value
+		return v is value or v == value
+
+	def __iter__(self):
+		for node in heapmap.mapping:
+			key = node()
+			if key is not None:
+				yield key, node.value
 
 # datatype: supports both extractmin and fetching by key
 @lockingclass
-class WeakHeapMap:
+class WeakHeapMap(MutableMapping):
 	"""__init__(items = None, **kwargs)
 
 	Base class for MinWeakHeapMap and MaxWeakHeapMap. Do not instantiate
@@ -659,7 +652,7 @@ class WeakHeapMap:
 
 		:return: A view of the keys of the mapping."""
 
-		return WeakHeapMapKeyView(self)
+		return WeakHeapMapKeysView(self)
 
 	@unlocked
 	def values(self):
@@ -667,7 +660,7 @@ class WeakHeapMap:
 
 		:return: A view of the values of the mapping."""
 
-		return WeakHeapMapValueView(self)
+		return WeakHeapMapValuesView(self)
 
 	@unlocked
 	def items(self):
@@ -675,7 +668,7 @@ class WeakHeapMap:
 
 		:return: A view of the keys and values of the mapping, in a tuple each."""
 
-		return WeakHeapMapItemView(self)
+		return WeakHeapMapItemsView(self)
 
 	def clear(self):
 		"""Empty the WeakHeapMap by removing all keys and values."""

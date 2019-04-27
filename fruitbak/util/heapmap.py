@@ -21,12 +21,9 @@ behavior if these side effects affect the HeapMap.
 This implementation keeps the heap consistent even if the comparison
 functions of the items throw an exception. It is threadsafe."""
 
-# TODO: use collections.abc.MutableMapping as base class
-# TODO: use collections.abc.MappingView as base class
-
 from .oo import stub
 from .locking import lockingclass, unlocked, locked
-from collections.abc import Set
+from collections.abc import MutableMapping, ValuesView, ItemsView
 
 class _NoValue: pass
 _no_value = _NoValue()
@@ -44,37 +41,27 @@ class HeapMapNode:
 		return 'HeapMapNode(key = %r, value = %r, index = %d, serial = %d)' % (self.key, self.value, self.index, self.serial)
 
 # Internal class that is returned for HeapMap.values()
-class HeapMapValueView:
-	__slots__ = 'mapping',
-
+class HeapMapValuesView(ValuesView):
 	def __init__(self, heapmap):
-		self.mapping = heapmap.mapping
-
-	def __len__(self):
-		return len(self.mapping)
+		super().__init__(heapmap.mapping)
 
 	def __iter__(self):
-		for node in self.mapping:
+		for node in self._mapping:
 			yield node.value
 
 	def __contains__(self, value):
-		for node in self.mapping:
+		for node in self._mapping:
 			if node.value == value:
 				return True
 		return False
 
 # Internal class that is returned for HeapMap.items()
-class HeapMapItemView(Set):
-	__slots__ = 'mapping',
-
+class HeapMapItemsView(ItemsView):
 	def __init__(self, heapmap):
-		self.mapping = heapmap.mapping
-
-	def __len__(self):
-		return len(self.mapping)
+		super().__init__(heapmap.mapping)
 
 	def __iter__(self):
-		for node in heapmap.mapping:
+		for node in self._mapping:
 			yield node.key, node.value
 
 	def __contains__(self, item):
@@ -83,11 +70,12 @@ class HeapMapItemView(Set):
 			node = self.mapping[key]
 		except KeyError:
 			return False
-		return node.value == value
+		v = node.value
+		return v is value or v == value
 
 # datatype: supports both extractmax and fetching by key
 @lockingclass
-class HeapMap:
+class HeapMap(MutableMapping):
 	"""__init__(items = None, **kwargs)
 
 	Base class for MinHeapMap and MaxHeapMap. Do not instantiate
@@ -543,7 +531,7 @@ class HeapMap:
 
 		:return: A view of the values of the mapping."""
 
-		return HeapMapValueView(self)
+		return HeapMapValuesView(self)
 
 	@unlocked
 	def items(self):
@@ -551,7 +539,7 @@ class HeapMap:
 
 		:return: A view of the keys and values of the mapping, in a tuple each."""
 
-		return HeapMapItemView(self)
+		return HeapMapItemsView(self)
 
 	def clear(self):
 		"""Empty the HeapMap by removing all keys and values."""
