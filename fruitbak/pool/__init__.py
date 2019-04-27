@@ -57,8 +57,6 @@ class Pool(Initializer):
 		assert self.lock
 		return MinWeakHeapMap()
 
-	next_agent_serial = 0
-
 	@initializer
 	def chunk_registry(self):
 		assert self.lock
@@ -81,14 +79,11 @@ class Pool(Initializer):
 		return new_chunk
 
 	def agent(self, *args, **kwargs):
-		with self.lock:
-			serial = self.next_agent_serial
-			self.next_agent_serial = serial + 1
-		return PoolAgent(pool = self, serial = serial, *args, **kwargs)
+		return PoolAgent(pool = self, *args, **kwargs)
 
 	def register_agent(self, agent):
 		assert self.lock
-		new = agent.avarice, agent.serial
+		new = agent.avarice
 		agents = self.agents
 		try:
 			old = agents[agent]
@@ -101,21 +96,15 @@ class Pool(Initializer):
 
 	def unregister_agent(self, agent):
 		assert self.lock
-		try:
-			del self.agents[agent]
-		except KeyError:
-			pass
+		self.agents.discard(agent)
 
 	def replenish_queue(self):
 		assert self.lock
 		agents = self.agents
 		while agents and self.queue_depth < self.max_queue_depth:
-			agent = agents.peekitem()[0]
+			agent = agents.peekkey()
 			if agent is None:
 				break
-			serial = self.next_agent_serial
-			self.next_agent_serial = serial + 1
-			agent.serial = serial
 			agent.dequeue()
 
 	def has_chunk(self, callback, hash):

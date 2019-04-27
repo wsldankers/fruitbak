@@ -41,7 +41,6 @@ class PoolDelAction(PoolAction):
 class PoolReadahead(Initializer):
 	agent = None
 	iterator = None
-	serial = None
 
 	@initializer
 	def lock(self):
@@ -196,14 +195,8 @@ class PoolAgent(Initializer):
 	# Maximum number of readahead actions
 	max_readaheads = 32
 
-	# This agent's serial
-	serial = None
-
 	# The next serial to assign to an action
 	next_action_serial = 0
-
-	# The next serial to assign to a readahead object
-	next_readahead_serial = 0
 
 	# The last exception that was raised
 	exception = None
@@ -229,7 +222,7 @@ class PoolAgent(Initializer):
 			return len(pending_writes) + pending_reads + self.pending_readaheads
 
 		try:
-			spent, length, serial = self.readaheads.peek()
+			spent, length = self.readaheads.peek()
 		except IndexError:
 			return self.pending_readaheads
 
@@ -242,7 +235,7 @@ class PoolAgent(Initializer):
 	def eligible_readahead(self):
 		assert self.lock
 		try:
-			readahead, (spent, length, serial) = self.readaheads.peekitem()
+			readahead, (spent, length) = self.readaheads.peekitem()
 		except IndexError:
 			return None
 
@@ -276,13 +269,8 @@ class PoolAgent(Initializer):
 
 	def register_readahead(self, readahead):
 		assert self.lock
-		new_serial = readahead.serial
-		if new_serial is None:
-			new_serial = self.next_readahead_serial
-			self.next_readahead_serial = new_serial + 1
-			readahead.serial = new_serial
 		new_length = len(readahead)
-		new = readahead.spent, new_length, new_serial
+		new = readahead.spent, new_length
 
 		readaheads = self.readaheads
 		try:
@@ -292,7 +280,7 @@ class PoolAgent(Initializer):
 		else:
 			if old == new:
 				return
-			old_spent, old_length, old_serial = old
+			old_spent, old_length = old
 			self.total_readaheads -= old_length
 
 		readaheads[readahead] = new
@@ -303,8 +291,7 @@ class PoolAgent(Initializer):
 		assert self.lock
 		readaheads = self.readaheads
 		try:
-			spent, length, serial = readaheads[readahead]
-			del readaheads[readahead]
+			spent, length = readaheads.pop(readahead)
 		except KeyError:
 			length = 0
 		self.total_readaheads -= length
