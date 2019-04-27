@@ -62,21 +62,23 @@ class Pool(Initializer):
 		assert self.lock
 		return WeakValueDictionary()
 
-	def exchange_chunk(self, hash, new_chunk = None):
+	def exchange_chunk(self, hash, chunk = None):
 		assert self.lock
 		# can't use setdefault(), it has weird corner cases
 		# involving None
 		chunk_registry = self.chunk_registry
-		old_chunk = chunk_registry.get(hash)
-		if old_chunk is not None:
-			return old_chunk
-		if new_chunk is not None:
+		try:
+			return chunk_registry[hash]
+		except KeyError:
+			pass
+		if chunk is not None:
 			try:
-				chunk_registry[hash] = new_chunk
+				chunk_registry[hash] = chunk
 			except TypeError:
-				new_chunk = memoryview(new_chunk)
-				chunk_registry[hash] = new_chunk
-		return new_chunk
+				# bytes objects can't be weakref'd
+				chunk = memoryview(chunk)
+				chunk_registry[hash] = chunk
+		return chunk
 
 	def agent(self, *args, **kwargs):
 		return PoolAgent(pool = self, *args, **kwargs)
@@ -122,7 +124,6 @@ class Pool(Initializer):
 	def submit(self, func, callback, *args, **kwargs):
 		lock = self.lock
 		assert lock
-		#with lock:
 		self.queue_depth += 1
 
 		def when_done(*args, **kwargs):
