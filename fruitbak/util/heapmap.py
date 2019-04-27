@@ -12,7 +12,7 @@ largest.
 
 Entries with equal values are extracted in insertion order. Iteration is in
 insertion order if your Python's dict implementation iterates in insertion
-order (Python >3.7).
+order (Python 3.7+).
 
 Inconsistent results from the comparison functions will result in an
 inconsistent heap. Comparison functions with side effects cause undefined
@@ -484,8 +484,8 @@ class HeapMap(MutableMapping):
 
 	@unlocked
 	def peek(self, key = None):
-		"""Return the value in the heap corresponding to the specified key.
-		If key is absent or None, return the smallest value in the heap.
+		"""Return the value in the heap corresponding to the specified `key`. If
+		`key` is absent or `None`, return the smallest/largest value in the heap.
 
 		:param key: The key of the value to return.
 		:return: The value corresponding to key."""
@@ -494,8 +494,9 @@ class HeapMap(MutableMapping):
 
 	@unlocked
 	def peekkey(self, key = None):
-		"""Return the key in the heap corresponding to the specified key.
-		If key is absent or None, return the smallest value in the heap.
+		"""Return the key in the heap corresponding to the specified `key`. If
+		`key` is absent or `None`, return the key of the smallest/largest value in
+		the heap.
 
 		:param key: The key to look up and return.
 		:return: The value corresponding to key."""
@@ -505,8 +506,8 @@ class HeapMap(MutableMapping):
 	@unlocked
 	def peekitem(self, key = None):
 		"""Return a tuple of the key and the value in the heap corresponding to the
-		specified key. If key is absent or None, return the smallest item in the
-		heap.
+		specified `key`. If `key` is absent or `None`, return the item in the heap
+		with the smallest/largest value.
 
 		:param key: The key of the item to return.
 		:return: A tuple of (key, value) corresponding to key."""
