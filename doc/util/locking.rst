@@ -1,4 +1,4 @@
-util.locking module
-===================
+`fruitbak.util.locking` module
+==============================
 
 .. automodule:: fruitbak.util.locking

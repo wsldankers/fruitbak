@@ -1,0 +1,4 @@
+`fruitbak` module
+=================
+
+.. automodule:: fruitbak

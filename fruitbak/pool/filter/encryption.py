@@ -19,17 +19,17 @@ class Encrypt(Filter):
 		key = self.key
 		if key is None:
 			raise RuntimeError("No encryption key configured. Add this to your configuration:\npool_encryption_key = %r"
-				% b64encode(nacl.utils.random(32)).decode())
+				% (b64encode(nacl.utils.random(32)).decode(),))
 		if isinstance(key, str):
 			key = b64decode(key)
 		else:
 			try:
 				memoryview(key)
 			except TypeError:
-				raise TypeError("encryption key must be bytes-like, not %r" % type(key).__name__) from None
+				raise TypeError("encryption key must be bytes-like, not %r" % (type(key).__name__,)) from None
 			key = bytes(key)
 		if len(key) != 32:
-			raise TypeError("encryption key must be 32 bytes long, not %d" % len(key))
+			raise TypeError("encryption key must be 32 bytes long, not %d" % (len(key),))
 		return key
 
 	@locked

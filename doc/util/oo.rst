@@ -1,4 +1,4 @@
-util.oo module
-==============
+`fruitbak.util.oo` module
+=========================
 
 .. automodule:: fruitbak.util.oo

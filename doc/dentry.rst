@@ -1,4 +1,4 @@
-dentry module
-=============
+`fruitbak.dentry` module
+========================
 
 .. automodule:: fruitbak.dentry

@@ -1,4 +1,4 @@
-util.weakheapmap module
-=======================
+`fruitbak.util.weakheapmap` module
+==================================
 
 .. automodule:: fruitbak.util.weakheapmap

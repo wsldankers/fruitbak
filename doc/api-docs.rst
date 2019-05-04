@@ -4,6 +4,7 @@ API Documentation
 .. toctree::
 
    fruitbak
+   pool
    dentry
    util/click
    util/fd

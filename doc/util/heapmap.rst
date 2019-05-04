@@ -1,4 +1,4 @@
-util.heapmap module
-===================
+`fruitbak.util.heapmap` module
+==============================
 
 .. automodule:: fruitbak.util.heapmap

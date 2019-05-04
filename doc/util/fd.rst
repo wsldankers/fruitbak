@@ -1,4 +1,4 @@
-util.fd module
-==============
+`fruitbak.util.fd` module
+=========================
 
 .. automodule:: fruitbak.util.fd
