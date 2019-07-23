@@ -310,7 +310,7 @@ class PoolAgent(Initializer):
 			pool.register_agent(self)
 		pool.replenish_queue()
 
-	def has_chunk(self, hash, async = False):
+	def has_chunk(self, hash, wait = True):
 		lock = self.lock
 		with lock:
 			cond = self.cond
@@ -341,12 +341,12 @@ class PoolAgent(Initializer):
 			while mailbag in self.mailhook:
 				cond.wait()
 
-			if async:
+			if not wait:
 				return action
 
 			return action.sync()
 
-	def get_chunk(self, hash, async = False):
+	def get_chunk(self, hash, wait = True):
 		lock = self.lock
 		with lock:
 			cond = self.cond
@@ -377,12 +377,12 @@ class PoolAgent(Initializer):
 			while mailbag in self.mailhook:
 				cond.wait()
 
-		if async:
+		if not wait:
 			return action
 
 		return action.sync()
 
-	def put_chunk(self, hash, value, async = False):
+	def put_chunk(self, hash, value, wait = True):
 		lock = self.lock
 		with lock:
 			cond = self.cond
@@ -417,12 +417,12 @@ class PoolAgent(Initializer):
 			while mailbag in self.mailhook:
 				cond.wait()
 
-		if async:
+		if not wait:
 			return action
 
 		action.sync()
 
-	def del_chunk(self, hash, async = False):
+	def del_chunk(self, hash, wait = True):
 		lock = self.lock
 		with lock:
 			cond = self.cond
@@ -457,7 +457,7 @@ class PoolAgent(Initializer):
 			while mailbag in self.mailhook:
 				cond.wait()
 
-		if async:
+		if not wait:
 			return action
 
 		action.sync()

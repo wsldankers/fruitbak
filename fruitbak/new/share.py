@@ -132,7 +132,7 @@ class NewShare(Initializer):
 		if hash is None:
 			hash = self.hash_func(value)
 		if hash not in self.predecessor_hashes:
-			self.agent.put_chunk(hash, value, async = True)
+			self.agent.put_chunk(hash, value, wait = False)
 		return hash
 
 	def add_dentry(self, dentry):

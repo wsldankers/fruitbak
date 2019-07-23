@@ -319,7 +319,7 @@ def gc():
 	agent = fbak.pool.agent()
 	for hash in agent.lister():
 		if hash not in hashes:
-			agent.del_chunk(hash, async = True)
+			agent.del_chunk(hash, wait = False)
 	agent.sync()
 
 @cli.command()
@@ -337,11 +337,11 @@ def pooltest():
 	pool = fbak.pool
 	agent = pool.agent()
 
-	agent.put_chunk(hash_func(b'foo'), b'foo', async = True)
+	agent.put_chunk(hash_func(b'foo'), b'foo', wait = False)
 
 	for i in range(200):
 		data = str(i).encode()
-		agent.put_chunk(hash_func(data), data, async = True)
+		agent.put_chunk(hash_func(data), data, wait = False)
 
 	agent.sync()
 
@@ -349,7 +349,7 @@ def pooltest():
 
 	print("get_chunk:", agent.get_chunk(hash_func(b'foo')))
 
-	action = agent.get_chunk(hash_func(b'foo'), async = True)
+	action = agent.get_chunk(hash_func(b'foo'), wait = False)
 
 	print("async get_chunk:", action.sync())
 
