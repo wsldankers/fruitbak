@@ -322,6 +322,7 @@ class fallback:
 	::
 
 		class Agency:
+			@fallback
 			def booking(self):
 				raise RuntimeError("no")
 
