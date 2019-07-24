@@ -29,11 +29,15 @@ class _Job:
 		self.results = deque()
 		self.cond = Condition()
 		self.done = _Mutable()
-		self.next_arg = next(args)
+		try:
+			self.next_arg = next(args, None)
+		except Exception as e:
+			self.next_arg = e
 
 	def get_task(self):
 		cur_arg = self.next_arg
 		if cur_arg is None:
+			# we're done
 			return None
 
 		if isinstance(cur_arg, Exception):
@@ -73,43 +77,48 @@ class _Worker(Thread):
 					except IndexError:
 						cond.wait()
 
+			job_done = job.done
 			job_cond = job.cond
 			with job_cond:
-				result = _Result()
 				results = job.results
 				try:
 					task = job.get_task()
 				except Exception as e:
 					task = None
+					result = _Result()
 					result.success = False
 					result.result = e
 					results.append(result)
-
-				if task is None:
-					job.done.value = True
+					job_done.value = True
 				else:
-					results.append(result)
+					if task is None:
+						job_done.value = True
+					else:
+						result = _Result()
+						results.append(result)
+						num_results = len(results)
+						if num_results < max_results:
+							with cond:
+								queue[job] = num_results
+								cond.notify()
 
 				job_cond.notify()
 
 			if task is not None:
-				with job_cond:
-					num_results = len(results)
-					if num_results < max_results:
-						with cond:
-							queue[job] = num_results
-							cond.notify()
-
 				try:
 					r = task()
 				except Exception as e:
+					queue.discard(job)
 					result.success = False
 					result.result = e
+					with job_cond:
+						job_done.value = True
+						job_cond.notify()
 				else:
 					result.success = True
 					result.result = r
-				with job_cond:
-					job_cond.notify()
+					with job_cond:
+						job_cond.notify()
 
 class ThreadPool:
 	def __init__(self, max_workers = None, max_results = None):
@@ -143,6 +152,14 @@ class ThreadPool:
 
 	def map(self, func, *args):
 		job = _Job(func, zip(*args))
+		job_cond = job.cond
+		job_done = job.done
+		results = job.results
+
+		# make sure we always keep the first item for ourselves:
+		task = job.get_task()
+		if task is None:
+			return iter([])
 
 		max_results = self.max_results
 		queue = self.queue
@@ -151,28 +168,32 @@ class ThreadPool:
 			queue[job] = 0
 			cond.notify()
 
-		job_cond = job.cond
-		job_done = job.done
-		results = job.results
-		def map(self):
-			with job_cond:
-				while True:
-					if results:
-						result = results.popleft()
-						num_results = len(results)
-						if num_results < max_results:
-							with cond:
-								queue.move_to_end(job, num_results)
-								cond.notify()
-						while result.success is None:
-							job_cond.wait()
-						if result.success:
-							yield result.result
+		def map(self, task):
+			while True:
+				yield task()
+				task = None
+				with job_cond:
+					while True:
+						if results:
+							result = results.popleft()
+							num_results = len(results)
+							if num_results < max_results:
+								with cond:
+									queue.move_to_end(job, num_results)
+									cond.notify()
+							while result.success is None:
+								job_cond.wait()
+							if result.success:
+								yield result.result
+							else:
+								raise result.result
+						elif job_done:
+							return
 						else:
-							raise result.result
-					elif job_done:
-						break
-					else:
-						job_cond.wait()
+							task = job.get_task()
+							if task is None:
+								return
+							else:
+								break
 
-		return map(self)
+		return map(self, task)
