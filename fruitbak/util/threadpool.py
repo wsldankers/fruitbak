@@ -34,6 +34,9 @@ class _Job:
 		except Exception as e:
 			self.next_arg = e
 
+	def has_task(self):
+		return self.next_arg is not None
+
 	def get_task(self):
 		cur_arg = self.next_arg
 		if cur_arg is None:
@@ -96,6 +99,8 @@ class _Worker(Thread):
 					else:
 						result = _Result()
 						results.append(result)
+						if job.next_arg is None:
+							job_done.value = True
 						num_results = len(results)
 						if num_results < max_results:
 							with cond:
@@ -164,9 +169,12 @@ class ThreadPool:
 		max_results = self.max_results
 		queue = self.queue
 		cond = self.cond
-		with cond:
-			queue[job] = 0
-			cond.notify()
+		if job.has_task():
+			with cond:
+				queue[job] = 0
+				cond.notify()
+		else:
+			job_done.value = True
 
 		def map(self, task):
 			while True:
@@ -194,6 +202,9 @@ class ThreadPool:
 							if task is None:
 								return
 							else:
+								if not job.has_task():
+									queue.discard(job)
+									job_done.value = True
 								break
 
 		return map(self, task)
