@@ -60,7 +60,7 @@ def tabulate(rows, *, headings = None, alignment = (), tablefmt = None, linesep 
 		for i, (column, s) in enumerate(row):
 			try:
 				align = alignment[i]
-			except (KeyError, IndexError):
+			except LookupError:
 				align = None
 			if align is None:
 				align = isinstance(column, Number)
