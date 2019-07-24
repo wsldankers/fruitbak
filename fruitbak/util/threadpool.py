@@ -16,10 +16,10 @@ class _Mutable:
 		return bool(self.value)
 
 class _Result(Initializer):
-	__slots__ = 'status', 'result'
+	__slots__ = 'success', 'result'
 
 	def __init__(self):
-		self.status = None
+		self.success = None
 		self.result = None
 
 class _Job:
@@ -81,7 +81,7 @@ class _Worker(Thread):
 					task = job.get_task()
 				except Exception as e:
 					task = None
-					result.status = False
+					result.success = False
 					result.result = e
 					results.append(result)
 
@@ -93,18 +93,20 @@ class _Worker(Thread):
 				job_cond.notify()
 
 			if task is not None:
-				with cond:
+				with job_cond:
 					num_results = len(results)
 					if num_results < max_results:
-						queue[job] = num_results
-						cond.notify()
+						with cond:
+							queue[job] = num_results
+							cond.notify()
+
 				try:
 					r = task()
 				except Exception as e:
-					result.status = False
+					result.success = False
 					result.result = e
 				else:
-					result.status = True
+					result.success = True
 					result.result = r
 				with job_cond:
 					job_cond.notify()
@@ -162,9 +164,9 @@ class ThreadPool:
 							with cond:
 								queue.move_to_end(job, num_results)
 								cond.notify()
-						while result.status is None:
+						while result.success is None:
 							job_cond.wait()
-						if result.status:
+						if result.success:
 							yield result.result
 						else:
 							raise result.result
