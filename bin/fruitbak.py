@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 
 from fruitbak import Fruitbak
-from fruitbak.util import tabulate, OptionalWithoutArgument, OptionalWithArgument, OptionalCommand
+from fruitbak.util import tabulate, OptionalWithoutArgument, OptionalWithArgument, OptionalCommand, ThreadPool
 
 from os import fsdecode
 from os.path import basename
@@ -54,7 +54,8 @@ def ls(host, backup, share, path):
 			else:
 				return '%ds' % s
 
-	pmap = ThreadPoolExecutor(max_workers = 32).map
+	#pmap = ThreadPoolExecutor(max_workers = 32).map
+	pmap = ThreadPool(max_workers = 32).map
 
 	if host is None:
 		def info(h):
