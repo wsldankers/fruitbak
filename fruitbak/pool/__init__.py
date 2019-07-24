@@ -36,7 +36,7 @@ class Pool(Initializer):
 
 	You should not access this object directly except to create a `PoolAgent`
 	object (see the `agent` method). You can use this `PoolAgent` to access all
-	pool functionality.
+	pool related functionality.
 
 	You should never create a `Pool` object yourself but always use the
 	`Fruitbak.pool` attribute."""
@@ -137,6 +137,8 @@ class Pool(Initializer):
 
 		For internal use only.
 
+		The pool lock must be held while accessing this attribute.
+
 		:type: fruitbak.pool.handler.Handler"""
 
 		assert self.lock
@@ -148,6 +150,8 @@ class Pool(Initializer):
 		this pool. This heapmap is ordered by the number of pending operations of
 		each `PoolAgent` object.
 
+		The pool lock must be held while accessing this attribute.
+
 		:type: fruitbak.util.MinWeakHeapMap"""
 
 		assert self.lock
@@ -158,6 +162,8 @@ class Pool(Initializer):
 		"""A weak dictionary of known chunks, to ensure that chunks are kept in
 		memory only once. Only used by `exchange_chunk()`.
 
+		The pool lock must be held while accessing this attribute.
+
 		:type: weakref.WeakValueDictionary"""
 
 		assert self.lock
@@ -167,6 +173,8 @@ class Pool(Initializer):
 		"""Exchange the given chunk for an already existing copy, if such a copy
 		exists. If it does not (and `chunk` is not `None`), the chunk is stored for
 		future use.
+
+		The pool lock must be held while calling this method.
 
 		:param bytes hash: The hash of the requested chunk.
 		:param chunk: A chunk that has the given hash.
@@ -192,9 +200,27 @@ class Pool(Initializer):
 		return chunk
 
 	def agent(self, *args, **kwargs):
+		"""Create and return a `PoolAgent` object for this pool.
+		Any arguments are passed to the constructor.
+
+		:param \*args: Passed to the `PoolAgent` constructor.
+		:param \*\*kwargs: Passed to the `PoolAgent` constructor.
+		:return: An agent object.
+		:rtype: PoolAgent"""
+
 		return PoolAgent(pool = self, *args, **kwargs)
 
 	def register_agent(self, agent):
+		"""(Re-)register an agent with this pool. Intended for agents
+		to register theirselves.
+
+		Registered agents are eligible to schedule new requests when
+		there are slots available in the queue.
+
+		The pool lock must be held while calling this method.
+
+		:param PoolAgent agent: The agent to register."""
+
 		assert self.lock
 		new = agent.avarice
 		agents = self.agents
@@ -208,10 +234,26 @@ class Pool(Initializer):
 		self.agents[agent] = new
 
 	def unregister_agent(self, agent):
+		"""Unregister an agent from this pool. Intended for agents
+		to unregister theirselves.
+
+		When an agent is unregistered it will no longer be called upon
+		to schedule I/O operations.
+
+		The pool lock must be held while calling this method.
+
+		:param PoolAgent agent: The agent to unregister."""
+
 		assert self.lock
 		self.agents.discard(agent)
 
 	def replenish_queue(self):
+		"""Allow agents to schedule I/O operations. Will loop for
+		as it takes to either fill up the queue to `max_queue_depth`
+		or until no agents have pending I/O.
+
+		The pool lock must be held while calling this method."""
+
 		assert self.lock
 		agents = self.agents
 		while agents and self.queue_depth < self.max_queue_depth:
@@ -221,18 +263,79 @@ class Pool(Initializer):
 			agent.dequeue()
 
 	def has_chunk(self, callback, hash):
+		"""Submit a request to check the existence of a chunk in the pool.
+
+		The callback is a function that will be called with the result once
+		the operation has completed or an exception occurred.
+		It is called with two arguments, the result value (a boolean) and any
+		exception that occurred. Exactly one of these is always `None`.
+
+		The pool lock must be held while calling this method.
+
+		:param function callback: Called when the I/O completed (or failed).
+		:param bytes hash: The hash of the chunk to check for."""
+
 		return self.submit(self.root.has_chunk, callback, hash)
 
 	def get_chunk(self, callback, hash):
+		"""Submit a request to fetch a chunk from the pool.
+
+		The callback is a function that will be called with the result once
+		the operation has completed or an exception occurred.
+		It is called with two arguments, the result value (a bytes-like object) and
+		any exception that occurred. Exactly one of these is always `None`.
+
+		The pool lock must be held while calling this method.
+
+		:param function callback: Called when the I/O completed (or failed).
+		:param bytes hash: The hash of the chunk to fetch."""
+
 		return self.submit(self.root.get_chunk, callback, hash)
 
 	def put_chunk(self, callback, hash, value):
+		"""Submit a request to store a chunk in the pool.
+
+		The callback is a function that will be called with the result once
+		the operation has completed or an exception occurred.
+		It is called with one argument which is the exception that occurred (if
+		any). If the command completed succesfully it is `None`.
+
+		The pool lock must be held while calling this method.
+
+		:param function callback: Called when the I/O completed (or failed).
+		:param bytes hash: The hash of the chunk to store.
+		:param bytes value: The contents of the chunk to store."""
+
 		return self.submit(self.root.put_chunk, callback, hash, value)
 
 	def del_chunk(self, callback, hash):
+		"""Submit a request to delete a chunk from the pool.
+
+		The callback is a function that will be called with the result once
+		the operation has completed or an exception occurred.
+		It is called with one argument which is the exception that occurred (if
+		any). If the command completed succesfully it is `None`.
+
+		The pool lock must be held while calling this method.
+
+		:param function callback: Called when the I/O completed (or failed).
+		:param bytes hash: The hash of the chunk to delete."""
+
 		return self.submit(self.root.del_chunk, callback, hash)
 
 	def submit(self, func, callback, *args, **kwargs):
+		"""Submit an I/O request. For internal use only.
+
+		Submits the request (represented by the `func` argument) and takes care of
+		updating the current queue depth counter.
+
+		The pool lock must be held while calling this method.
+
+		:param function func: The operation to queue.
+		:param function callback: Called when the I/O completed (or failed).
+		:param \*args: Passed to `func`.
+		:param \*\*kwargs: Passed to `func`."""
+
 		lock = self.lock
 		assert lock
 		self.queue_depth += 1
