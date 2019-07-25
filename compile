@@ -43,7 +43,7 @@ if($lang eq 'perl') {
 		$pod = 0 if /^=cut(?:\s|$)/
 	}
 } elsif($lang eq 'python') {
-	open my $fh, '|-', $outvars{PYTHON}, "-c", "import keyword\nfor x in keyword.kwlist: print(x)";
+	open my $fh, '-|', $outvars{PYTHON}, "-c", "import keyword\nfor x in keyword.kwlist: print(x)";
 	my %resvars = map { chomp; ($_, undef) } <$fh>;
 	close($fh);
 
@@ -53,9 +53,9 @@ if($lang eq 'perl') {
 		my $val = $outvars{$key};
 		$val =~ s/[\\"]/\\$&/g;
 		if(exists $resvars{$key}) {
-			print "\tac_$key = \"$val\";\n";
+			print "\tac_$key = \"$val\"\n";
 		} else {
-			print "\t$key = \"$val\";\n";
+			print "\t$key = \"$val\"\n";
 		}
 	}
 

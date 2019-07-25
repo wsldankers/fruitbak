@@ -21,6 +21,14 @@ def check_for_loops():
 	if gc.collect() != 0:
 		print("W: reference loops at program exit!", file = stderr)
 
+if 'autoconf' in globals():
+	def fruitbak_object():
+		return Fruitbak(rootdir = Path(autoconf.pkglocalstatedir), confdir = Path(autoconf.pkgsysconfdir))
+else:
+	def fruitbak_object():
+		# rely on environment variables
+		return Fruitbak()
+
 @click.group()
 def cli(): pass
 
@@ -32,7 +40,7 @@ def cli(): pass
 def ls(host, backup, share, path):
 	"""Lists hosts, backups, shares and paths"""
 
-	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+	fbak = fruitbak_object()
 
 	def format_time(t):
 		return strftime('%Y-%m-%d %H:%M:%S', localtime(t // 1000000000))
@@ -185,7 +193,7 @@ def ls(host, backup, share, path):
 def cat(host, backup, share, path):
 	binary_stdout = stdout.buffer
 
-	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+	fbak = fruitbak_object()
 	backup = fbak[host][backup]
 	if path is None:
 		share, path = backup.locate_path(share)
@@ -204,7 +212,7 @@ def cat(host, backup, share, path):
 def tar(host, backup, share, path):
 	binary_stdout = stdout.buffer
 
-	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+	fbak = fruitbak_object()
 	backup = fbak[host][backup]
 	if path is None:
 		share, path = backup.locate_path(share)
@@ -271,7 +279,7 @@ def tar(host, backup, share, path):
 @click.option('-a', '--all', default = False, is_flag = True)
 def backup(all, host, full, full_set):
 	"""Run a backup for a host (or all hosts)"""
-	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+	fbak = fruitbak_object()
 	max_parallel_backups = fbak.max_parallel_backups
 
 	hostset = set(host)
@@ -302,7 +310,7 @@ def backup(all, host, full, full_set):
 @cli.command()
 def gc():
 	"""Clean up"""
-	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+	fbak = fruitbak_object()
 
 	# delete root/hashes
 	fbak.remove_hashes()
@@ -327,7 +335,7 @@ def gc():
 def pooltest():
 	"""Run some tests on the pool code"""
 
-	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+	fbak = fruitbak_object()
 
 	hash_func = fbak.hash_func
 
@@ -370,7 +378,7 @@ def pooltest():
 
 @cli.command()
 def fstest():
-	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+	fbak = fruitbak_object()
 	data = "derp".encode()
 	hash_func = fbak.hash_func
 	fbak.pool.agent().put_chunk(hash_func(data), data)
@@ -380,7 +388,7 @@ def fstest():
 
 @cli.command()
 def listchunks():
-	fbak = Fruitbak(confdir = Path('/dev/shm/conf'))
+	fbak = fruitbak_object()
 	for hash in fbak.pool.agent().lister():
 		print(hash)
 
