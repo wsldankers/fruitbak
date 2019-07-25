@@ -38,7 +38,12 @@ def ensure_bytes(obj):
 	if isinstance(obj, bytes):
 		return obj
 
-	return obj.__bytes__()
+	try:
+		b = obj.__bytes__
+	except AttributeError:
+		raise TypeError("cannot convert '%s' object to bytes" % (type(obj).__name__))
+	else:
+		return b()
 
 def ensure_byteslike(obj):
 	"""Encode str obj to UTF-8 encoding with 'surrogateescape' error handler,
@@ -59,7 +64,12 @@ def ensure_byteslike(obj):
 	else:
 		return obj
 
-	return obj.__bytes__()
+	try:
+		b = obj.__bytes__
+	except AttributeError:
+		raise TypeError("cannot convert '%s' object to bytes" % (type(obj).__name__))
+	else:
+		return b()
 
 def ensure_str(obj):
 	"""

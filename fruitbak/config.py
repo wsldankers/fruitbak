@@ -4,7 +4,7 @@ from weakref import ref as weakref
 from os import environ, fsencode
 from threading import local
 
-from fruitbak.util import initializer, opener, ensure_bytes
+from fruitbak.util import initializer, opener, ensure_bytes, ensure_str
 
 class configurable:
 	def __init__(self, initializer):
@@ -174,17 +174,17 @@ class Config:
 			return subprocess_run(*args, **kwargs)
 		extra_builtins['run'] = run
 
-		def backticks(command, **kwargs):
+		def backticks(command, *args, **kwargs):
 			if kwargs.get('shell') is None:
 				try:
-					command = (b'sh', b'-ec', ensure_bytes(command))
+					command = (b'sh', b'-ec', ensure_bytes(command), 'sh', *args)
 				except TypeError:
-					pass
+					command = (*command, *args)
 				else:
 					kwargs['shell'] = False
 			completed = run(command, stdout = PIPE, **kwargs)
 			completed.check_returncode()
-			return completed.stdout
+			return ensure_str(completed.stdout)
 		extra_builtins['backticks'] = backticks
 
 		for p in paths:
@@ -193,7 +193,7 @@ class Config:
 	def __getitem__(self, key):
 		value = self.globals[key]
 		while isinstance(value, delayed):
-			value = value()
+			value = value(self)
 			#self.globals[key] = value
 		return value
 
@@ -210,7 +210,7 @@ class Config:
 	def copy(self):
 		dup = type(self)()
 		dup.tls = self.tls
-		dup.globals = self.globals
+		dup.globals = self.globals.copy()
 		return dup
 
 	def update(self, *args, **kwargs):

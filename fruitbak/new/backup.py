@@ -28,8 +28,17 @@ class NewBackup(Initializer):
 		return self.host.config
 
 	@configurable
+	def share(self):
+		return {}
+
+	@configurable
 	def shares(self):
 		return [dict(name = 'root', path = '/')]
+
+	@shares.prepare
+	def shares(self, value):
+		share = self.share
+		return [{**share, **v} for v in value]
 
 	@configurable
 	def pre_command(self):
@@ -137,7 +146,7 @@ class NewBackup(Initializer):
 		info = dict(level = self.level, failed = False, shares = shares_info)
 
 		with config.setenv(env):
-			self.pre_command(fruitbak = self.fruitbak, host = self.host, newbackup = self)
+			self.pre_command(fruitbak = self.fruitbak, host = self.host, backup = self)
 
 			info['startTime'] = time_ns()
 
@@ -151,7 +160,7 @@ class NewBackup(Initializer):
 
 			info['endTime'] = time_ns()
 
-			self.post_command(fruitbak = self.fruitbak, host = self.host, newbackup = self)
+			self.post_command(fruitbak = self.fruitbak, host = self.host, backup = self)
 
 		with open('info.json', 'w', opener = backupdir_fd.opener) as fp:
 			dump_json(info, fp)

@@ -154,7 +154,7 @@ class NewShare(Initializer):
 		)
 
 		with hostconfig.setenv(self.env):
-			self.pre_command(fruitbak = self.fruitbak, host = self.host, backup = self.newbackup, newshare = self)
+			self.pre_command(fruitbak = self.fruitbak, host = self.host, backup = self.newbackup, share = self)
 
 			info['startTime'] = time_ns()
 
@@ -163,7 +163,7 @@ class NewShare(Initializer):
 
 			info['endTime'] = time_ns()
 
-			self.post_command(fruitbak = self.fruitbak, host = self.host, backup = self.newbackup, newshare = self)
+			self.post_command(fruitbak = self.fruitbak, host = self.host, backup = self.newbackup, share = self)
 
 		with open('info.json', 'w', opener = self.sharedir_fd.opener) as fp:
 			dump_json(info, fp)
