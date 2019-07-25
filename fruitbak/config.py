@@ -203,7 +203,7 @@ class Config:
 	def get(self, key, default = None):
 		value = self.globals.get(key, default)
 		while isinstance(value, delayed):
-			value = value()
+			value = value(self)
 			#self.globals[key] = value
 		return value
 
