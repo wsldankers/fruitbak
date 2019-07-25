@@ -91,6 +91,7 @@ class _Worker(Thread):
 					except IndexError:
 						cond.wait()
 
+			# this needs to move to Job.run():
 			job_cond = job.cond
 			with job_cond:
 				results = job.results
@@ -115,6 +116,7 @@ class _Worker(Thread):
 
 				job_cond.notify()
 
+			# this also needs to move to Job.run():
 			if task is not None:
 				try:
 					r = task()
