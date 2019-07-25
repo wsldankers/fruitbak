@@ -3,6 +3,7 @@ from subprocess import run as subprocess_run, PIPE
 from weakref import ref as weakref
 from os import environ, fsencode
 from threading import local
+from collections import ChainMap
 
 from fruitbak.util import initializer, opener, ensure_bytes, ensure_str
 
@@ -210,7 +211,7 @@ class Config:
 	def copy(self):
 		dup = type(self)()
 		dup.tls = self.tls
-		dup.globals = self.globals.copy()
+		dup.globals = ChainMap({}, self.globals)
 		return dup
 
 	def update(self, *args, **kwargs):
