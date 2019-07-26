@@ -5,7 +5,11 @@ from fruitbak.util import Initializer, initializer
 class Transfer(Initializer):
 	@initializer
 	def fruitbak(self):
-		return self.newshare.fruitbak
+		return self.host.fruitbak
+
+	@initializer
+	def host(self):
+		return self.newbackup.host
 
 	@initializer
 	def newbackup(self):
@@ -30,6 +34,20 @@ class Transfer(Initializer):
 	@initializer
 	def config(self):
 		return self.newshare.config
+
+	@initializer
+	def hostname(self):
+		hostname = self.config.get('host')
+		if hostname is None:
+			return self.host.name
+
+	@initializer
+	def user(self):
+		return self.config.get('user')
+
+	@initializer
+	def port(self):
+		return self.config.get('port')
 
 	@initializer
 	def one_filesystem(self):
