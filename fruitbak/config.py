@@ -1,11 +1,11 @@
 from pathlib import Path
 from subprocess import run as subprocess_run, PIPE
 from weakref import ref as weakref
-from os import environ, fsencode
+from os import environ
 from threading import local
 from collections import ChainMap
 
-from fruitbak.util import initializer, opener, ensure_bytes, ensure_str
+from fruitbak.util import initializer, opener, ensure_bytes, ensure_str, merge_env, convert_env
 
 class configurable:
 	def __init__(self, initializer):
@@ -136,49 +136,19 @@ class Config:
 			exec(content, weak_globals())
 		extra_builtins['include'] = include
 
-		cfg_env = {}
-		if env is not None:
-			for k, v in env.items():
-				k = fsencode(k)
-				if k in cfg_env:
-					continue
-				try:
-					v = fsencode(v)
-				except:
-					pass
-				else:
-					cfg_env[k] = v
+		cfg_env = convert_env(env)
 
 		def run(*args, env = None, **kwargs):
 			tls_env = getattr(tls, 'env', {})
-			if cfg_env or tls_env:
-				new_env = {}
-				if env is None:
-					env = environ
-				for k, v in env.items():
-					new_env[fsencode(k)] = fsencode(v)
-
-				new_env.update(cfg_env)
-
-				for k, v in tls_env.items():
-					k = fsencode(k)
-					if k in new_env:
-						continue
-					try:
-						v = fsencode(v)
-					except:
-						pass
-					else:
-						new_env[k] = v
-
-				kwargs = dict(kwargs, env = new_env)
+			env = merge_env(environ, cfg_env, tls_env, env)
+			kwargs = dict(kwargs, env = new_env)
 			return subprocess_run(*args, **kwargs)
 		extra_builtins['run'] = run
 
 		def backticks(command, *args, **kwargs):
 			if kwargs.get('shell') is None:
 				try:
-					command = (b'sh', b'-ec', ensure_bytes(command), 'sh', *args)
+					command = (b'/bin/sh', b'-ec', ensure_bytes(command), b'sh', *args)
 				except TypeError:
 					command = (*command, *args)
 				else:
