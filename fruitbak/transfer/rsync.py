@@ -19,7 +19,7 @@ rsync_filter_escape_replace_re = re(rb'[*?[\\]')
 def rsync_filter_escape(path, force = False):
 	path = ensure_bytes(path)
 	if force or rsync_filter_escape_find_re.search(path) is not None:
-		return rsync_filter_escape_replace_re.sub(path, rb'"\\\1')
+		return rsync_filter_escape_replace_re.sub(rb'\\\1', path)
 	return path
 
 def samedentry(a, b):
