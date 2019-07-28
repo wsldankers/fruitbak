@@ -4,6 +4,7 @@ from weakref import ref as weakref
 from os import environ
 from threading import local
 from collections import ChainMap
+from functools import wraps
 
 from fruitbak.util import initializer, opener, ensure_bytes, ensure_str, merge_env, convert_env
 
@@ -36,12 +37,12 @@ class configurable:
 		setattr(obj, name, value)
 		return value
 
-	# staticmethod because this isn't a method for the property object
+	# staticmethod because this isn't a method for the property object itself
 	@staticmethod
 	def _validate(self, value):
 		return value
 
-	# staticmethod because this isn't a method for the property object
+	# staticmethod because this isn't a method for the property object itself
 	@staticmethod
 	def _prepare(self, value):
 		return value
@@ -56,11 +57,21 @@ class configurable:
 
 class configurable_function(configurable):
 	def __init__(self, initializer):
+		@wraps(initializer)
 		def _initializer(self):
 			return initializer
-		_initializer.__name__ = initializer.__name__
-		_initializer.__doc__ = initializer.__doc__
 		super().__init__(_initializer)
+
+class configurable_command(configurable):
+	# staticmethod because this isn't a method for the property object itself
+	@staticmethod
+	def _prepare(self, value):
+		if callable(value):
+			return value
+		config = self.config
+		def command(*args, **kwargs):
+			subprocess_run((b'/bin/sh', b'-ec', ensure_bytes(value), 'sh'), env = config.env)
+		return command
 
 class delayed:
 	def __init__(self, f):
@@ -78,6 +89,7 @@ class delayed:
 import builtins as builtins_module
 builtins = vars(builtins_module)
 
+# FIXME: environment related stuff needs to be moved to a separate module
 class ConfigEnvironment:
 	def __init__(self, config, *args, **kwargs):
 		self.tls = config.tls
@@ -137,6 +149,7 @@ class Config:
 		extra_builtins['include'] = include
 
 		cfg_env = convert_env(env)
+		self.cfg_env = cfg_env
 
 		def run(*args, env = None, **kwargs):
 			tls_env = getattr(tls, 'env', {})
@@ -201,4 +214,4 @@ class Config:
 
 	@property
 	def env(self):
-		return self.tls.env
+		return merge_env(environ, self.cfg_env, getattr(self.tls, 'env', {}))

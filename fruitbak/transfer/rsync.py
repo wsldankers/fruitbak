@@ -112,12 +112,15 @@ class RsyncTransfer(Transfer):
 			if value is not None:
 				env[name] = value
 
-		with RsyncFetch(
-					command = command,
-					environ = map(b'='.join, merge_env(environ, self.config.env, env).items()),
-					entry_callback = entry_callback,
-					#error_callback = error_callback,
-					filters = self.filters,
-					chunk_size = self.fruitbak.chunk_size,
-				) as rf:
-			rf.run()
+		config = self.config
+
+		with config.setenv(env):
+			with RsyncFetch(
+						command = command,
+						environ = map(b'='.join, config.env.items()),
+						entry_callback = entry_callback,
+						#error_callback = error_callback,
+						filters = self.filters,
+						chunk_size = self.fruitbak.chunk_size,
+					) as rf:
+				rf.run()

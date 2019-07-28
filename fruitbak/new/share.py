@@ -1,5 +1,5 @@
 from fruitbak.util import Initializer, initializer, xyzzy
-from fruitbak.config import configurable, configurable_function
+from fruitbak.config import configurable, configurable_function, configurable_command
 
 from hardhat import HardhatMaker
 
@@ -25,11 +25,11 @@ class NewShare(Initializer):
 	def mountpoint(self):
 		return self.path
 
-	@configurable
+	@configurable_command
 	def pre_command(self):
 		return xyzzy
 
-	@configurable
+	@configurable_command
 	def post_command(self):
 		return xyzzy
 

@@ -6,7 +6,7 @@ from json import dump as dump_json
 from hashset import Hashset
 
 from fruitbak.util import Initializer, initializer, xyzzy
-from fruitbak.config import configurable, configurable_function
+from fruitbak.config import configurable, configurable_function, configurable_command
 from fruitbak.new.share import NewShare, time_ns
 from fruitbak.transfer import LocalTransfer
 
@@ -40,11 +40,11 @@ class NewBackup(Initializer):
 		share = self.share
 		return [{**share, **v} for v in value]
 
-	@configurable
+	@configurable_command
 	def pre_command(self):
 		return xyzzy
 
-	@configurable
+	@configurable_command
 	def post_command(self):
 		return xyzzy
 
