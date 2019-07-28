@@ -2,7 +2,7 @@
 
 from fruitbak.share import Share
 from fruitbak.util import Initializer, initializer, lockingclass, unlocked, ensure_byteslike
-from fruitbak.config import configurable_function
+from fruitbak.config import configurable_property
 
 from hardhat import normalize as hardhat_normalize
 from hashset import Hashset
@@ -39,6 +39,12 @@ class Backup(Initializer):
 	def fruitbak(self):
 		"""The fruitbak object that this backup belongs to"""
 		return self.host.fruitbak
+
+	@unlocked
+	@initializer
+	def config(self):
+		"""The config object of the host that this backup belongs to"""
+		return self.host.config
 
 	@unlocked
 	@initializer
@@ -197,7 +203,7 @@ class Backup(Initializer):
 			+ current_month_ratio - start_month_ratio)
 
 	@unlocked
-	@configurable_function
+	@configurable_property
 	def expired(self):
 		return self.age_months > 3
 

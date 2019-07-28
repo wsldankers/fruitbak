@@ -8,7 +8,7 @@ from functools import wraps
 
 from fruitbak.util import initializer, opener, ensure_bytes, ensure_str, merge_env, convert_env
 
-class configurable:
+class configurable_property:
 	def __init__(self, initializer):
 		self._initializer = initializer
 		self.__doc__ = initializer.__doc__
@@ -33,9 +33,7 @@ class configurable:
 		else:
 			value = self._validate(obj, value)
 
-		value = self._prepare(obj, value)
-		setattr(obj, name, value)
-		return value
+		return self._prepare(obj, value)
 
 	# staticmethod because this isn't a method for the property object itself
 	@staticmethod
@@ -54,6 +52,12 @@ class configurable:
 	def prepare(self, f):
 		self._prepare = f
 		return self
+
+class configurable(configurable_property):
+	def __get__(self, obj, objtype = None):
+		value = super().__get__(obj, objtype)
+		setattr(obj, self._initializer.__name__, value)
+		return value
 
 class configurable_function(configurable):
 	def __init__(self, initializer):
