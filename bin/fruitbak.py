@@ -323,7 +323,8 @@ def backup(all, host, full, full_set):
 				j.result()
 
 @cli.command()
-def gc():
+@click.option('-n', '--dryrun', '--dry-run', default = False, is_flag = True)
+def gc(dryrun):
 	"""Clean up"""
 	fbak = fruitbak_object()
 
@@ -334,16 +335,27 @@ def gc():
 	for host in fbak:
 		for backup in host:
 			if backup.expired:
-				backup.remove()
+				if dryrun:
+					print("would delete %s %d" % (host.name, backup.index))
+				else:
+					backup.remove()
 
 	# generate new root/hashes
 	hashes = fbak.generate_hashes()
+
+	cleaned_chunks = 0
 
 	# clean up the pool
 	agent = fbak.pool.agent()
 	for hash in agent.lister():
 		if hash not in hashes:
-			agent.del_chunk(hash, wait = False)
+			if not dryrun:
+				agent.del_chunk(hash, wait = False)
+			cleaned_chunks += 1
+
+	if dryrun:
+		print("would have cleaned %d chunks" % (cleaned_chunks,))
+
 	agent.sync()
 
 @cli.command()

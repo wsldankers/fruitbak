@@ -8,7 +8,7 @@ from functools import wraps
 
 from fruitbak.util import initializer, opener, ensure_bytes, ensure_str, merge_env, convert_env
 
-class configurable_property:
+class _configurable:
 	def __init__(self, initializer):
 		self._initializer = initializer
 		self.__doc__ = initializer.__doc__
@@ -31,31 +31,37 @@ class configurable_property:
 		except KeyError:
 			value = initializer(obj)
 		else:
-			value = self._validate(obj, value)
+			value = self._validate(obj, objtype, value)
 
-		return self._prepare(obj, value)
+		return self._prepare(obj, objtype, value)
+
+	def _validate(self, obj, objtype, value):
+		return self._validator(obj, value)
+
+	def _prepare(self, obj, objtype, value):
+		return self._preparator(obj, value)
 
 	# staticmethod because this isn't a method for the property object itself
 	@staticmethod
-	def _validate(self, value):
+	def _validator(self, value):
 		return value
 
 	# staticmethod because this isn't a method for the property object itself
 	@staticmethod
-	def _prepare(self, value):
+	def _preparator(self, value):
 		return value
 
 	def validate(self, f):
-		self._validate = f
+		self._validator = f
 		return self
 
 	def prepare(self, f):
-		self._prepare = f
+		self._preparator = f
 		return self
 
-class configurable(configurable_property):
+class configurable(_configurable):
 	def __get__(self, obj, objtype = None):
-		value = super().__get__(obj, objtype)
+		value = super(configurable, self).__get__(obj, objtype)
 		setattr(obj, self._initializer.__name__, value)
 		return value
 
@@ -66,10 +72,14 @@ class configurable_function(configurable):
 			return initializer
 		super().__init__(_initializer)
 
+class configurable_property(_configurable):
+	def _validate(self, obj, objtype, value):
+		value = super()._validate(obj, objtype, value)
+		return value(obj)
+
 class configurable_command(configurable):
-	# staticmethod because this isn't a method for the property object itself
-	@staticmethod
-	def _prepare(self, value):
+	def _prepare(self, obj, objtype, value):
+		value = super()._prepare(obj, objtype, value)
 		if callable(value):
 			return value
 		config = self.config
