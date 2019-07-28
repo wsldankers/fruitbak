@@ -2,6 +2,7 @@
 
 from fruitbak.share import Share
 from fruitbak.util import Initializer, initializer, lockingclass, unlocked, ensure_byteslike
+from fruitbak.config import configurable_function
 
 from hardhat import normalize as hardhat_normalize
 from hashset import Hashset
@@ -196,14 +197,9 @@ class Backup(Initializer):
 			+ current_month_ratio - start_month_ratio)
 
 	@unlocked
-	@property
+	@configurable_function
 	def expired(self):
-		try:
-			configured = self.host.config['expired']
-		except KeyError:
-			return self.age_months > 3
-		else:
-			return configured(self)
+		return self.age_months > 3
 
 	@initializer
 	def log_tier(self):
