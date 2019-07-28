@@ -147,6 +147,19 @@ def ls(host, backup, share, path):
 
 		total_blocks = 0
 
+		def relativize(source, target):
+			s = source.split('/')
+			s.pop()
+			t = target.split('/')
+			s.reverse()
+			t.reverse()
+			while s and t and s[-1] == t[-1]:
+				s.pop()
+				t.pop()
+			for x in s:
+				t.append('..')
+			return '/'.join(reversed(t))
+
 		def info(dentry):
 			mode = dentry.mode
 			mode_chars = [dentry.type.lsl_char]
@@ -169,10 +182,12 @@ def ls(host, backup, share, path):
 			nonlocal total_blocks
 			total_blocks += (size + 4095) // 4096
 
-			description = [basename(fsdecode(dentry.name))]
+			name = fsdecode(dentry.name)
+
+			description = [basename(name)]
 			if dentry.is_hardlink:
 				description.append("=>")
-				description.append(basename(fsdecode(bytes(dentry.hardlink))))
+				description.append(relativize(name, fsdecode(bytes(dentry.hardlink))))
 			elif dentry.is_symlink:
 				description.append("->")
 				description.append(fsdecode(bytes(dentry.symlink)))

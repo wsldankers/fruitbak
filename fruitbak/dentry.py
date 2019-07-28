@@ -660,6 +660,10 @@ class HardlinkDentry(Dentry):
 	def name(self):
 		return self.original.name
 
+	@property
+	def hardlink(self):
+		return self.original.hardlink
+
 	def __getattr__(self, name):
 		return getattr(self.target, name)
 
