@@ -82,7 +82,7 @@ class configurable_command(configurable):
 		value = super()._prepare(obj, objtype, value)
 		if callable(value):
 			return value
-		config = self.config
+		config = obj.config
 		def command(*args, **kwargs):
 			subprocess_run((b'/bin/sh', b'-ec', ensure_bytes(value), 'sh'), env = config.env)
 		return command
