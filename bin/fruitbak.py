@@ -259,12 +259,12 @@ def tar(host, backup, share, path):
 				i.linkname = fsdecode(bytes(dentry.symlink))
 			elif dentry.is_chardev:
 				i.type = CHRTYPE
-				i.devmajor = dentry.major
-				i.devminor = dentry.minor
+				i.devmajor = dentry.rdev_major
+				i.devminor = dentry.rdev_minor
 			elif dentry.is_blockdev:
 				i.type = BLKTYPE
-				i.devmajor = dentry.major
-				i.devminor = dentry.minor
+				i.devmajor = dentry.rdev_major
+				i.devminor = dentry.rdev_minor
 			elif dentry.is_directory:
 				i.type = DIRTYPE
 			elif dentry.is_fifo:
