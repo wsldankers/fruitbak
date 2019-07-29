@@ -167,8 +167,8 @@ class Config:
 
 		def run(*args, env = None, **kwargs):
 			tls_env = getattr(tls, 'env', {})
-			env = merge_env(environ, cfg_env, tls_env, env)
-			kwargs = dict(kwargs, env = new_env)
+			complete_env = merge_env(environ, cfg_env, tls_env, env)
+			kwargs = dict(kwargs, env = complete_env)
 			return subprocess_run(*args, **kwargs)
 		extra_builtins['run'] = run
 
