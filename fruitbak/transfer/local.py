@@ -180,7 +180,7 @@ class LocalTransfer(Transfer):
 				continue
 			name = path.name
 			path = normalize(path)
-			dentry = Dentry(name = path, mode = st.st_mode, size = st.st_size, mtime = st.st_mtime_ns, uid = st.st_uid, gid = st.st_gid)
+			dentry = Dentry(name = path, mode = st.st_mode, size = st.st_size, mtime = st.st_mtime_ns, uid = st.st_uid, gid = st.st_gid, share = reference)
 			ino = st.st_dev, st.st_ino
 			hardlink = seen.get(ino)
 			if hardlink is None:

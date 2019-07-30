@@ -178,7 +178,6 @@ class Share(Initializer):
 				target = Dentry(target_data, name = target_path, share = self)
 				if target.is_hardlink:
 					raise NestedHardlinkError("'%s' is a hardlink pointing to '%s', but that is also a hardlink" % (path, extra))
-				target_extra = target.extra
 
 				if first_inode <= target_inode < inode:
 					# target is already output

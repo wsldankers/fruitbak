@@ -652,7 +652,8 @@ class Dentry(Initializer):
 
 		return S_ISSOCK(self.mode)
 
-class HardlinkDentry(Dentry):
+# not a subclass of Dentry because then __getattr__ would not be called.
+class HardlinkDentry(Initializer):
 	def __init__(self, original, target, **kwargs):
 		super().__init__(original = original, target = target, **kwargs)
 
