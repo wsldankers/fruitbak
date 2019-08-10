@@ -55,7 +55,7 @@ class Pool(Initializer):
 
 		return self.fruitbak.config
 
-	@configurable
+	@configurable('pool_max_queue_depth')
 	def max_queue_depth(self):
 		"""The maximum number of operations that may be in progress at a given time
 		for the pool to schedule more readahead operations.
@@ -64,7 +64,7 @@ class Pool(Initializer):
 		objects have active readahead queues (agents are guaranteed to be able to
 		perform at least one readahead operation, to prevent deadlocks).
 
-		This property is user-configurable.
+		This property is user-configurable under the name `pool_max_queue_depth`.
 
 		:type: int"""
 		
