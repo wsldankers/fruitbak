@@ -47,7 +47,7 @@ if($lang eq 'perl') {
 	my %resvars = map { chomp; ($_, undef) } <$fh>;
 	close($fh);
 
-	print "#! $outvars{PYTHON}\n\nclass autoconf:\n";
+	print "#! $outvars{PYTHON} -O\n\nclass autoconf:\n";
 
 	foreach my $key (sort keys %outvars) {
 		my $val = $outvars{$key};
