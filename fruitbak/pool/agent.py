@@ -5,6 +5,7 @@ from collections import deque, OrderedDict
 from sys import stderr
 
 from fruitbak.util import Initializer, initializer, MinHeapMap, MinWeakHeapMap
+from fruitbak.config import configurable
 
 class PoolAction(Initializer):
 	done = False
@@ -166,6 +167,10 @@ class PoolAgent(Initializer):
 		assert self.lock
 		return Condition(self.lock)
 
+	@initializer
+	def config(self):
+		return self.pool.config
+
 	# Number of submitted read actions that have not yet completed
 	pending_reads = 0
 
@@ -193,7 +198,9 @@ class PoolAgent(Initializer):
 	pending_readaheads = 0
 
 	# Maximum number of readahead actions
-	max_readaheads = 32
+	@configurable('pool_max_readaheads')
+	def max_readaheads(self):
+		return 32
 
 	# The next serial to assign to an action
 	next_action_serial = 0
