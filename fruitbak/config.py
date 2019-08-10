@@ -8,14 +8,15 @@ from functools import wraps
 
 from fruitbak.util import initializer, opener, ensure_bytes, ensure_str, merge_env, convert_env
 
-class _configurable:
-	def __init__(self, initializer):
+class _configurable_base:
+	def __init__(self, name, initializer):
+		self._name = name
 		self._initializer = initializer
 		self.__doc__ = initializer.__doc__
 
 	def __get__(self, obj, objtype = None):
 		initializer = self._initializer
-		name = initializer.__name__
+		name = self._name
 
 		try:
 			config = obj.config
@@ -59,25 +60,25 @@ class _configurable:
 		self._preparator = f
 		return self
 
-class configurable(_configurable):
+class _configurable(_configurable_base):
 	def __get__(self, obj, objtype = None):
-		value = super(configurable, self).__get__(obj, objtype)
+		value = super().__get__(obj, objtype)
 		setattr(obj, self._initializer.__name__, value)
 		return value
 
-class configurable_function(configurable):
-	def __init__(self, initializer):
+class _configurable_function(_configurable):
+	def __init__(self, name, initializer):
 		@wraps(initializer)
 		def _initializer(self):
 			return initializer
-		super().__init__(_initializer)
+		super().__init__(name, _initializer)
 
-class configurable_property(_configurable):
+class _configurable_property(_configurable_base):
 	def _validate(self, obj, objtype, value):
 		value = super()._validate(obj, objtype, value)
 		return value(obj)
 
-class configurable_command(configurable):
+class _configurable_command(_configurable):
 	def _prepare(self, obj, objtype, value):
 		value = super()._prepare(obj, objtype, value)
 		if callable(value):
@@ -87,12 +88,29 @@ class configurable_command(configurable):
 			subprocess_run((b'/bin/sh', b'-ec', ensure_bytes(value), 'sh'), env = config.env)
 		return command
 
+def _configurable_wrapper(configurable):
+	@wraps(configurable)
+	def _configurable(str_or_method):
+		if isinstance(str_or_method, str):
+			@wraps(configurable)
+			def _configurable(method):
+				return configurable(str_or_method, method)
+			return _configurable
+		else:
+			return configurable(str_or_method.__name__, str_or_method)
+	return _configurable
+
+configurable = _configurable_wrapper(_configurable)
+configurable_function = _configurable_wrapper(_configurable_function)
+configurable_property = _configurable_wrapper(_configurable_property)
+configurable_command = _configurable_wrapper(_configurable_command)
+
 class delayed:
 	def __init__(self, f):
-		self.f = f
+		self._f = f
 
 	def __call__(self, *args, **kwargs):
-		return self.f(*args, **kwargs)
+		return self._f(*args, **kwargs)
 
 # Ugly: the official way is to use the builtins module, but that is
 # not a dict we can extend. However, exec() is documented to populate
