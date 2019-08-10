@@ -3,7 +3,6 @@ from sys import stderr
 from stat import *
 from traceback import print_exc
 from re import compile as re
-from itertools import chain
 from os import makedev, environ
 
 from rsync_fetch import RsyncFetch
@@ -13,16 +12,16 @@ from fruitbak.dentry import Dentry
 from fruitbak.transfer import Transfer
 from fruitbak.config import configurable
 
-rsync_filter_escape_find_re = re(rb'[*?[]')
-rsync_filter_escape_replace_re = re(rb'[*?[\\]')
+__rsync_filter_escape_find_re = re(rb'[*?[]')
+__rsync_filter_escape_replace_re = re(rb'[*?[\\]')
 
-def rsync_filter_escape(path, force = False):
+def _rsync_filter_escape(path, force = False):
 	path = ensure_bytes(path)
-	if force or rsync_filter_escape_find_re.search(path) is not None:
-		return rsync_filter_escape_replace_re.sub(rb'\\\1', path)
+	if force or __rsync_filter_escape_find_re.search(path) is not None:
+		return __rsync_filter_escape_replace_re.sub(rb'\\\1', path)
 	return path
 
-def samedentry(a, b):
+def _samedentry(a, b):
 	if a is None:
 		return False
 	if b is None:
@@ -40,7 +39,7 @@ def samedentry(a, b):
 	return True
 
 class RsyncTransfer(Transfer):
-	@configurable
+	@configurable('rsync_command')
 	def command(self):
 		return '''exec ssh ${port+-p "$port"} ${user+-l "$user"} -- "$host" exec rsync "$@"'''
 
@@ -56,15 +55,16 @@ class RsyncTransfer(Transfer):
 				except ValueError:
 					continue
 			if exclude.endswith('/') and exclude != '/':
-				filters.add(b'- /' + rsync_filter_escape(path, force = True) + b'/**')
+				filters.add(b'- /' + _rsync_filter_escape(path, force = True) + b'/**')
 			else:
-				filters.add(b'- /' + rsync_filter_escape(path))
+				filters.add(b'- /' + _rsync_filter_escape(path))
+		config = self.config
 		try:
-			custom_filters = self.config['filters']
+			custom_filters = config['rsync_filters']
 		except KeyError:
 			return tuple(filters)
 		else:
-			return tuple(chain(filters, map(ensure_bytes, custom_filters)))
+			return (*filters, *map(ensure_bytes, custom_filters))
 
 	def transfer(self):
 		newshare = self.newshare
@@ -81,7 +81,7 @@ class RsyncTransfer(Transfer):
 			if hardlink is None:
 				if dentry.is_file:
 					ref_dentry = reference.get(name)
-					if samedentry(dentry, ref_dentry):
+					if _samedentry(dentry, ref_dentry):
 						dentry.size = ref_dentry.size
 						dentry.hashes = ref_dentry.hashes
 					elif size > 0:
