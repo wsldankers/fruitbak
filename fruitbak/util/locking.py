@@ -177,6 +177,19 @@ def lockingclass(cls):
 
 if __debug__:
 	class NLock(type(RLock())):
+		"""An alias for threading.Lock (if __debug__ is False) or
+		threading.RLock (if __debug__ is True). The latter can be queried by
+		casting it to a bool (or simply by using it as a truth test). It will
+		evaluate to True iff it is locked by the current thread.
+
+		Because this boolean test is only available if __debug__ is True, you
+		should only use it in assert statements (which are elided when __debug__ is
+		False).
+
+		If __debug__ is True, the NLock will, when it is acquired, detect the
+		situation where it is acquired twice and throw a RuntimeError if that is
+		the case."""
+
 		def acquire(self, *args, **kwargs):
 			if self._is_owned():
 				raise RuntimeError("lock already held by same thread")
@@ -189,28 +202,16 @@ if __debug__:
 
 		def __bool__(self):
 			return self._is_owned()
+
+	class NCondition(Condition):
+		"""A subclass of `threading.Condition` that uses an `NLock`. It supports
+		boolean testing to see if the lock is held by the current thread."""
+
+		def __init__(self, lock = None):
+			if lock is None:
+				lock = NLock()
+			self.__bool__ = lock.__bool__
+			return super().__init__(lock)
 else:
-	class NLock(type(Lock())):
-		def __bool__(self):
-			return self.locked()
-
-NLock.__doc__ = """A subclass of either threading.Lock (if __debug__ is
-False) or threading.RLock (if __debug__ is True) that can be queried by
-casting it to a bool (or simply by using it as a truth test). It will
-evaluate to True iff it is locked. This may sometimes yield false positives
-due to inherent race conditions, so only use this for sanity checks such as
-`assert`.
-
-If __debug__ is True, the NLock will, when it is acquired, detect the
-situation where it is acquired twice and throw a RuntimeError if that is
-the case."""
-
-class NCondition(Condition):
-	"""A subclass of `threading.Condition` that uses an `NLock`. It supports
-	boolean testing to see if the lock is held by the current thread."""
-
-	def __init__(self, lock = None):
-		if lock is None:
-			lock = NLock()
-		self.__bool__ = lock.__bool__
-		return super().__init__(lock)
+	NLock = Lock
+	NCondition = Condition
