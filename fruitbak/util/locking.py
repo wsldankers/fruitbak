@@ -6,7 +6,7 @@ It also provides a lock type (NLock) that can be used to find cases of
 undesired nested locking, that is, attempts to acquire a lock twice by the
 same thread."""
 
-from threading import Lock, RLock
+from threading import Lock, RLock, Condition
 from functools import wraps
 
 class unlockedmethod:
@@ -177,44 +177,22 @@ def lockingclass(cls):
 
 if __debug__:
 	class NLock(type(RLock())):
-		def __enter__(self):
-			ctx = super().__enter__()
-			try:
-				if " count=1 " not in repr(self):
-					raise RuntimeError("lock already held by same thread")
-			except:
-				self.__exit__(None, None, None)
-				raise
-			return ctx
-
 		def acquire(self, *args, **kwargs):
-			r = super().acquire(*args, **kwargs)
-			if r:
-				try:
-					if " count=1 " not in repr(self):
-						raise RuntimeError("lock already held by same thread")
-				except:
-					self.release()
-					raise
-			return r
+			if self._is_owned():
+				raise RuntimeError("lock already held by same thread")
+			return super().acquire(*args, **kwargs)
+
+		def __enter__(self):
+			if self._is_owned():
+				raise RuntimeError("lock already held by same thread")
+			return super().__enter__()
 
 		def __bool__(self):
-			s = super()
-			if not s.acquire(False):
-				return False
-			try:
-				return " count=1 " not in repr(self)
-			finally:
-				s.release()
+			return self._is_owned()
 else:
 	class NLock(type(Lock())):
 		def __bool__(self):
-			s = super()
-			if s.acquire(False):
-				s.release()
-				return True
-			else:
-				return False
+			return self.locked()
 
 NLock.__doc__ = """A subclass of either threading.Lock (if __debug__ is
 False) or threading.RLock (if __debug__ is True) that can be queried by
@@ -226,3 +204,13 @@ due to inherent race conditions, so only use this for sanity checks such as
 If __debug__ is True, the NLock will, when it is acquired, detect the
 situation where it is acquired twice and throw a RuntimeError if that is
 the case."""
+
+class NCondition(Condition):
+	"""A subclass of `threading.Condition` that uses an `NLock`. It supports
+	boolean testing to see if the lock is held by the current thread."""
+
+	def __init__(self, lock = None):
+		if lock is None:
+			lock = NLock()
+		self.__bool__ = lock.__bool__
+		return super().__init__(lock)
