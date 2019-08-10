@@ -14,7 +14,7 @@ class Handler(Initializer):
 
 	@weakproperty
 	def pool(self):
-		raise RuntimeError("%.pool used uninitialized" % type(self).__name__)
+		raise RuntimeError("%s.pool used uninitialized" % (type(self).__name__,))
 
 	@initializer
 	def config(self):
