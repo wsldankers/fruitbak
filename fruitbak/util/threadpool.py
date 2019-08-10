@@ -194,17 +194,29 @@ class ThreadPool:
 		self.max_workers = max_workers
 		self.max_results = max_results
 
-		self.workers = [_Worker(cond, queue, done, wakeups) for x in range(max_workers)]
+		try:
+			workers = [_Worker(cond, queue, done, wakeups) for x in range(max_workers)]
+		except:
+			done.value = True
+			cond.notify_all()
+			raise
+
+		# Initialise this last so __del__ can run properly:
+		self.workers = workers
 
 	def __del__(self):
+		try:
+			workers = self.workers
+		except AttributeError:
+			# We must have failed during initialization
+			return
 		cond = self.cond
 		with cond:
 			self.done.value = True
 			cond.notify_all()
-		self.workers.clear()
-		#workers = self.workers
-		#for worker in workers:
-		#	worker.join()
+			#for worker in workers:
+			#	worker.join()
+			workers.clear()
 
 	def map(self, func, *args, max_results = None):
 		if max_results is None:
