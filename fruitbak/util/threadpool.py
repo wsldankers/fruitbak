@@ -1,10 +1,13 @@
-from threading import Thread, Condition
+from threading import Thread
 from weakref import ref as weakref
 from collections import deque
 from os import sched_getaffinity
 
-from .weakheapmap import MinWeakHeapMap
+from .weakheapmap import MaxWeakHeapMap
 from .oo import Initializer
+from .locking import NCondition
+
+# cancel = remove from queue
 
 class _Mutable:
 	__slots__ = 'value',
@@ -23,11 +26,14 @@ class _Result(Initializer):
 		self.result = None
 
 class _Job:
-	def __init__(self, func, args):
+	failed = False
+
+	def __init__(self, func, args, max_results):
 		self.func = func
 		self.args = args
+		self.max_results = max_results
 		self.results = deque()
-		self.cond = Condition()
+		self.cond = NCondition()
 		try:
 			self.next_arg = next(args, None)
 		except Exception as e:
@@ -35,7 +41,28 @@ class _Job:
 
 	@property
 	def done(self):
+		assert self.cond
+
 		return self.next_arg is None
+
+	@property
+	def _eligible(self):
+		assert self.cond
+
+		# return self._eligibility > 0
+		if self.done or self.failed:
+			return False
+
+		return len(self.results) < self.max_results
+
+	@property
+	def _eligibility(self):
+		assert self.cond
+
+		if self.done or self.failed:
+			return 0
+
+		return max(0, self.max_results - len(self.results))
 
 	def abort(self):
 		cond = self.cond
@@ -49,6 +76,8 @@ class _Job:
 			cond.notify()
 
 	def get_task(self):
+		assert self.cond
+
 		cur_arg = self.next_arg
 		if cur_arg is None:
 			# we're done
@@ -61,24 +90,66 @@ class _Job:
 		try:
 			self.next_arg = next(self.args, None)
 		except Exception as e:
+			self.failed = True
 			self.next_arg = e
 
 		return lambda: self.func(*cur_arg)
 
+	def get_queued_task(self, requeue):
+		cond = self.cond
+		with cond:
+			results = self.results
+			try:
+				task = self.get_task()
+			except Exception as e:
+				task = None
+				self.failed = True
+				result = _Result()
+				result.success = False
+				result.result = e
+				results.append(result)
+				cond.notify()
+			else:
+				if task is not None:
+					result = _Result()
+					results.append(result)
+
+					def queued_task():
+						try:
+							r = task()
+						except Exception as e:
+							with cond:
+								result.success = False
+								result.result = e
+								cond.notify()
+						else:
+							with cond:
+								result.success = True
+								result.result = r
+								cond.notify()
+
+					_eligibility = self._eligibility
+					if _eligibility:
+						requeue(_eligibility)
+
+					return queued_task
+
+			return None, False
+
+
 class _Worker(Thread):
-	def __init__(self, max_results, queue, cond, done, *args, **kwargs):
+	def __init__(self, cond, queue, done, wakeups, *args, **kwargs):
 		super().__init__(*args, daemon = True, **kwargs)
 		self.cond = cond
 		self.queue = queue
-		self.max_results = max_results
 		self.done = done
+		self.wakeups = wakeups
 		self.start()
 
 	def run(self):
 		cond = self.cond
 		queue = self.queue
 		done = self.done
-		max_results = self.max_results
 
 		while True:
 			job = None
@@ -90,45 +161,18 @@ class _Worker(Thread):
 						job = queue.popkey()
 					except IndexError:
 						cond.wait()
+					self.wakeups.value += 1
 
-			# this needs to move to Job.run():
-			job_cond = job.cond
-			with job_cond:
-				results = job.results
-				try:
-					task = job.get_task()
-				except Exception as e:
-					task = None
-					result = _Result()
-					result.success = False
-					result.result = e
-					results.append(result)
-				else:
-					if task is not None:
-						result = _Result()
-						results.append(result)
-						if not job.done:
-							num_results = len(results)
-							if num_results < max_results:
-								with cond:
-									queue.move_to_end(job, num_results)
-									cond.notify()
+			def requeue(_eligibility):
+				with cond:
+					queue.move_to_end(job, _eligibility)
+					cond.notify()
 
-				job_cond.notify()
+			task = job.get_queued_task(requeue)
 
-			# this also needs to move to Job.run():
 			if task is not None:
-				try:
-					r = task()
-				except Exception as e:
+				if not task():
 					queue.discard(job)
-					job.abort()
-					result.success = False
-					result.result = e
-				else:
-					result.success = True
-					result.result = r
-					job.notify()
 
 class ThreadPool:
 	def __init__(self, max_workers = None, max_results = None):
@@ -137,18 +181,20 @@ class ThreadPool:
 		if max_results is None:
 			max_results = max_workers * 2
 
-		queue = MinWeakHeapMap()
-		cond = Condition()
+		cond = NCondition()
+		queue = MaxWeakHeapMap()
 		done = _Mutable()
+		wakeups = _Mutable(0)
 
-		self.queue = queue
 		self.cond = cond
+		self.queue = queue
 		self.done = done
+		self.wakeups = wakeups
 
 		self.max_workers = max_workers
 		self.max_results = max_results
 
-		self.workers = [_Worker(max_results, queue, cond, done) for x in range(max_workers)]
+		self.workers = [_Worker(cond, queue, done, wakeups) for x in range(max_workers)]
 
 	def __del__(self):
 		cond = self.cond
@@ -160,8 +206,10 @@ class ThreadPool:
 		#for worker in workers:
 		#	worker.join()
 
-	def map(self, func, *args):
-		job = _Job(func, zip(*args))
+	def map(self, func, *args, max_results = None):
+		if max_results is None:
+			max_results = self.max_results
+		job = _Job(func, zip(*args), max_results)
 		job_cond = job.cond
 		results = job.results
 
@@ -170,9 +218,8 @@ class ThreadPool:
 		if task is None:
 			return iter([])
 
-		max_results = self.max_results
-		queue = self.queue
 		cond = self.cond
+		queue = self.queue
 		if not job.done:
 			with cond:
 				queue[job] = 0
@@ -186,12 +233,11 @@ class ThreadPool:
 					while True:
 						if results:
 							result = results.popleft()
-							if not job.done:
-								num_results = len(results)
-								if num_results < max_results:
-									with cond:
-										queue.move_to_end(job, num_results)
-										cond.notify()
+							_eligibility = job._eligibility
+							if _eligibility:
+								with cond:
+									queue.move_to_end(job, _eligibility)
+									cond.notify()
 							while result.success is None:
 								job_cond.wait()
 							if result.success:
@@ -203,11 +249,8 @@ class ThreadPool:
 							return
 						else:
 							task = job.get_task()
-							if task is None:
-								return
-							else:
-								if job.done:
-									queue.discard(job)
-								break
+							if not job._eligible:
+								queue.discard(job)
+							break
 
 		return map(self, task)
