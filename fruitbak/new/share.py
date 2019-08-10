@@ -2,6 +2,7 @@ from fruitbak.util import Initializer, initializer, xyzzy
 from fruitbak.config import configurable, configurable_function, configurable_command
 
 from hardhat import HardhatMaker
+from hashset import Hashset
 
 from json import dump as dump_json
 
@@ -86,6 +87,10 @@ class NewShare(Initializer):
 		return self.fruitbak.pool
 
 	@initializer
+	def hash_size(self):
+		return self.fruitbak.hash_size
+
+	@initializer
 	def hardhat_maker(self):
 		return HardhatMaker('metadata.hh', dir_fd = self.sharedir_fd)
 
@@ -99,10 +104,14 @@ class NewShare(Initializer):
 
 	@initializer
 	def reference(self):
-		if self.full:
-			return {}
-		else:
-			return self.predecessor.get(self.name, {})
+		if not self.full:
+			predecessor = self.predecessor
+			name = self.name
+			try:
+				return predecessor[name]
+			except LookupError:
+				pass
+		return {}
 
 	@initializer
 	def predecessor_hashes(self):
@@ -110,7 +119,7 @@ class NewShare(Initializer):
 		if predecessor:
 			return predecessor.hashes
 		else:
-			return {}
+			return Hashset(b'', self.hash_size)
 
 	@initializer
 	def hashes_fp(self):
