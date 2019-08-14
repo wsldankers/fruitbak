@@ -12,13 +12,13 @@ from fruitbak.dentry import Dentry
 from fruitbak.transfer import Transfer
 from fruitbak.config import configurable
 
-__rsync_filter_escape_find_re = re(rb'[*?[]')
-__rsync_filter_escape_replace_re = re(rb'[*?[\\]')
+_rsync_filter_escape_find_re = re(rb'[*?[]')
+_rsync_filter_escape_replace_re = re(rb'[*?[\\]')
 
 def _rsync_filter_escape(path, force = False):
 	path = ensure_bytes(path)
-	if force or __rsync_filter_escape_find_re.search(path) is not None:
-		return __rsync_filter_escape_replace_re.sub(rb'\\\1', path)
+	if force or _rsync_filter_escape_find_re.search(path) is not None:
+		return _rsync_filter_escape_replace_re.sub(rb'\\\1', path)
 	return path
 
 def _samedentry(a, b):
