@@ -1,7 +1,7 @@
 - implement ideas in READAHEAD
 - rsync
 - logging
-- user docs
+- user docs “getting started”, manpages, documented configuration file
 - api/code docs
 - triage exceptions to distinguish between tempfail and permfail
 - generate exceptions that can be pretty printed for the user
