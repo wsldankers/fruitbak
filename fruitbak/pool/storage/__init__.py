@@ -8,3 +8,4 @@ try:
 	from fruitbak.pool.storage.filesystem import LinuxFilesystem
 except ImportError:
 	pass
+from fruitbak.pool.storage.lmdb import LMDB

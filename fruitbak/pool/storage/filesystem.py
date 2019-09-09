@@ -180,7 +180,6 @@ class Filesystem(Storage):
 
 		def job():
 			try:
-				results = []
 				with pooldir_fd.sysopen(path, O_RDONLY) as fd:
 					buf = fd.read(fd.stat().st_size)
 			except:
