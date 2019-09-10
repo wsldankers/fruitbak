@@ -2,6 +2,8 @@ from threading import Thread
 from weakref import ref as weakref
 from collections import deque
 from os import sched_getaffinity
+from traceback import print_exc
+from sys import stderr
 
 from .weakheapmap import MaxWeakHeapMap
 from .oo import Initializer
@@ -95,7 +97,7 @@ class _Job:
 
 		return lambda: self.func(*cur_arg)
 
-	def get_queued_task(self, requeue):
+	def get_queued_task(self, resume):
 		cond = self.cond
 		with cond:
 			results = self.results
@@ -128,14 +130,20 @@ class _Job:
 								result.result = r
 								cond.notify()
 
-					_eligibility = self._eligibility
-					if _eligibility:
-						requeue(_eligibility)
+					eligibility = self._eligibility
+					if eligibility:
+						resume(eligibility)
 
 					return queued_task
 
 			return None, False
 
+class _SingletonJob:
+	def __init__(self, task):
+		self._task = task
+
+	def get_queued_task(self, resume):
+		return self._task
 
 class _Worker(Thread):
 	def __init__(self, cond, queue, done, wakeups, *args, **kwargs):
@@ -151,6 +159,11 @@ class _Worker(Thread):
 		queue = self.queue
 		done = self.done
 
+		def requeue(eligibility):
+			with cond:
+				queue.move_to_end(job, eligibility)
+				cond.notify()
+
 		while True:
 			job = None
 			with cond:
@@ -162,11 +175,6 @@ class _Worker(Thread):
 					except IndexError:
 						cond.wait()
 					self.wakeups.value += 1
-
-			def requeue(_eligibility):
-				with cond:
-					queue.move_to_end(job, _eligibility)
-					cond.notify()
 
 			task = job.get_queued_task(requeue)
 
@@ -193,6 +201,7 @@ class ThreadPool:
 
 		self.max_workers = max_workers
 		self.max_results = max_results
+		self.singletons = set()
 
 		try:
 			workers = [_Worker(cond, queue, done, wakeups) for x in range(max_workers)]
@@ -245,10 +254,10 @@ class ThreadPool:
 					while True:
 						if results:
 							result = results.popleft()
-							_eligibility = job._eligibility
-							if _eligibility:
+							eligibility = job._eligibility
+							if eligibility:
 								with cond:
-									queue.move_to_end(job, _eligibility)
+									queue.move_to_end(job, eligibility)
 									cond.notify()
 							while result.success is None:
 								job_cond.wait()
@@ -266,3 +275,22 @@ class ThreadPool:
 							break
 
 		return map(self, task)
+
+	def submit(self, func, *args, **kwargs):
+		singletons = self.singletons
+
+		def task():
+			try:
+				func(*args, **kwargs)
+			except:
+				print_exc(file = stderr)
+			finally:
+				singletons.remove(job)
+
+		job = _SingletonJob(task)
+		
+		cond = self.cond
+		with cond:
+			self.queue[job] = 0
+			singletons.add(job)
+			cond.notify()

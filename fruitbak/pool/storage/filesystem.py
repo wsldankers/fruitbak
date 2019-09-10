@@ -8,7 +8,6 @@ from hashset import Hashset
 from base64 import b64encode, b64decode
 from traceback import print_exc
 from sys import stderr, exc_info
-from concurrent.futures import ThreadPoolExecutor
 from threading import get_ident as gettid
 from os import getpid, unlink, F_OK, O_RDONLY, O_WRONLY, O_EXCL, O_CREAT
 
@@ -91,15 +90,9 @@ class Filesystem(Storage):
 	def pooldir_fd(self):
 		return self.fruitbak.rootdir_fd.sysopendir(self.pooldir)
 
-	def submit(self, job, *args, **kwargs):
-		def windshield():
-			try:
-				#sleep(random() / 10.0)
-				job(*args, **kwargs)
-			except:
-				print_exc(file = stderr)
-
-		self.executor.submit(windshield)
+	@initializer
+	def submit(self):
+		return self.executor.submit
 
 	class NamedTemporaryFile:
 		def __init__(self, path, mode = 0o666, *, dir_fd = None):

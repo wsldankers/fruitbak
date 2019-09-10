@@ -1,7 +1,6 @@
-from fruitbak.util import Initializer, stub, initializer, locked, weakproperty
+from fruitbak.util import Initializer, stub, initializer, locked, weakproperty, ThreadPool
 
 from threading import RLock
-from concurrent.futures import ThreadPoolExecutor
 
 class Handler(Initializer):
 	def __init__(self, *args, **kwargs):
@@ -25,7 +24,7 @@ class Handler(Initializer):
 	@locked
 	@initializer
 	def executor(self):
-		return ThreadPoolExecutor(max_workers = self.max_workers)
+		return ThreadPool(max_workers = self.max_workers)
 
 	@initializer
 	def cpu_executor(self):

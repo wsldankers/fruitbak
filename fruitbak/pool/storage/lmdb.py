@@ -3,9 +3,8 @@ from fruitbak.pool.storage import Storage
 from fruitbak.pool.agent import PoolReadahead, PoolAction
 from fruitbak.config import configurable
 
-from traceback import print_exc
+from traceback import print_exc, print_stack
 from sys import stderr, exc_info
-from concurrent.futures import ThreadPoolExecutor
 from threading import Thread
 from collections import deque
 
@@ -27,12 +26,12 @@ class _Mutable:
 		return str(self.value)
 
 class _WriteJob:
-	__slots__ = 'operation', 'callback', 'result'
+	__slots__ = 'operation', 'callback', 'exception'
 
-	def __init__(self, operation, callback, result = None):
+	def __init__(self, operation, callback, exception = None):
 		self.operation = operation
 		self.callback = callback
-		self.result = result
+		self.exception = exception
 
 class _Worker(Thread):
 	def __init__(self, cond, reads, writes, writing, env, done, *args, **kwargs):
@@ -64,7 +63,7 @@ class _Worker(Thread):
 						break
 					elif writes and not writing:
 						accepted_writes = writes.value
-						writes.value = []
+						writes.value = deque()
 						writing.value = True
 
 						def job():
@@ -75,36 +74,38 @@ class _Worker(Thread):
 								# perform all operations:
 								try:
 									with env.begin(write = True) as txn:
-										for job in accepted_writes:
+										while accepted_writes:
+											job = accepted_writes.popleft()
+											results.append(job)
 											operation = job.operation
 											try:
 												operation(txn)
 											except:
-												job.result = exc_info()
+												job.exception = exc_info()
 								except:
-									none_arg = exc_info()
+									txn_exception = exc_info()
 								else:
-									none_arg = None
+									txn_exception = None
 
 								# call all calbacks:
-								for job in accepted_writes:
-									arg = job.result
-									if arg is None:
-										arg = none_arg
+								for job in results:
 									callback = job.callback
 									try:
-										callback(arg)
+										callback(job.exception or txn_exception)
 									except:
 										print_exc(file = stderr)
 
-								# see if there's more to do:
-								with cond:
-									if writes:
-										accepted_writes = writes.value
-										writes.value = []
-									else:
-										writing.value = False
-										break
+								del results
+
+								if not accepted_writes:
+									# see if there's more to do:
+									with cond:
+										if writes:
+											accepted_writes = writes.value
+											writes.value = deque()
+										else:
+											writing.value = False
+											break
 					elif reads:
 						job = reads.popleft()
 						
@@ -127,22 +128,19 @@ class LMDB(Storage):
 
 	@initializer
 	def _ensure_started(self):
+		cond = self.cond
+		assert cond
+
+		done = self.done
+
 		try:
-			cond = self.cond
-			assert cond
-
-			done = self.done
-
-			try:
-				workers = [_Worker(cond, self.reads, self.writes, self.writing, self.env, done) for x in range(self.max_workers)]
-			except:
-				done.value = True
-				cond.notify_all()
-				raise
-			else:
-				return workers
+			workers = [_Worker(cond, self.reads, self.writes, self.writing, self.env, done) for x in range(self.max_workers)]
 		except:
-			print_exc(file = stderr)
+			done.value = True
+			cond.notify_all()
+			raise
+		else:
+			return workers
 
 	@initializer
 	def reads(self):
@@ -152,7 +150,7 @@ class LMDB(Storage):
 	@initializer
 	def writes(self):
 		assert self.cond
-		return _Mutable([])
+		return _Mutable(deque())
 
 	@initializer
 	def writing(self):
@@ -212,18 +210,15 @@ class LMDB(Storage):
 			cond.notify()
 
 	def put_chunk(self, callback, hash, value):
-		try:
-			def op(txn):
-				txn.put(hash, value)
+		def op(txn):
+			txn.put(hash, value)
 
-			cond = self.cond
-			with cond:
-				self._ensure_started
-				self.writes.value.append(_WriteJob(op, callback))
-				if not self.writing:
-					cond.notify()
-		except:
-			print_exc(file = stderr)
+		cond = self.cond
+		with cond:
+			self._ensure_started
+			self.writes.value.append(_WriteJob(op, callback))
+			if not self.writing:
+				cond.notify()
 
 	def del_chunk(self, callback, hash):
 		def op(txn):

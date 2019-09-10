@@ -49,7 +49,7 @@ etcetera, down to the `Dentry` objects that represent individual files and
 directories. You should never create `Host`, `Backup` or `Share` objects
 directly."""
 
-from fruitbak.util import Initializer, initializer, sysopendir, lockingclass, unlocked, ensure_str
+from fruitbak.util import Initializer, initializer, sysopendir, lockingclass, unlocked, ensure_str, ThreadPool
 from fruitbak.host import Host
 from fruitbak.pool import Pool
 from fruitbak.config import Config, configurable, configurable_function
@@ -62,7 +62,6 @@ from urllib.parse import quote, unquote
 from sys import stderr
 from os import getenv, getpid, sched_getaffinity
 from threading import get_ident as gettid, Lock
-from concurrent.futures import ThreadPoolExecutor
 from itertools import chain
 
 @lockingclass
@@ -216,21 +215,21 @@ class Fruitbak(Initializer):
 
 	@initializer
 	def executor(self):
-		"""A `ThreadPoolExecutor` with `max_workers` threads, suitable for I/O
+		"""A `ThreadPool` with `max_workers` threads, suitable for I/O
 		intensive purposes.
 
-		:type: concurrent.futures.ThreadPoolExecutor"""
+		:type: fruitbak.util.threadpool.ThreadPool"""
 
-		return ThreadPoolExecutor(max_workers = self.max_workers)
+		return ThreadPool(max_workers = self.max_workers)
 
 	@initializer
 	def cpu_executor(self):
-		"""A `ThreadPoolExecutor` with as many threads as the number of available
+		"""A `ThreadPool` with as many threads as the number of available
 		CPU cores/threads, suitable for CPU intensive purposes.
 
-		:type: concurrent.futures.ThreadPoolExecutor"""
+		:type: fruitbak.util.threadpool.ThreadPool"""
 
-		return ThreadPoolExecutor(max_workers = len(sched_getaffinity(0)))
+		return ThreadPool(max_workers = len(sched_getaffinity(0)))
 
 	@configurable
 	def hash_algo(data):
