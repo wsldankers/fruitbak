@@ -98,7 +98,6 @@ def ls(host, backup, share, path):
 			else:
 				return '%ds' % s
 
-	#pmap = ThreadPoolExecutor(max_workers = 32).map
 	pmap = ThreadPool(max_workers = 32).map
 
 	if host is None:
@@ -342,7 +341,7 @@ def backup(all, host, full, full_set):
 			hostset.discard(n)
 
 	if hostset:
-		raise RuntimeError("unknown hosts: " + "".join(hostset))
+		raise RuntimeError("unknown hosts: " + ", ".join(hostset))
 
 	def job(h):
 		try:
