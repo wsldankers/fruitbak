@@ -305,22 +305,18 @@ class Fruitbak(Initializer):
 
 		pmap = self.executor.map
 
-		# iterate over self, which gives a list of hosts
-		# then apply tuple() to each host, giving lists of backups
-		# then chain to concatenate those tuples
-		hashes = pmap(lambda s: s.hashes, chain(*pmap(tuple, self)))
+		hashes = pmap(lambda s: s.hashes, chain.from_iterable(self))
 
 		rootdir_fd = self.rootdir_fd
 
 		tempname = 'hashes.%d.%d' % (getpid(), gettid())
 		try:
 			Hashset.merge(*hashes, path = tempname, dir_fd = rootdir_fd)
-			rootdir_fd.rename(tempname, 'hashes')
 		except:
-			try:
-				rootdir_fd.unlink(tempname)
-			except FileNotFoundError:
-				pass
+			rootdir_fd.unlink(tempname, missing_ok = True)
+			raise
+		else:
+			rootdir_fd.rename(tempname, 'hashes')
 		return Hashset.load('hashes', self.hash_size, dir_fd = rootdir_fd)
 
 	@initializer

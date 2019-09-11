@@ -80,13 +80,14 @@ class Backup(Initializer):
 		try:
 			return Hashset.load('hashes', hash_size, dir_fd = backupdir_fd)
 		except FileNotFoundError:
-			with open('hashes.new', 'wb', opener = backupdir_fd.opener) as fp:
-				for share in self:
-					for blob in share.hashes():
-						fp.write(blob)
-			Hashset.sortfile('hashes.new', hash_size, dir_fd = backupdir_fd)
-			rename('hashes.new', 'hashes', src_dir_fd = backupdir_fd, dst_dir_fd = backupdir_fd)
-			return Hashset.load('hashes', hash_size, dir_fd = backupdir_fd)
+			pass
+		with open('hashes.new', 'wb', opener = backupdir_fd.opener) as fp:
+			for share in self:
+				for blob in share.hashes():
+					fp.write(blob)
+		Hashset.sortfile('hashes.new', hash_size, dir_fd = backupdir_fd)
+		rename('hashes.new', 'hashes', src_dir_fd = backupdir_fd, dst_dir_fd = backupdir_fd)
+		return Hashset.load('hashes', hash_size, dir_fd = backupdir_fd)
 
 	@unlocked
 	@initializer
