@@ -1,12 +1,25 @@
 #! /usr/bin/env python3
 
+from os import environ
+
+if __name__ == '__main__':
+	# work around click making python's defaults even more painful:
+	from locale import getpreferredencoding
+	from codecs import lookup as lookup_codec
+	if lookup_codec(getpreferredencoding()).name == 'ascii':
+		if {'LANG', 'LC_ALL', 'LC_CTYPE'}.isdisjoint(environ.keys()):
+			from os import execvpe
+			from sys import argv
+			execvpe(argv[0], argv, dict(environ, LC_CTYPE = 'C.UTF-8'))
+
 from fruitbak import Fruitbak
 from fruitbak.util import tabulate, OptionalWithoutArgument, OptionalWithArgument, OptionalCommand, ThreadPool
 
-from os import fsdecode
+from os import fsdecode, getuid, initgroups, setresgid, setresuid
 from os.path import basename
 from sys import stdout, stderr, setswitchinterval
 from stat import *
+from pwd import getpwnam
 from pathlib import Path
 from tarfile import TarInfo, REGTYPE, LNKTYPE, SYMTYPE, CHRTYPE, BLKTYPE, DIRTYPE, FIFOTYPE, GNU_FORMAT, BLOCKSIZE
 from time import sleep, localtime, strftime
@@ -21,13 +34,36 @@ def check_for_loops():
 	if gc.collect() != 0:
 		print("W: reference loops at program exit!", file = stderr)
 
-if 'autoconf' in globals():
-	def fruitbak_object():
-		return Fruitbak(rootdir = Path(autoconf.pkglocalstatedir), confdir = Path(autoconf.pkgsysconfdir))
-else:
-	def fruitbak_object():
+def initialize_fruitbak():
+	if 'autoconf' in globals():
+		fbak = Fruitbak(
+			rootdir = Path(autoconf.pkglocalstatedir),
+			confdir = Path(autoconf.pkgsysconfdir),
+		)
+	else:
 		# rely on environment variables
-		return Fruitbak()
+		fbak = Fruitbak()
+
+	user = fbak.config.get('user')
+	if user is not None:
+		pw = getpwnam(user)
+		uid = pw.pw_uid
+		if uid != getuid():
+			name = pw.pw_name
+			gid = pw.pw_gid
+
+			initgroups(name, gid)
+			setresgid(gid, gid, gid)
+			setresuid(uid, uid, uid)
+
+			environ.update(dict(
+				USER = name,
+				LOGNAME = name,
+				HOME = pw.pw_dir,
+				SHELL = pw.pw_shell,
+			))
+
+	return fbak
 
 @click.group()
 def cli(): pass
@@ -40,7 +76,7 @@ def cli(): pass
 def ls(host, backup, share, path):
 	"""Lists hosts, backups, shares and paths"""
 
-	fbak = fruitbak_object()
+	fbak = initialize_fruitbak()
 
 	def format_time(t):
 		return strftime('%Y-%m-%d %H:%M:%S', localtime(t // 1000000000))
@@ -208,7 +244,7 @@ def ls(host, backup, share, path):
 def cat(host, backup, share, path):
 	binary_stdout = stdout.buffer
 
-	fbak = fruitbak_object()
+	fbak = initialize_fruitbak()
 	backup = fbak[host][backup]
 	if path is None:
 		share, path = backup.locate_path(share)
@@ -227,7 +263,7 @@ def cat(host, backup, share, path):
 def tar(host, backup, share, path):
 	binary_stdout = stdout.buffer
 
-	fbak = fruitbak_object()
+	fbak = initialize_fruitbak()
 	backup = fbak[host][backup]
 	if path is None:
 		share, path = backup.locate_path(share)
@@ -294,7 +330,7 @@ def tar(host, backup, share, path):
 @click.option('-a', '--all', default = False, is_flag = True)
 def backup(all, host, full, full_set):
 	"""Run a backup for a host (or all hosts)"""
-	fbak = fruitbak_object()
+	fbak = initialize_fruitbak()
 	max_parallel_backups = fbak.max_parallel_backups
 
 	hostset = set(host)
@@ -326,7 +362,7 @@ def backup(all, host, full, full_set):
 @click.option('-n', '--dry-run', '--dryrun', 'dry_run', default = False, is_flag = True)
 def gc(dry_run):
 	"""Clean up"""
-	fbak = fruitbak_object()
+	fbak = initialize_fruitbak()
 
 	# delete root/hashes
 	fbak.remove_hashes()
@@ -362,7 +398,7 @@ def gc(dry_run):
 def pooltest():
 	"""Run some tests on the pool code"""
 
-	fbak = fruitbak_object()
+	fbak = initialize_fruitbak()
 
 	hash_func = fbak.hash_func
 
@@ -405,7 +441,7 @@ def pooltest():
 
 @cli.command()
 def fstest():
-	fbak = fruitbak_object()
+	fbak = initialize_fruitbak()
 	data = "derp".encode()
 	hash_func = fbak.hash_func
 	fbak.pool.agent().put_chunk(hash_func(data), data)
@@ -415,7 +451,7 @@ def fstest():
 
 @cli.command()
 def listchunks():
-	fbak = fruitbak_object()
+	fbak = initialize_fruitbak()
 	for hash in fbak.pool.agent().lister():
 		print(hash)
 
