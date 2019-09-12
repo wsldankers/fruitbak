@@ -144,28 +144,33 @@ class Backup(Initializer):
 
 	@unlocked
 	@property
+	def age(self):
+		return time_ns() - self.start_time
+
+	@unlocked
+	@property
 	def age_seconds(self):
-		return (time_ns() - self.start_time) / 1000000000
+		return self.age / 1000000000
 
 	@unlocked
 	@property
 	def age_minutes(self):
-		return (time_ns() - self.start_time) / 60000000000
+		return self.age / 60000000000
 
 	@unlocked
 	@property
 	def age_hours(self):
-		return (time_ns() - self.start_time) / 3600000000000
+		return self.age / 3600000000000
 
 	@unlocked
 	@property
 	def age_days(self):
-		return (time_ns() - self.start_time) / 86400000000000
+		return self.age / 86400000000000
 
 	@unlocked
 	@property
 	def age_weeks(self):
-		return (time_ns() - self.start_time) / 604800000000000
+		return self.age / 604800000000000
 
 	@unlocked
 	@property
