@@ -312,11 +312,10 @@ class Fruitbak(Initializer):
 		tempname = 'hashes.%d.%d' % (getpid(), gettid())
 		try:
 			Hashset.merge(*hashes, path = tempname, dir_fd = rootdir_fd)
+			rootdir_fd.rename(tempname, 'hashes')
 		except:
 			rootdir_fd.unlink(tempname, missing_ok = True)
 			raise
-		else:
-			rootdir_fd.rename(tempname, 'hashes')
 		return Hashset.load('hashes', self.hash_size, dir_fd = rootdir_fd)
 
 	@initializer

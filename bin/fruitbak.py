@@ -374,6 +374,7 @@ def gc(dry_run):
 					print("would delete %s %d" % (host.name, backup.index))
 				else:
 					backup.remove()
+	host = None
 
 	# generate new root/hashes
 	hashes = fbak.generate_hashes()
