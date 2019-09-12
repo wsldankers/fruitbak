@@ -124,11 +124,13 @@ class _Job:
 								result.success = False
 								result.result = e
 								cond.notify()
+							return False
 						else:
 							with cond:
 								result.success = True
 								result.result = r
 								cond.notify()
+							return True
 
 					eligibility = self._eligibility
 					if eligibility:
@@ -136,7 +138,7 @@ class _Job:
 
 					return queued_task
 
-			return None, False
+			return None
 
 class _SingletonJob:
 	def __init__(self, task):
