@@ -120,6 +120,11 @@ class Backup(Initializer):
 		return int(self.info['level'])
 
 	@unlocked
+	@property
+	def full(self):
+		return self.level == 0
+
+	@unlocked
 	@initializer
 	def failed(self):
 		return bool(self.info.get('failed', False))
