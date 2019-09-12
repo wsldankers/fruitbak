@@ -39,15 +39,15 @@ class lockednondatadescriptor:
 
 	Please note that the lock for the __get__ handler is acquired *after*
 	Python tests whether the descriptor's name is present in the object's
-	__dict__. This means that a correct implementation of the __get__ handler
+	`__dict__`. This means that a correct implementation of the __get__ handler
 	has to manually re-test the presence of the descriptor's name in the
-	__dict__.
+	`__dict__`.
 
 	Example::
 
 		@lockednondatadescriptor
 		def foo(self):
-			obj_dict = self.__dict__
+			obj_dict = vars(self)
 			try:
 				return obj_dict['foo']
 			except KeyError:
@@ -94,9 +94,9 @@ def lockeddescriptor(descriptor):
 
 	Please note that the lock for the __get__ handler of non-data descriptors
 	is acquired *after* Python tests whether the descriptor's name is present
-	in the object's __dict__. This means that a correct implementation of the
+	in the object's `__dict__`. This means that a correct implementation of the
 	__get__ handler has to manually re-test the presence of the descriptor's
-	name in the __dict__.
+	name in the `__dict__`.
 
 	See lockednondatadescriptor() for an example."""
 
@@ -152,7 +152,7 @@ def lockingclass(cls):
 	can be decorated with @unlocked."""
 
 	replacements = {}
-	for key, value in cls.__dict__.items():
+	for key, value in vars(cls).items():
 		if key == '__init__':
 			oldinit = value
 			@wraps(oldinit)

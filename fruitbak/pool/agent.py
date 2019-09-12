@@ -106,7 +106,7 @@ class PoolReadahead(Initializer):
 	def __exit__(self, exc_type, exc_value, traceback):
 		with self.lock:
 			self.agent.unregister_readahead(self)
-		self.__dict__.clear()
+		vars(self).clear()
 
 	def submit(self, func, callback, *args, **kwargs):
 		assert self.lock
@@ -215,7 +215,7 @@ class PoolAgent(Initializer):
 		self.sync()
 		with self.lock:
 			self.pool.unregister_agent(self)
-		self.__dict__.clear()
+		vars(self).clear()
 
 	def readahead(self, iterator):
 		return PoolReadahead(agent = self, iterator = iterator)

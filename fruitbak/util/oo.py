@@ -6,7 +6,7 @@ from types import MethodType as method_closure
 
 class _getinitializer:
 	"""A non-data descriptor that runs a function as an initializer whenever
-	the attribute is accessed and there is no value in the object's __dict__
+	the attribute is accessed and there is no value in the object's `__dict__`
 	for it.
 
 	The return value of the initializer is stored in the dict and will be
@@ -21,7 +21,7 @@ class _getinitializer:
 		getfunction = self.getfunction
 		name = getfunction.__name__
 		try:
-			objdict = obj.__dict__
+			objdict = vars(obj)
 		except AttributeError:
 			if obj is None:
 				# This typically happens when querying for docstrings,
@@ -47,7 +47,7 @@ class _getinitializer:
 	def setter(self, setfunction):
 		"""Typically used as a decorator, this registers a function that will be
 		called every time the attribute is written to. The return value of the
-		supplied function is stored in the object's __dict__ and will be returned
+		supplied function is stored in the object's `__dict__` and will be returned
 		for future reads of the attribute (unless it is overwritten or deleted).
 
 		:param function setfunction: The callback for set operations
@@ -68,7 +68,7 @@ class _getinitializer:
 
 class _getdelinitializer(_getinitializer):
 	"""A data descriptor that runs a function as an initializer whenever
-	the attribute is accessed and there is no value in the object's __dict__
+	the attribute is accessed and there is no value in the object's `__dict__`
 	for it. Another function is run whenever the attribute is deleted.
 
 	The return value of the initializer is stored in the dict and will be
@@ -81,11 +81,11 @@ class _getdelinitializer(_getinitializer):
 		self.delfunction = delfunction
 
 	def __set__(self, obj, value):
-		obj.__dict__[self.name] = value
+		vars(obj)[self.name] = value
 
 	def __delete__(self, obj):
 		name = self.name
-		objdict = obj.__dict__
+		objdict = vars(obj)
 		self.delfunction(obj)
 		try:
 			del objdict[name]
@@ -98,7 +98,7 @@ class _getdelinitializer(_getinitializer):
 	def setter(self, setfunction):
 		"""Typically used as a decorator, this registers a function that will be
 		called every time the attribute is written to. The return value of the
-		supplied function is stored in the object's __dict__ and will be returned
+		supplied function is stored in the object's `__dict__` and will be returned
 		for future reads of the attribute (unless it is overwritten or deleted).
 
 		:param function setfunction: The callback for set operations
@@ -109,10 +109,10 @@ class _getdelinitializer(_getinitializer):
 
 class _getsetinitializer(_getinitializer):
 	"""A data descriptor that runs a function as an initializer whenever
-	the attribute is accessed and there is no value in the object's __dict__
+	the attribute is accessed and there is no value in the object's `__dict__`
 	for it. Another function is run whenever the attribute is assigned to.
 
-	The return value of either function is stored in the object's __dict__ and
+	The return value of either function is stored in the object's `__dict__` and
 	will be returned for future reads of the attribute (unless it is
 	overwritten or deleted)."""
 
@@ -122,11 +122,11 @@ class _getsetinitializer(_getinitializer):
 		self.setfunction = setfunction
 
 	def __set__(self, obj, value):
-		obj.__dict__[self.name] = self.setfunction(obj, value)
+		vars(obj)[self.name] = self.setfunction(obj, value)
 
 	def __delete__(self, obj):
 		name = self.name
-		objdict = obj.__dict__
+		objdict = vars(obj)
 		value = None
 		try:
 			del objdict[name]
@@ -148,12 +148,12 @@ class _getsetinitializer(_getinitializer):
 
 class _getsetdelinitializer(_getsetinitializer):
 	"""A data descriptor that runs a function as an initializer whenever
-	the attribute is accessed and there is no value in the object's __dict__
+	the attribute is accessed and there is no value in the object's `__dict__`
 	for it, another function whenever the attribute is assigned to and a third
 	whenever the attribute is deleted.
 
 	The return value of the first two functions is stored in the object's
-	__dict__ and will be returned for future reads of the attribute (unless it
+	`__dict__` and will be returned for future reads of the attribute (unless it
 	is overwritten or deleted)."""
 
 	def __init__(self, getfunction, setfunction, delfunction):
@@ -162,7 +162,7 @@ class _getsetdelinitializer(_getsetinitializer):
 
 	def __delete__(self, obj):
 		name = self.name
-		objdict = obj.__dict__
+		objdict = vars(obj)
 		self.delfunction(obj)
 		try:
 			del objdict[name]
@@ -175,14 +175,14 @@ class _getsetdelinitializer(_getsetinitializer):
 def initializer(getfunction, setfunction=None, delfunction=None):
 	"""Decorate a method to make it an initializer for an attribute. The
 	function will be called whenever the attribute is accessed and there is no
-	value in the object's __dict__ for it yet.
+	value in the object's `__dict__` for it yet.
 
-	The return value is stored in the object's __dict__ and will be returned
+	The return value is stored in the object's `__dict__` and will be returned
 	for future reads of the attribute (unless it is overwritten or deleted).
 
 	You can optionally supply functions that will be called whenever the
 	attribute is assigned to or deleted, respectively. The return value of the
-	former is stored in the object's __dict__ just like the initializer.
+	former is stored in the object's `__dict__` just like the initializer.
 
 	The delete function is called even if the attribute hasn't been initialized
 	or otherwise set. An AttributeError will be raised later on, in that case.

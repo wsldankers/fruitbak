@@ -31,7 +31,7 @@ class weakproperty(property):
 		name = f.__name__
 
 		def getter(self):
-			dict = self.__dict__
+			dict = vars(self)
 			try:
 				weak = dict[name]
 			except KeyError:
@@ -50,7 +50,7 @@ class weakproperty(property):
 			return value
 
 		def setter(self, value):
-			dict = self.__dict__
+			dict = vars(self)
 			def unsetter(weak):
 				try:
 					if dict[name] is weak:
@@ -60,6 +60,6 @@ class weakproperty(property):
 			dict[name] = weakref.ref(value, unsetter)
 
 		def deleter(self):
-			del self.__dict__[name]
+			del vars(self)[name]
 
 		super().__init__(getter, setter, deleter)

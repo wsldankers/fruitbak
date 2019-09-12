@@ -227,7 +227,7 @@ class Backup(Initializer):
 		# list() would.
 		deque(self.host, 0)
 
-		return self.__dict__['log_tier']
+		return vars(self)['log_tier']
 
 	@unlocked
 	def locate_path(self, path):

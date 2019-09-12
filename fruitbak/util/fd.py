@@ -169,7 +169,7 @@ class DirEntry(Initializer):
 		:type: os.stat_result"""
 		e = self._stat_exception
 		if e is None:
-			if '_lstat_result' in self.__dict__ and not S_ISLNK(self._lstat_result):
+			if '_lstat_result' in vars(self) and not S_ISLNK(self._lstat_result):
 				return self._lstat_result
 			try:
 				return os_stat(self.name, dir_fd = self.dir_fd, follow_symlinks = True)

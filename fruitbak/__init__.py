@@ -112,7 +112,7 @@ class Fruitbak(Initializer):
 
 		:type: fruitbak.util.fd.fd"""
 
-		if 'rootdir' in self.__dict__:
+		if 'rootdir' in vars(self):
 			return self.rootdir_fd.sysopendir(self.confdir)
 		else:
 			return sysopendir(self.confdir)
