@@ -313,15 +313,13 @@ class Fruitbak(Initializer):
 		:return: A Hashset of all hashes in all backups.
 		:rtype: hashset.Hashset"""
 
-		pmap = self.executor.map
-
-		hashes = pmap(lambda s: s.hashes, chain.from_iterable(self))
+		hashsets = tuple(backup.hashes for backup in chain.from_iterable(self))
 
 		rootdir_fd = self.rootdir_fd
 
 		tempname = 'hashes.%d.%d' % (getpid(), gettid())
 		try:
-			Hashset.merge(*hashes, path = tempname, dir_fd = rootdir_fd)
+			Hashset.merge(*hashsets, path = tempname, dir_fd = rootdir_fd)
 			rootdir_fd.rename(tempname, 'hashes')
 		except:
 			rootdir_fd.unlink(tempname, missing_ok = True)
