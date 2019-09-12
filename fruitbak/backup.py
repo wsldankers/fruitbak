@@ -11,6 +11,7 @@ from json import load as load_json
 from weakref import WeakValueDictionary
 from os import fsencode, rename, unlink, rmdir, fwalk
 from pathlib import Path
+from collections import deque
 
 from time import localtime, mktime, struct_time
 
@@ -210,8 +211,12 @@ class Backup(Initializer):
 
 	@initializer
 	def log_tier(self):
-		# abuse the side effect:
-		iter(self.host)
+		# Abuse the side effect of iterating over all backups (it sets log_tier for
+		# all backups). Calling deque() like this is the fastest way to iterate over
+		# an iterator and discard all items without storing them in memory like
+		# list() would.
+		deque(self.host, 0)
+
 		return self.__dict__['log_tier']
 
 	@unlocked
