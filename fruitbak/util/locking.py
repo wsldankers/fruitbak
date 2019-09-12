@@ -14,8 +14,13 @@ class unlockedmethod:
 	locking. Can only be used in classes that have the @lockingclass
 	attribute."""
 
+	__slots__ = 'function',
+
 	def __init__(self, function):
 		self.function = function
+
+	def __getattr__(self, name):
+		return getattr(self.function, name)
 
 def lockedmethod(method):
 	"""Decorator that acquires the lock when the method is called and
@@ -105,8 +110,13 @@ class unlockeddescriptor:
 	automatic locking. Can only be used in classes that have the @lockingclass
 	attribute."""
 
+	__slots__ = 'descriptor',
+
 	def __init__(self, descriptor):
 		self.descriptor = descriptor
+
+	def __getattr__(self, name):
+		return getattr(self.descriptor, name)
 
 def locked(value):
 	"""Decorator that acquires the lock when the method or descriptor is

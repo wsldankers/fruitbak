@@ -239,21 +239,26 @@ class Backup(Initializer):
 
 	@unlocked
 	def __iter__(self):
-		shares = []
-		sharecache = self.sharecache
 		fruitbak = self.fruitbak
+		path_to_name = fruitbak.path_to_name
+
+		names = {}
+
 		for entry in self.sharedir_fd.scandir():
 			entry_name = entry.name
 			if not entry_name.startswith('.') and entry.is_dir():
-				name = fruitbak.path_to_name(entry_name)
-				with self.lock:
-					share = sharecache.get(name)
-					if share is None:
-						share = Share(fruitbak = fruitbak, backup = self, name = name, sharedir = Path(entry.name))
-						sharecache[name] = share
-				shares.append(share)
-		shares.sort(key = lambda s: s.name)
-		return iter(shares)
+				names[path_to_name(entry_name)] = Path(entry_name)
+
+		lock = self.lock
+		sharecache = self.sharecache
+		for name in sorted(names.keys()):
+			with self.lock:
+				share = sharecache.get(name)
+				if share is None:
+					share = Share(fruitbak = fruitbak, backup = self, name = name, sharedir = names[name])
+					sharecache[name] = share
+
+			yield share
 
 	@unlocked
 	def __bool__(self):

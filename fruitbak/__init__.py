@@ -177,6 +177,16 @@ class Fruitbak(Initializer):
 
 		return self.rootdir_fd.sysopendir(self.hostdir)
 
+	@initializer
+	def hostconfdir_fd(self):
+		"""A file descriptor for the host configuration directory.
+		This directory (always called 'conf') is opened relative to the `confdir`
+		directory.
+
+		:type: fruitbak.util.fd.fd"""
+
+		return self.confdir_fd.sysopendir('host')
+
 	@configurable
 	def max_parallel_backups(self):
 		"""The number of backups that Fruitbak will run in parallel.
@@ -360,44 +370,35 @@ class Fruitbak(Initializer):
 		return WeakValueDictionary()
 
 	@unlocked
-	def _discover_hosts(self):
-		hostcache = self._hostcache
+	def __iter__(self):
 		path_to_name = self.path_to_name
 
-		hosts = {}
+		names = {}
+
+		for entry in self.hostconfdir_fd.scandir():
+			entry_name = entry.name
+			if not entry_name.startswith('.') and entry_name.endswith('.py') and entry.is_file():
+				names[path_to_name(entry_name[:-3])] = None
 
 		for entry in self.hostdir_fd.scandir():
 			entry_name = entry.name
 			if not entry_name.startswith('.') and entry.is_dir():
 				name = path_to_name(entry_name)
-				with self.lock:
-					host = hostcache.get(name)
-					if host is None:
-						host = Host(fruitbak = self, name = name, backupdir = Path(entry_name))
-						hostcache[name] = host
-				hosts[name] = host
+				names[path_to_name(entry_name)] = Path(entry_name)
 
-		with self.confdir_fd.sysopendir('host') as hostconfdir_fd:
-			for entry in hostconfdir_fd.scandir():
-				entry_name = entry.name
-				if not entry_name.startswith('.') and entry_name.endswith('.py') and entry.is_file():
-					name = path_to_name(entry_name[:-3])
-					if name in hosts:
-						continue
-					with self.lock:
-						host = hostcache.get(name)
-						if host is None:
-							host = Host(fruitbak = self, name = name)
-							hostcache[name] = host
-					hosts[name] = host
-
-		return hosts
-
-	@unlocked
-	def __iter__(self):
-		hosts = list(self._discover_hosts().values())
-		hosts.sort(key = lambda h: h.name)
-		return iter(hosts)
+		lock = self.lock
+		hostcache = self._hostcache
+		for name in sorted(names.keys()):
+			with lock:
+				host = hostcache.get(name)
+				if host is None:
+					hostdir = names[name]
+					if hostdir is None:
+						host = Host(fruitbak = self, name = name)
+					else:
+						host = Host(fruitbak = self, name = name, hostdir = hostdir)
+					hostcache[name] = host
+			yield host
 
 	@unlocked
 	def __getitem__(self, name):
@@ -405,8 +406,9 @@ class Fruitbak(Initializer):
 			return self._hostcache[name]
 		except KeyError:
 			pass
-		hosts = self._discover_hosts()
-		return hosts[name]
+		for host in self:
+			if host.name == name:
+				return host
 
 	@unlocked
 	def name_to_path(self, name):

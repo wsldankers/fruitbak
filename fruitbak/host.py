@@ -1,6 +1,6 @@
 """Represent hosts to back up"""
 
-from fruitbak.util import Initializer, initializer
+from fruitbak.util import Initializer, initializer, lockingclass, unlocked
 from fruitbak.config import Config, configurable
 from fruitbak.backup import Backup
 from fruitbak.new.backup import NewBackup
@@ -13,40 +13,12 @@ import re
 numbers_re = re.compile('0|[1-9][0-9]*')
 
 def ffs(x):
-	"""Calculate the number of trailing zero bits of an int"""
+	"""Calculate the number of trailing zero bits of an int.
+	Results for 0 are undefined."""
 
-	if x <= 0:
-		return 0
-	chunk = 1
+	return (x & -x).bit_length() - 1
 
-	# Double the speed with which we attempt to find a 1.
-	# Stop when we find it.
-	while x & ((1 << chunk) - 1) == 0:
-		chunk <<= 1
-
-	# Our last attempt found a 1, so apparently that was too much.
-	chunk >>= 1
-
-	# Ok, so chunk number of bits are confirmed to be 0. Shift those
-	# out so we can focus on the rest.
-	x >>= chunk
-	total = chunk
-
-	# Now that we adjusted x, we know we could never have this many
-	# zeros left (otherwise chunk would be double the value).
-	chunk >>= 1
-
-	# Now halve our speed each time.
-	# We know we can't have the same number of bits twice in a row
-	# because then we would have caught it in the previous iteration.
-	while chunk:
-		if x & ((1 << chunk) - 1) == 0:
-			x >>= chunk
-			total += chunk
-		chunk >>= 1
-
-	return total
-
+@lockingclass
 class Host(Initializer):
 	"""Represent hosts to back up.
 
@@ -59,14 +31,17 @@ class Host(Initializer):
 	distinction is not relevant/applicable for the host.
 	"""
 
+	@unlocked
 	@initializer
 	def name(self):
 		return self.fruitbak.path_to_name(self.hostdir.name)
 
+	@unlocked
 	@initializer
 	def hostdir(self):
 		return self.fruitbak.name_to_path(self.name)
 
+	@unlocked
 	@initializer
 	def hostdir_fd(self):
 		return self.fruitbak.hostdir_fd.sysopendir(self.hostdir)
@@ -88,6 +63,7 @@ class Host(Initializer):
 		except FileNotFoundError:
 			return Config('common', env = env, preseed = dict(env, auto = False), dir_fd = dir_fd)
 
+	@unlocked
 	@configurable
 	def auto(self):
 		return True
@@ -103,43 +79,56 @@ class Host(Initializer):
 			pass
 		NewBackup(host = self, **kwargs).backup()
 
+	@unlocked
 	def __iter__(self):
 		try:
 			hostdir_fd = self.hostdir_fd
 		except FileNotFoundError:
-			return iter(())
+			return
 
-		backups = []
+		indices = {}
 		backupcache = self.backupcache
 		for entry in hostdir_fd.scandir():
 			entry_name = entry.name
 			if numbers_re.match(entry_name) and entry.is_dir():
-				index = int(entry_name)
-				backup = backupcache.get(index)
-				if backup is None:
-					backup = Backup(host = self, index = index, backupdir = Path(entry_name))
-					backupcache[index] = backup
-				backups.append(backup)
-		backups.sort(key = lambda b: b.index)
+				indices[int(entry_name)] = Path(entry_name)
+
+		log_tiers = {}
 		log_indices = {}
-		for backup in reversed(backups):
-			index = backup.index
+		for index in sorted(indices.keys(), reverse = True):
 			if index == 0:
-				backup.__dict__['log_tier'] = 0
+				log_tiers[index] = 0
 			else:
 				log_tier = ffs(index)
-				# can't set the attribute directly because it's a property
-				backup.__dict__['log_tier'] = log_indices.setdefault(log_tier, 0)
+				log_tiers[index] = log_indices.setdefault(log_tier, 0)
 				log_indices[log_tier] += 1
-		return iter(backups)
 
+		lock = self.lock
+		for index in sorted(indices.keys()):
+			with lock:
+				backup = backupcache.get(index)
+				if backup is None:
+					backup = Backup(
+						host = self,
+						index = index,
+						log_tier = log_tiers[index],
+						backupdir = indices[index],
+					)
+					backupcache[index] = backup
+				else:
+					backup.log_tier = log_tiers[index]
+
+			yield backup
+
+	@unlocked
 	def __getitem__(self, index):
 		index = int(index)
 		if index < 0:
 			return tuple(self)[index]
 		backupcache = self.backupcache
-		backup = backupcache.get(index)
-		if backup is None:
-			backup = Backup(host = self, index = index)
-			backupcache[index] = backup
+		with self.lock:
+			backup = backupcache.get(index)
+			if backup is None:
+				backup = Backup(host = self, index = index)
+				backupcache[index] = backup
 		return backup
