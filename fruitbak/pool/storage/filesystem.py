@@ -12,7 +12,7 @@ from threading import get_ident as gettid
 from os import getpid, unlink, F_OK, O_RDONLY, O_WRONLY, O_EXCL, O_CREAT
 
 from pathlib import Path
-from re import compile as re
+from re import compile as regcomp
 
 from time import sleep
 from random import choice
@@ -23,7 +23,6 @@ b64chars = b64bytes.decode()
 
 b64seq = bytes(b64encode(bytes((i << 2,)), b64bytes)[0] for i in range(64)).decode()
 #b64set = set(b64seq)
-directory_re = re('[A-Za-z0-9'+b64chars+']{2}')
 
 def my_b64encode(b):
 	return b64encode(b, b64bytes).rstrip(b'=').decode()
@@ -74,9 +73,21 @@ class Filesystem(Storage):
 	def __init__(self, **kwargs):
 		super().__init__(**kwargs)
 
+	@initializer
+	def hash_size(self):
+		return self.fruitbak.hash_size
+
 	def hash2path(self, hash):
 		b64 = my_b64encode(hash)
 		return Path(b64[:2]) / b64[2:]
+
+	@initializer
+	def valid_file_re(self):
+		return regcomp('[A-Za-z0-9'+b64chars+']{%d}' % (
+			len(my_b64encode(bytes(self.hash_size))) - 2,
+		))
+
+	valid_dir_re = regcomp('[A-Za-z0-9'+b64chars+']{2}')
 
 	@configurable
 	def pooldir(self):
@@ -224,7 +235,7 @@ class Filesystem(Storage):
 
 	def lister(self, agent):
 		dirs = self.pooldir_fd.listdir()
-		dirs = list(filter(directory_re.fullmatch, dirs))
+		dirs = list(filter(self.valid_dir_re.fullmatch, dirs))
 		dirs.sort(key = lambda x: b64decode(x+'A=', b64bytes))
 		listahead = FilesystemListahead(filesystem = self, agent = agent, iterator = iter(dirs))
 		for action in listahead:
@@ -233,12 +244,14 @@ class Filesystem(Storage):
 			yield from action.cursor
 
 	def listdir(self, callback, directory):
-		hash_size = self.fruitbak.hash_size
+		hash_size = self.hash_size
 		pooldir = self.pooldir
+		pooldir_fd = self.pooldir_fd
+		is_valid_dir = self.valid_dir_re.fullmatch
 		def job():
 			try:
-				with self.pooldir_fd.sysopendir(directory) as fd:
-					files = fd.listdir()
+				with pooldir_fd.sysopendir(directory) as fd:
+					files = list(filter(is_valid_dir, fd.listdir()))
 				hashes = map(lambda x: my_b64decode(directory + x), files)
 				del files
 				hashbuf = b''.join(hashes)
