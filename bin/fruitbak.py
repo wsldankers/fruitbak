@@ -346,8 +346,9 @@ def backup(all, host, full, full_set):
 	def job(h):
 		try:
 			h.backup(full = full)
-		except:
-			print_exc(file = stderr)
+		except Exception as e:
+			#print_exc()
+			print("%s: %s" % (h.name, str(e)), file = stderr)
 
 	if max_parallel_backups == 1 or len(hosts) == 1:
 		for h in hosts:

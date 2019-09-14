@@ -164,7 +164,7 @@ class WeakHeapMap(MutableMapping):
 					except IndexError:
 						pass
 					except:
-						print_exc(file = stderr)
+						print_exc()
 					else:
 						if found is node:
 							heapmap._delnode(node)

@@ -5,9 +5,9 @@ from json import dump as dump_json
 
 from hashset import Hashset
 
-from fruitbak.util import Initializer, initializer, xyzzy
+from fruitbak.util import Initializer, initializer, xyzzy, time_ns
 from fruitbak.config import configurable, configurable_function, configurable_command
-from fruitbak.new.share import NewShare, time_ns
+from fruitbak.new.share import NewShare
 from fruitbak.transfer import LocalTransfer
 
 class NewBackup(Initializer):

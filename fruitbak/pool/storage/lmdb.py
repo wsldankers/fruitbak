@@ -3,7 +3,7 @@ from fruitbak.pool.storage import Storage
 from fruitbak.pool.agent import PoolReadahead, PoolAction
 from fruitbak.config import configurable
 
-from traceback import print_exc, print_stack
+from traceback import print_exc
 from sys import stderr, exc_info
 from threading import Thread
 from collections import deque
@@ -93,7 +93,7 @@ class _Worker(Thread):
 									try:
 										callback(job.exception or txn_exception)
 									except:
-										print_exc(file = stderr)
+										print_exc()
 
 								del results
 
@@ -111,7 +111,7 @@ class _Worker(Thread):
 						
 				job()		
 		except:
-			print_exc(file = stderr)
+			print_exc()
 
 class LMDB(Storage):
 	def __init__(self, *args, **kwargs):

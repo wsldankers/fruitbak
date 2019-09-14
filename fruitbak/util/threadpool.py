@@ -285,7 +285,7 @@ class ThreadPool:
 			try:
 				func(*args, **kwargs)
 			except:
-				print_exc(file = stderr)
+				print_exc()
 			finally:
 				singletons.remove(job)
 

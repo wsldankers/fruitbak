@@ -162,7 +162,7 @@ class LocalTransfer(Transfer):
 		seen = {}
 
 		def onerror(exc):
-			print_exc(file = stderr)
+			print_exc()
 
 		one_filesystem = self.one_filesystem
 		dev = None
@@ -195,13 +195,13 @@ class LocalTransfer(Transfer):
 						try:
 							fd = parent_fd.sysopen(name, O_RDONLY, follow_symlinks = False)
 						except:
-							print_exc(file = stderr)
+							print_exc()
 						else:
 							with fd:
 								try:
 									is_same = samestat(st, fd.stat())
 								except:
-									print_exc(file = stderr)
+									print_exc()
 								else:
 									if is_same:
 										hashes = []
@@ -222,7 +222,7 @@ class LocalTransfer(Transfer):
 					try:
 						symlink = parent_fd.readlink(name)
 					except:
-						print_exc(file = stderr)
+						print_exc()
 					else:
 						dentry.symlink = symlink
 				elif dentry.is_device:

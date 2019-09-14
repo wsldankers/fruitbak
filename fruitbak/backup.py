@@ -1,7 +1,7 @@
 """Represent a backup"""
 
 from fruitbak.share import Share
-from fruitbak.util import Initializer, initializer, lockingclass, unlocked, ensure_byteslike
+from fruitbak.util import Initializer, initializer, lockingclass, unlocked, ensure_byteslike, time_ns
 from fruitbak.config import configurable_property
 
 from hardhat import normalize as hardhat_normalize
@@ -13,14 +13,7 @@ from os import fsencode, rename, unlink, rmdir, fwalk
 from pathlib import Path
 from collections import deque
 
-from time import localtime, mktime, struct_time
-
-try:
-	from time import time_ns
-except ImportError:
-	from time import time
-	def time_ns():
-		return int(time() * 1000000000.0)
+from time import localtime, mktime
 
 @lockingclass
 class Backup(Initializer):

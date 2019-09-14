@@ -1,17 +1,10 @@
-from fruitbak.util import Initializer, initializer, xyzzy
+from fruitbak.util import Initializer, initializer, xyzzy, time_ns
 from fruitbak.config import configurable, configurable_function, configurable_command
 
 from hardhat import HardhatMaker
 from hashset import Hashset
 
 from json import dump as dump_json
-
-try:
-	from time import time_ns
-except ImportError:
-	from time import time
-	def time_ns():
-		return int(time() * 1000000000.0)
 
 class NewShare(Initializer):
 	@configurable
