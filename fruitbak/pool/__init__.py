@@ -203,8 +203,8 @@ class Pool(Initializer):
 		"""Create and return a `PoolAgent` object for this pool.
 		Any arguments are passed to the constructor.
 
-		:param \*args: Passed to the `PoolAgent` constructor.
-		:param \*\*kwargs: Passed to the `PoolAgent` constructor.
+		:param \\*args: Passed to the `PoolAgent` constructor.
+		:param \\*\\*kwargs: Passed to the `PoolAgent` constructor.
 		:return: An agent object.
 		:rtype: PoolAgent"""
 
@@ -333,8 +333,8 @@ class Pool(Initializer):
 
 		:param function func: The operation to queue.
 		:param function callback: Called when the I/O completed (or failed).
-		:param \*args: Passed to `func`.
-		:param \*\*kwargs: Passed to `func`."""
+		:param \\*args: Passed to `func`.
+		:param \\*\\*kwargs: Passed to `func`."""
 
 		lock = self.lock
 		assert lock
