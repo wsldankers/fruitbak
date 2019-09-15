@@ -107,6 +107,10 @@ class RsyncTransfer(Transfer):
 				dentry.hardlink = hardlink
 			newshare.add_dentry(dentry)
 
+		def error_callback(line, code = None):
+			if not line.startswith(b'file has vanished:') and not line.startswith(b'directory has vanished:'):
+				print(str(line, 'UTF-8', 'surrogateescape'), eol = '', flush = True, file = stderr)
+
 		env = {}
 		for name, value in ('host', self.hostname), ('user', self.user), ('port', self.port):
 			if value is not None:
@@ -119,7 +123,7 @@ class RsyncTransfer(Transfer):
 						command = command,
 						environ = map(b'='.join, config.env.items()),
 						entry_callback = entry_callback,
-						#error_callback = error_callback,
+						error_callback = error_callback,
 						filters = self.filters,
 						chunk_size = self.fruitbak.chunk_size,
 					) as rf:
