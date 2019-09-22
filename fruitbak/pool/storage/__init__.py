@@ -10,7 +10,4 @@ try:
 except ImportError:
 	pass
 
-try:
-	from fruitbak.pool.storage.lmdb import LMDB
-except ImportError:
-	pass
+from fruitbak.pool.storage.lmdb import LMDB

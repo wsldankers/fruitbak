@@ -5,8 +5,6 @@ from fruitbak.pool.handler import Filter
 
 from base64 import b64encode, b64decode
 from Crypto.Cipher import AES
-import nacl.secret
-import nacl.utils
 
 class Encrypt(Filter):
 	@initializer
@@ -18,6 +16,7 @@ class Encrypt(Filter):
 	def validated_key(self):
 		key = self.key
 		if key is None:
+			import nacl.utils
 			raise RuntimeError("No encryption key configured. Add this to your configuration:\npool_encryption_key = %r"
 				% (b64encode(nacl.utils.random(32)).decode(),))
 		if isinstance(key, str):
@@ -52,12 +51,14 @@ class Encrypt(Filter):
 	@locked
 	@initializer
 	def box(self):
+		import nacl.secret
 		return nacl.secret.SecretBox(self.validated_key)
 
 	@locked
 	@initializer
 	def encrypt_chunk(self):
 		box = self.box
+		import nacl.utils
 		nonce = nacl.utils.random(box.NONCE_SIZE)
 		return lambda chunk: box.encrypt(chunk, nonce)
 
