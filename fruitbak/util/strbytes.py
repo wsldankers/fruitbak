@@ -42,7 +42,7 @@ def ensure_bytes(obj):
 	else:
 		return bytes(obj)
 
-	if isinstance(obj, Path):
+	if isinstance(obj, PurePath):
 		return bytes(obj)
 
 	try:
@@ -68,7 +68,7 @@ def ensure_byteslike(obj):
 	else:
 		return obj
 
-	if isinstance(obj, Path):
+	if isinstance(obj, PurePath):
 		return bytes(obj)
 
 	try:
@@ -91,7 +91,7 @@ def ensure_str(obj):
 	if isinstance(obj, str):
 		return obj
 
-	if isinstance(obj, Path):
+	if isinstance(obj, PurePath):
 		return str(obj)
 
 	try:
