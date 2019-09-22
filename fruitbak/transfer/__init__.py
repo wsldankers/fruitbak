@@ -37,9 +37,7 @@ class Transfer(Initializer):
 
 	@initializer
 	def hostname(self):
-		hostname = self.config.get('host')
-		if hostname is None:
-			return self.host.name
+		return self.config.get('host', self.host.name)
 
 	@initializer
 	def user(self):

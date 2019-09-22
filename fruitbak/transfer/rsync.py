@@ -18,7 +18,7 @@ _rsync_filter_escape_replace_re = re(rb'[*?[\\]')
 def _rsync_filter_escape(path, force = False):
 	path = ensure_bytes(path)
 	if force or _rsync_filter_escape_find_re.search(path) is not None:
-		return _rsync_filter_escape_replace_re.sub(rb'\\\1', path)
+		return _rsync_filter_escape_replace_re.sub(rb'\\\0', path)
 	return path
 
 def _samedentry(a, b):
@@ -107,9 +107,11 @@ class RsyncTransfer(Transfer):
 				dentry.hardlink = hardlink
 			newshare.add_dentry(dentry)
 
+		host_name = self.host.name
+
 		def error_callback(line, code = None):
 			if not line.startswith(b'file has vanished:') and not line.startswith(b'directory has vanished:'):
-				print(str(line, 'UTF-8', 'surrogateescape'), eol = '', flush = True, file = stderr)
+				print(host_name + ":", str(line, 'UTF-8', 'surrogateescape'), end = '', flush = True, file = stderr)
 
 		env = {}
 		for name, value in ('host', self.hostname), ('user', self.user), ('port', self.port):

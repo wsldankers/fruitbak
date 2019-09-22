@@ -32,18 +32,25 @@ def ensure_bytes(obj):
 	:return: The potentially converted input
 	:rtype: bytes"""
 
-	if isinstance(obj, str):
-		return obj.encode(errors = 'surrogateescape')
-
 	if isinstance(obj, bytes):
 		return obj
 
 	try:
-		b = obj.__bytes__
-	except AttributeError:
-		raise TypeError("cannot convert '%s' object to bytes" % (type(obj).__name__))
+		memoryview(obj)
+	except TypeError:
+		pass
 	else:
-		return b()
+		return bytes(obj)
+
+	if isinstance(obj, Path):
+		return bytes(obj)
+
+	try:
+		return bytes(obj, 'UTF-8', 'surrogateescape')
+	except TypeError:
+		pass
+
+	raise TypeError("cannot convert '%s' object to bytes" % (type(obj).__name__))
 
 def ensure_byteslike(obj):
 	"""Encode str obj to UTF-8 encoding with 'surrogateescape' error handler,
@@ -54,9 +61,6 @@ def ensure_byteslike(obj):
 	:return: The potentially converted input
 	:rtype: byteslike"""
 
-	if isinstance(obj, str):
-		return obj.encode(errors = 'surrogateescape')
-
 	try:
 		memoryview(obj)
 	except TypeError:
@@ -64,12 +68,15 @@ def ensure_byteslike(obj):
 	else:
 		return obj
 
+	if isinstance(obj, Path):
+		return bytes(obj)
+
 	try:
-		b = obj.__bytes__
-	except AttributeError:
-		raise TypeError("cannot convert '%s' object to bytes" % (type(obj).__name__))
-	else:
-		return b()
+		return bytes(obj, 'UTF-8', 'surrogateescape')
+	except TypeError:
+		pass
+
+	raise TypeError("cannot convert '%s' object to bytes" % (type(obj).__name__))
 
 def ensure_str(obj):
 	"""
@@ -81,15 +88,15 @@ def ensure_str(obj):
 	:return: The potentially converted input
 	:rtype: str"""
 
-	try:
-		return str(obj, errors = 'surrogateescape')
-	except TypeError:
-		pass
-
 	if isinstance(obj, str):
 		return obj
 
 	if isinstance(obj, Path):
 		return str(obj)
 
-	raise TypeError("expect bytes-like, str or Path, not %s" % type(obj).__name__)
+	try:
+		return str(obj, 'UTF-8', 'surrogateescape')
+	except TypeError:
+		pass
+
+	raise TypeError("cannot convert '%s' object to str" % type(obj).__name__)

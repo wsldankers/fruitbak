@@ -23,9 +23,10 @@ from pwd import getpwnam
 from pathlib import Path
 from tarfile import TarInfo, REGTYPE, LNKTYPE, SYMTYPE, CHRTYPE, BLKTYPE, DIRTYPE, FIFOTYPE, GNU_FORMAT, BLOCKSIZE
 from time import sleep, localtime, strftime
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from hardhat import normalize as hardhat_normalize
 from traceback import print_exc
+from collections import deque
 
 import click
 import gc, atexit
@@ -333,30 +334,35 @@ def backup(all, host, full, full_set):
 	max_parallel_backups = fbak.max_parallel_backups
 
 	hostset = set(host)
-	hosts = []
-	for h in fbak:
-		n = h.name
-		if n in hostset or (all and h.auto):
-			hosts.append(h)
-			hostset.discard(n)
+	hosts = deque()
+	for host in fbak:
+		name = host.name
+		if name in hostset or (all and host.auto):
+			hosts.append(host)
+			hostset.discard(name)
 
 	if hostset:
 		raise RuntimeError("unknown hosts: " + ", ".join(hostset))
 
-	def job(h):
+	def backup_one():
+		host = hosts.popleft()
 		try:
-			h.backup(full = full)
+			host.backup(full = full)
 		except Exception as e:
 			#print_exc()
-			print("%s: %s" % (h.name, str(e)), file = stderr)
+			print("%s: %s" % (host.name, str(e)), file = stderr)
 
-	if max_parallel_backups == 1 or len(hosts) == 1:
-		for h in hosts:
-			job(h)
+	num_hosts = len(hosts)
+
+	if max_parallel_backups == 1 or num_hosts == 1:
+		for i in range(num_hosts):
+			backup_one()
 	else:
 		with ThreadPoolExecutor(max_workers = max_parallel_backups) as exec:
-			for j in [exec.submit(job, h) for h in hosts]:
-				j.result()
+			jobs = [exec.submit(backup_one) for i in range(num_hosts)]
+			for job in as_completed(jobs):
+				# make sure we see any thrown exceptions
+				job.result()
 
 @cli.command()
 @click.option('-n', '--dry-run', '--dryrun', 'dry_run', default = False, is_flag = True)

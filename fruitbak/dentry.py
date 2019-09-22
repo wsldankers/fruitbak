@@ -103,7 +103,7 @@ class DentryUnsupportedFlag(DentryError):
 
 	Subclass of :class:`DentryError`."""
 
-dentry_layout = Struct('<LLQQLL')
+dentry_layout = Struct('<LLQqLL')
 """The header of the wire format. For internal use."""
 dentry_layout_size = dentry_layout.size
 """Size of the header of the wire format. For internal use."""

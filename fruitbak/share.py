@@ -104,13 +104,13 @@ class Share(Initializer):
 		return Hardhat('metadata.hh', dir_fd = self.sharedir_fd)
 
 	@unlocked
-	def _parse_dentry(self, path, data):
-		dentry = Dentry(data, name = path, share = self)
+	def _parse_dentry(self, name, data):
+		dentry = Dentry(data, name = name, share = self)
 		if dentry.is_hardlink:
-			name = dentry.hardlink
-			target = Dentry(self.metadata[name], name = path, share = self)
+			target_name = dentry.hardlink
+			target = Dentry(self.metadata[target_name], name = target_name, share = self)
 			if target.is_hardlink:
-				raise NestedHardlinkError("'%s' is a hardlink pointing to '%s', but that is also a hardlink" % (name, original.name))
+				raise NestedHardlinkError("'%s' is a hardlink pointing to '%s', but that is also a hardlink" % (dentry.name, target_name))
 			return HardlinkDentry(dentry, target)
 		else:
 			return dentry
