@@ -13,7 +13,7 @@ if __name__ == '__main__':
 			execvpe(argv[0], argv, dict(environ, LC_CTYPE = 'C.UTF-8'))
 
 from fruitbak import Fruitbak
-from fruitbak.util import tabulate, OptionalWithoutArgument, OptionalWithArgument, OptionalCommand, ThreadPool
+from fruitbak.util import tabulate, OptionalWithoutArgument, OptionalWithArgument, OptionalCommand, ThreadPool, time_ns, parse_interval
 
 from os import fsdecode, getuid, initgroups, setresgid, setresuid
 from os.path import basename
@@ -327,27 +327,86 @@ def tar(host, backup, share, path):
 @click.option('--full', cls = OptionalWithoutArgument, is_flag = True, help = "Do a full backup")
 @click.option('--full_set', cls = OptionalWithArgument,
 	help = "Do a full backup if the previous one is older than this interval")
-@click.option('-a', '--all', default = False, is_flag = True)
-def backup(all, host, full, full_set):
+@click.option('-a', '--all', cls = OptionalWithoutArgument, is_flag = True)
+@click.option('--all_set', cls = OptionalWithArgument,
+	help = "Do backups of all hosts that have no backups newer than this interval")
+def backup(host, all, all_set, full, full_set):
 	"""Run a backup for a host (or all hosts)"""
+
+	now = time_ns()
+
 	fbak = initialize_fruitbak()
 	max_parallel_backups = fbak.max_parallel_backups
+
+	full_cutoff = None if full_set is None else now - parse_interval(full_set, False, now)
+	auto_cutoff = None if all_set is None else now - parse_interval(all_set, False, now)
+
+	last_backup_cache = {}
+	def last_backup(host):
+		name = host.name
+		result = last_backup_cache.get(name)
+		if result is None:
+			backups = list(host)
+			if backups:
+				last_backup_time = backups[-1].start_time
+			else:
+				last_backup_time = None
+			while backups:
+				backup = backups.pop()
+				if backup.full:
+					last_full_time = backup.start_time
+					break
+			else:
+				last_full_time = None
+			result = last_backup_time, last_full_time
+			last_backup_cache[name] = result
+		return result
 
 	hostset = set(host)
 	hosts = deque()
 	for host in fbak:
 		name = host.name
-		if name in hostset or (all and host.auto):
-			hosts.append(host)
+		if name in hostset:
+			do_auto = True
 			hostset.discard(name)
+		elif all and host.auto:
+			if auto_cutoff is None:
+				do_auto = True
+			else:
+				# Complicated interaction between --all=<interval> and --full=<interval>:
+				# --all needs to see how old the last backup is. If a full backup is needed,
+				# it needs to check the age of the last full backup. If no full backup is
+				# needed, any backup will do.
+				last_backup_time, last_full_time = last_backup(host)
+				if full:
+					if full_cutoff is None:
+						do_auto = last_full_time is None or last_full_time < auto_cutoff
+					else:
+						host_needs_full = last_full_time is None or last_full_time < full_cutoff
+						host_ref_time = last_full_time if host_needs_full else last_backup_time
+						do_auto = host_ref_time is None or host_ref_time < auto_cutoff
+				else:
+					do_auto = last_backup_time is None or last_backup_time < auto_cutoff
+		if do_auto:
+			hosts.append(host)
+
+	host = None
 
 	if hostset:
 		raise RuntimeError("unknown hosts: " + ", ".join(hostset))
 
 	def backup_one():
 		host = hosts.popleft()
+		if full:
+			if full_cutoff is None:
+				do_full = True
+			else:
+				last_backup_time, last_full_time = last_backup(host)
+				do_full = last_full_time is None or last_full_time < full_cutoff
+		else:
+			do_full = False
 		try:
-			host.backup(full = full)
+			host.backup(full = do_full)
 		except Exception as e:
 			#print_exc()
 			print("%s: %s" % (host.name, str(e)), file = stderr)
