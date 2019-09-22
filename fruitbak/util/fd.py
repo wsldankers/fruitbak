@@ -53,6 +53,7 @@ from os import (
 from os.path import samestat
 from stat import S_ISDIR, S_ISREG, S_ISLNK
 from pathlib import PurePath
+from fcntl import flock as fcntl_flock, LOCK_EX, LOCK_SH, LOCK_UN, LOCK_NB
 
 from fruitbak.util.oo import Initializer, initializer, flexiblemethod
 from fruitbak.util.strbytes import is_byteslike
@@ -104,6 +105,59 @@ def opener(mode = 0o666, **kwargs):
 		:rtype: int"""
 		return os_open(unpath(path), flags|O_CLOEXEC|O_NOCTTY, mode = mode, **kwargs)
 	return opener
+
+class flock:
+	"""A class that wraps flock() and releases the lock at the end of its
+	lifetime. Can also be used as a context manager and indeed this is the
+	recommended way to use it.
+
+	See `fcntl.flock` in the Python standard library for possible values for
+	`operation`. For your convenience the `fd` module exports the LOCK_*
+	symbols as well.
+
+	The mere act of creating the object acquires the lock on the file
+	descriptor.
+
+	:param fd int: The file descriptor to lock.
+	:param operation int: The type of operation. Defaults to LOCK_EX."""
+
+	_locked = False
+
+	def __init__(self, fd, operation = LOCK_EX):
+		self._fd = fd
+		fcntl_flock(fd, operation)
+		self._locked = True
+
+	def unlock(self):
+		"""Unlock the file descriptor. Unlikely to fail unless the file descriptor
+		was closed."""
+
+		if self._locked:
+			self._locked = False
+			fcntl_flock(self._fd, LOCK_UN)
+
+	@property
+	def locked(self):
+		"""Whether the `fcntl` object thinks the file descriptor is still
+		locked."""
+
+		return self._locked
+
+	def __enter__(self):
+		"""Context manager that simply returns the flock itself.
+
+		:return: The fcntl object itself.
+		:rtype: fruitbak.util.fd.fcntl"""
+
+		return self
+
+	def __exit__(self, exc_type, exc_value, traceback):
+		"""Context exit method that simply unlocks the file descriptor."""
+
+		self.unlock()
+
+	def __del__(self):
+		self.unlock()
 
 class DirEntry(Initializer):
 	"""DirEntry(*, name, dir_fd)
@@ -965,6 +1019,16 @@ class fd(int):
 		except FileExistsError:
 			if not exist_ok:
 				raise
+
+	def flock(self, operation = LOCK_EX):
+		"""Create and return a context manager of an fcntl lock on this file
+		descriptor. See `fruitbak.util.fd.flock` for details.
+
+		:param operation int: The type of operation. Defaults to LOCK_EX.
+		:return: the `flock` object that holds the lock.
+		:rtype: fruitbak.util.fd.flock"""
+
+		return flock(self, operation)
 
 sysopen = fd.sysopen
 """Open a file using `os.open` and return it as an `fd` instance.
