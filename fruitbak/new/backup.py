@@ -129,47 +129,46 @@ class NewBackup(Initializer):
 		backupdir = self.backupdir
 		backupdir_fd = self.backupdir_fd
 
-		flock(backupdir_fd, LOCK_EX|LOCK_NB)
+		with backupdir_fd.flock(LOCK_EX|LOCK_NB):
+			def onerror(exc):
+				raise exc
 
-		def onerror(exc):
-			raise exc
+			for root, dirs, files, root_fd in fwalk(dir_fd = backupdir_fd, topdown = False, onerror = onerror):
+				for name in files:
+					unlink(name, dir_fd = root_fd)
+				for name in dirs:
+					rmdir(name, dir_fd = root_fd)
 
-		for root, dirs, files, root_fd in fwalk(dir_fd = backupdir_fd, topdown = False, onerror = onerror):
-			for name in files:
-				unlink(name, dir_fd = root_fd)
-			for name in dirs:
-				rmdir(name, dir_fd = root_fd)
+			env = self.env
+			config = self.config
+			shares_info = {}
+			info = dict(level = self.level, failed = False, shares = shares_info)
 
-		env = self.env
-		config = self.config
-		shares_info = {}
-		info = dict(level = self.level, failed = False, shares = shares_info)
+			with config.setenv(env):
+				self.pre_command(fruitbak = self.fruitbak, host = self.host, backup = self)
 
-		with config.setenv(env):
-			self.pre_command(fruitbak = self.fruitbak, host = self.host, backup = self)
+				info['startTime'] = time_ns()
 
-			info['startTime'] = time_ns()
+				for share_config in self.shares:
+					combined_config = config.copy()
+					combined_config.update(share_config)
+					share = NewShare(config = combined_config, newbackup = self)
+					shares_info[share.name] = share.backup()
 
-			for share_config in self.shares:
-				combined_config = config.copy()
-				combined_config.update(share_config)
-				share = NewShare(config = combined_config, newbackup = self)
-				shares_info[share.name] = share.backup()
+				self.agent.sync()
 
-			self.agent.sync()
+				info['endTime'] = time_ns()
 
-			info['endTime'] = time_ns()
+				self.post_command(fruitbak = self.fruitbak, host = self.host, backup = self)
 
-			self.post_command(fruitbak = self.fruitbak, host = self.host, backup = self)
+			with open('info.json', 'w', opener = backupdir_fd.opener) as fp:
+				dump_json(info, fp)
 
-		with open('info.json', 'w', opener = backupdir_fd.opener) as fp:
-			dump_json(info, fp)
+			hostdir_fd = self.host.hostdir_fd
 
-		hostdir_fd = self.host.hostdir_fd
+			self.hashes_fp.close()
+			Hashset.sortfile('hashes', self.fruitbak.hash_size, dir_fd = backupdir_fd)
 
-		self.hashes_fp.close()
-		Hashset.sortfile('hashes', self.fruitbak.hash_size, dir_fd = backupdir_fd)
+			rename('new', str(self.index), src_dir_fd = hostdir_fd, dst_dir_fd = hostdir_fd)
 
-		rename('new', str(self.index), src_dir_fd = hostdir_fd, dst_dir_fd = hostdir_fd)
-
-		return info
+			return info
