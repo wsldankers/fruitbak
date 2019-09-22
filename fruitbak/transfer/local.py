@@ -5,9 +5,9 @@ from fruitbak.transfer import Transfer
 from os import major, minor, stat, O_RDONLY, O_NOATIME
 from os.path import join as path_join, split as path_split, samestat
 from pathlib import Path, PurePath
-from sys import stderr
+from sys import stderr, exc_info
 from stat import *
-from traceback import print_exc
+from traceback import print_exc, print_exception
 
 class fruitwalk:
 	_message = None
@@ -44,18 +44,18 @@ class fruitwalk:
 			try:
 				fd = sysopendir(str(path.parent), dir_fd = dir_fd, follow_symlinks = False)
 				st = fd.stat(name)
-			except Exception as e:
-				onerror(e)
+			except:
+				onerror(*exc_info())
 			else:
 				yield Path(name), st, fd
-		except Exception as e:
-			onerror(e)
+		except:
+			onerror(*exc_info())
 		else:
 			with fd:
 				try:
 					st = fd.stat()
-				except Exception as e:
-					onerror(e)
+				except:
+					onerror(*exc_info())
 				else:
 					path = Path()
 					skip = yield path, st, fd
@@ -66,15 +66,15 @@ class fruitwalk:
 	def _walkrest(self, dir_fd, path, onerror):
 		try:
 			names = dir_fd.listdir()
-		except Exception as e:
-			onerror(e)
+		except:
+			onerror(*exc_info())
 		else:
 			entries = []
 			for name in names:
 				try:
 					st = dir_fd.stat(name, follow_symlinks = False)
-				except Exception as e:
-					onerror(e)
+				except:
+					onerror(*exc_info())
 				else:
 					entries.append((name, st))
 
@@ -84,15 +84,15 @@ class fruitwalk:
 				if not skip and S_ISDIR(st.st_mode):
 					try:
 						fd = dir_fd.sysopendir(name, follow_symlinks = False) 
-					except Exception as e:
-						onerror(e)
+					except:
+						onerror(*exc_info())
 					else:
 						with fd:
 							try:
 								if not samestat(st, fd.stat()):
 									continue
-							except Exception as e:
-								onerror(e)
+							except:
+								onerror(*exc_info())
 							else:
 								yield from self._walkrest(fd, entry_path, onerror)
 
@@ -161,13 +161,10 @@ class LocalTransfer(Transfer):
 
 		seen = {}
 
-		def onerror(exc):
-			print_exc()
-
 		one_filesystem = self.one_filesystem
 		dev = None
 
-		walk = fruitwalk(self.path, onerror = onerror)
+		walk = fruitwalk(self.path, onerror = print_exception)
 		for path, st, parent_fd in walk:
 			if dev is None:
 				dev = st.st_dev
