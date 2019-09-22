@@ -1,7 +1,8 @@
 """Represent a backup"""
 
 from fruitbak.share import Share
-from fruitbak.util import Initializer, initializer, lockingclass, unlocked, ensure_byteslike, time_ns
+from fruitbak.util import (Initializer, initializer, lockingclass, unlocked, ensure_byteslike, time_ns,
+	day_interval, week_interval, month_interval, quarter_interval, year_interval)
 from fruitbak.config import configurable_property
 
 from hardhat import normalize as hardhat_normalize
@@ -158,59 +159,32 @@ class Backup(Initializer):
 	@unlocked
 	@property
 	def age_days(self):
-		return self.age / 86400000000000
+		return day_interval(self.start_time, time_ns())
 
 	@unlocked
 	@property
 	def age_weeks(self):
-		return self.age / 604800000000000
+		return week_interval(self.start_time, time_ns())
 
 	@unlocked
 	@property
 	def age_months(self):
-		start_time = self.start_time
-		start_timestruct = localtime(start_time // 1000000000)
-		start_yearmonth = start_timestruct.tm_year * 12 + start_timestruct.tm_mon
-		beginning_of_start_month = int(mktime((
-			start_timestruct.tm_year,
-			start_timestruct.tm_mon,
-			1, 0, 0, 0, 0, 0, -1,
-		)) * 1000000000)
-		ending_of_start_month = int(mktime((
-			start_timestruct.tm_year,
-			start_timestruct.tm_mon + 1,
-			1, 0, 0, 0, 0, 0, -1,
-		)) * 1000000000)
-		start_month_ratio = ((start_time - beginning_of_start_month)
-			/ (ending_of_start_month - beginning_of_start_month))
+		return month_interval(self.start_time, time_ns())
 
-		current_time = time_ns()
-		current_timestruct = localtime(current_time // 1000000000)
-		current_yearmonth = current_timestruct.tm_year * 12 + current_timestruct.tm_mon
-		if current_yearmonth == start_yearmonth:
-			beginning_of_current_month = beginning_of_start_month
-			ending_of_current_month = ending_of_start_month
-		else:
-			beginning_of_current_month = int(mktime((
-				current_timestruct.tm_year,
-				current_timestruct.tm_mon,
-				1, 0, 0, 0, 0, 0, -1,
-			)) * 1000000000)
-			ending_of_current_month = int(mktime((
-				current_timestruct.tm_year,
-				current_timestruct.tm_mon + 1,
-				1, 0, 0, 0, 0, 0, -1,
-			)) * 1000000000)
-		current_month_ratio = ((current_time - beginning_of_current_month)
-			/ (ending_of_current_month - beginning_of_current_month))
+	@unlocked
+	@property
+	def age_quarters(self):
+		return quarter_interval(self.start_time, time_ns())
 
-		return (current_yearmonth - start_yearmonth
-			+ current_month_ratio - start_month_ratio)
+	@unlocked
+	@property
+	def age_years(self):
+		return year_interval(self.start_time, time_ns())
 
 	@unlocked
 	@configurable_property
 	def expired(self):
-		return self.age_months > 3
+		return self.quarters > 1.0
 
 	@initializer
 	def log_tier(self):

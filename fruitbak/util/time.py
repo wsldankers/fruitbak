@@ -103,8 +103,7 @@ def _day_interval(a, b, number, offset):
 		a_struct.tm_mday - a_day_remainder + number,
 		0, 0, 0, 0, 0, -1,
 	)) * 1000000000)
-	a_day_ratio = _Fraction((a - a_day_start),
-		(a_day_end - a_day_start))
+	a_day_ratio = _Fraction(a - a_day_start, a_day_end - a_day_start)
 
 	b_struct = _localtime(b // 1000000000)
 	b_day = (int(_timegm((
@@ -131,11 +130,9 @@ def _day_interval(a, b, number, offset):
 			b_struct.tm_mday - b_day_remainder + number,
 			0, 0, 0, 0, 0, -1,
 		)) * 1000000000)
-	b_day_ratio = _Fraction((b - b_day_start),
-		(b_day_end - b_day_start))
+	b_day_ratio = _Fraction(b - b_day_start, b_day_end - b_day_start)
 
-	return float(_Fraction(b_day - a_day, 1)
-		+ b_day_ratio - a_day_ratio)
+	return float(_Fraction(b_day - a_day, 1) + b_day_ratio - a_day_ratio)
 
 def day_interval(a, b):
 	return _day_interval(a, b, 1, 0)
@@ -148,42 +145,39 @@ def _month_interval(a, b, number):
 	a_yearmonth = a_struct.tm_year * 12 + a_struct.tm_mon
 	a_yearmonth_remainder = a_yearmonth % number
 	a_yearmonth //= number
-	start_of_a_month = int(_mktime((
+	a_month_start = int(_mktime((
 		a_struct.tm_year,
 		a_struct.tm_mon - a_yearmonth_remainder,
 		1, 0, 0, 0, 0, 0, -1,
 	)) * 1000000000)
-	end_of_a_month = int(_mktime((
+	a_month_end = int(_mktime((
 		a_struct.tm_year,
 		a_struct.tm_mon - a_yearmonth_remainder + number,
 		1, 0, 0, 0, 0, 0, -1,
 	)) * 1000000000)
-	a_month_ratio = ((a - start_of_a_month)
-		/ (end_of_a_month - start_of_a_month))
+	a_month_ratio = _Fraction(a - a_month_start, a_month_end - a_month_start)
 
 	b_struct = _localtime(b // 1000000000)
 	b_yearmonth = b_struct.tm_year * 12 + b_struct.tm_mon
 	b_yearmonth_remainder = b_yearmonth % number
 	b_yearmonth //= number
 	if a_yearmonth == b_yearmonth:
-		start_of_b_month = start_of_a_month
-		end_of_b_month = end_of_a_month
+		b_month_start = a_month_start
+		b_month_end = a_month_end
 	else:
-		start_of_b_month = int(_mktime((
+		b_month_start = int(_mktime((
 			b_struct.tm_year,
-			(b_struct.tm_mon // number * number),
+			b_struct.tm_mon - b_yearmonth_remainder,
 			1, 0, 0, 0, 0, 0, -1,
 		)) * 1000000000)
-		end_of_b_month = int(_mktime((
+		b_month_end = int(_mktime((
 			b_struct.tm_year,
-			(b_struct.tm_mon // number * number) + number,
+			b_struct.tm_mon - b_yearmonth_remainder + number,
 			1, 0, 0, 0, 0, 0, -1,
 		)) * 1000000000)
-	b_month_ratio = ((b - start_of_b_month)
-		/ (end_of_b_month - start_of_b_month))
+	b_month_ratio = _Fraction(b - b_month_start, b_month_end - b_month_start)
 
-	return (b_yearmonth - a_yearmonth
-		+ b_month_ratio - a_month_ratio)
+	return float(_Fraction(b_yearmonth - a_yearmonth, 1) + b_month_ratio - a_month_ratio)
 
 def month_interval(a, b):
 	return _month_interval(a, b, 1)
@@ -194,33 +188,30 @@ def quarter_interval(a, b):
 def year_interval(a, b):
 	a_struct = _localtime(a // 1000000000)
 	a_year = a_struct.tm_year
-	start_of_a_year = int(_mktime((
+	a_year_start = int(_mktime((
 		a_struct.tm_year,
 		1, 1, 0, 0, 0, 0, 0, -1,
 	)) * 1000000000)
-	end_of_a_year = int(_mktime((
+	a_year_end = int(_mktime((
 		a_struct.tm_year + 1,
 		1, 1, 0, 0, 0, 0, 0, -1,
 	)) * 1000000000)
-	a_year_ratio = ((a - start_of_a_year)
-		/ (end_of_a_year - start_of_a_year))
+	a_year_ratio = _Fraction(a - a_year_start, a_year_end - a_year_start)
 
 	b_struct = _localtime(b // 1000000000)
 	b_year = b_struct.tm_year
 	if a_year == b_year:
-		start_of_b_year = start_of_a_year
-		end_of_b_year = end_of_a_year
+		b_year_start = a_year_start
+		b_year_end = a_year_end
 	else:
-		start_of_b_year = int(_mktime((
+		b_year_start = int(_mktime((
 			b_struct.tm_year,
 			1, 1, 0, 0, 0, 0, 0, -1,
 		)) * 1000000000)
-		end_of_b_year = int(_mktime((
+		b_year_end = int(_mktime((
 			b_struct.tm_year + 1,
 			1, 1, 0, 0, 0, 0, 0, -1,
 		)) * 1000000000)
-	b_year_ratio = ((b - start_of_b_year)
-		/ (end_of_b_year - start_of_b_year))
+	b_year_ratio = _Fraction(b - b_year_start, b_year_end - b_year_start)
 
-	return (b_year - a_year
-		+ b_year_ratio - a_year_ratio)
+	return float(_Fraction(b_year - a_year, 1) + b_year_ratio - a_year_ratio)
