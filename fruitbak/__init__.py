@@ -407,6 +407,7 @@ class Fruitbak(Initializer):
 		for host in self:
 			if host.name == name:
 				return host
+		raise KeyError(name)
 
 	@unlocked
 	def name_to_path(self, name):

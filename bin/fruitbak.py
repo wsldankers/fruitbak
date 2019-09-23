@@ -463,6 +463,93 @@ def gc(dry_run):
 
 	agent.sync()
 
+@cli.command(context_settings = {'ignore_unknown_options': True})
+@click.argument('args', nargs=-1)
+def fuse(args):
+	stderr = open('/dev/pts/9', 'w')
+	from stat import S_IFREG, S_IFDIR
+	from fruitbak.util import initializer, locked
+	import fusepy
+	from threading import Lock
+	class FruitFuse(fusepy.Operations):
+		def __init__(self):
+			self.lock = Lock()
+			self.fds = dict()
+			self.retired_fds = set()
+
+		@locked
+		@initializer
+		def fruitbak(self):
+			return initialize_fruitbak()
+
+		fd = 0
+
+		@locked
+		def store_in_fd(self, obj):
+			retired_fds = self.retired_fds
+			try:
+				fd = retired_fds.pop()
+			except KeyError:
+				fd = self.fd + 1
+				self.fd = fd
+			self.fds[fd] = obj
+			return fd
+
+		def read(self, path, size, offset, fh):
+			print('read', repr(path), repr(size), repr(offset), repr(fh), file = stderr, flush = True)
+			return self.fds[fh][offset:offset+size]
+
+		def getattr(self, path, fh = None):
+			print('getattr', repr(path), repr(fh), file = stderr, flush = True)
+			components = path.lstrip('/').split('/', 4)
+			print('components', repr(components), file = stderr, flush = True)
+			if path == '/x':
+				return dict(st_mode = S_IFREG | 0o644, st_nlink = 1, st_size = 4)
+			else:
+				return dict(st_mode = S_IFDIR | 0o755, st_nlink = 2)
+
+		def open(self, path, flags):
+			print('open', repr(path), repr(flags), file = stderr, flush = True)
+			return self.store_in_fd(path.encode() + b"\n")
+
+		def release(self, fh):
+			print('release', repr(fh), file = stderr, flush = True)
+			del self.fds[fh]
+			self.retired_fds.add(fh)
+
+		def readdir(self, path, fh):
+			try:
+				print('readdir', repr(path), repr(fh), file = stderr, flush = True)
+				relpath = path.lstrip('/')
+				components = relpath.split('/', 4) if relpath else []
+				print('components', repr(components), file = stderr, flush = True)
+				depth = len(components)
+				
+				fbak = self.fruitbak
+				if depth == 0:
+					entries = (host.name for host in fbak)
+				else:
+					host = fbak[components[0]]
+					if depth == 1:
+						entries = (str(backup.index) for backup in host)
+					else:
+						backup = host[int(components[1])]
+						if depth == 2:
+							entries = (str(share.sharedir) for share in backup)
+						else:
+							sharedir = components[2]
+							share, = (share for share in backup if str(share.sharedir) == sharedir)
+							sharepath = components[3] if depth > 3 else ''
+							entries = (dentry.name.decode() for dentry in share.ls(sharepath))
+
+				ret = ['.', '..', *entries]
+				print('entries', repr(ret), file = stderr, flush = True)
+				return ret
+			except:
+				print_exc(file = stderr)
+
+	fusepy.FUSE(FruitFuse(), *args)
+
 @cli.command()
 def pooltest():
 	"""Run some tests on the pool code"""
