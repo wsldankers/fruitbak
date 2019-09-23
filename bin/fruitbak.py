@@ -387,6 +387,8 @@ def backup(host, all, all_set, full, full_set):
 						do_auto = host_ref_time is None or host_ref_time < auto_cutoff
 				else:
 					do_auto = last_backup_time is None or last_backup_time < auto_cutoff
+		else:
+			do_auto = False
 		if do_auto:
 			hosts.append(host)
 
