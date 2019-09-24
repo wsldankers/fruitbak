@@ -223,7 +223,7 @@ class Config:
 			else:
 				return obj
 
-		self.found = [include(*promote(obj)) for i in includes]
+		self.found = [include(*promote(i)) for i in includes]
 
 	def __getitem__(self, key):
 		value = self.globals[key]
@@ -255,7 +255,10 @@ class Config:
 		return dup
 
 	def update(self, *args, **kwargs):
-		self.globals.update(*args, **kwargs)
+		return self.globals.update(*args, **kwargs)
+
+	def setdefault(self, key, default = None):
+		return self.globals.setdefault(key, default)
 
 	def __repr__(self):
 		rep = ["[config for %s]\n" % self.globals['name']]

@@ -58,11 +58,11 @@ class Host(Initializer):
 	def config(self):
 		env = self.env
 		dir_fd = self.fruitbak.confdir_fd
-		host_conf_file = Path('host') / self.name
-		config = Config('common', (host_conf_file, True), env = env, preseed = env, dir_fd = dir_fd)
+		host_conf_name = Path('host') / self.name
+		config = Config('common', (host_conf_name, True), env = env, preseed = env, dir_fd = dir_fd)
 		common_conf_found, host_conf_found = config.found
-		if not host_conf_found and 'auto' not in config:
-			config['auto'] = False
+		if not host_conf_found:
+			config.setdefault('auto', False)
 		return config
 
 	@unlocked
