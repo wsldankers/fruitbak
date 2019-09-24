@@ -157,6 +157,9 @@ class ConfigEnvironment:
 class subdict(dict):
 	"""Subclass dict so that we can weakref it"""
 
+class ConfigNotFoundError(Exception):
+	"""When the configuration file could not be found."""
+
 class Config:
 	def __init__(self, *includes, dir_fd = None, env = None, preseed = None):
 		# thread-local storage
@@ -173,21 +176,22 @@ class Config:
 		extra_builtins['delayed'] = delayed
 		globals['__builtins__'] = extra_builtins
 		weak_globals = weakref(globals)
+		dir_fd_opener = opener(dir_fd = dir_fd)
 
 		def include(path, missing_ok = None):
 			file = str(path) + '.py'
-			dir_fd_opener = opener(dir_fd = dir_fd)
 			try:
 				fh = open(file, opener = dir_fd_opener)
 			except FileNotFoundError:
 				if missing_ok:
-					return
+					return False
 				else:
 					raise
 			else:
 				with fh as f:
 					content = f.read()
 				exec(content, weak_globals())
+				return True
 		extra_builtins['include'] = include
 
 		cfg_env = convert_env(env)
@@ -213,11 +217,13 @@ class Config:
 			return ensure_str(completed.stdout)
 		extra_builtins['backticks'] = backticks
 
-		for i in includes:
-			if isinstance(i, str) or is_byteslike(i):
-				include(i)
+		def promote(obj):
+			if isinstance(obj, str) or is_byteslike(obj):
+				return (obj,)
 			else:
-				include(*i)
+				return obj
+
+		self.found = [include(*promote(obj)) for i in includes]
 
 	def __getitem__(self, key):
 		value = self.globals[key]
@@ -225,6 +231,12 @@ class Config:
 			value = value(self)
 			#self.globals[key] = value
 		return value
+
+	def __setitem__(self, key, value):
+		self.globals[key] = value
+
+	def __delitem__(self, key):
+		del self.globals[key]
 
 	def __contains__(self, key):
 		return key in self.globals
