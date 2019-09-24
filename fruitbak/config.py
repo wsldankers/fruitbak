@@ -6,7 +6,7 @@ from threading import local
 from collections import ChainMap
 from functools import wraps
 
-from fruitbak.util import initializer, opener, ensure_bytes, ensure_str, merge_env, convert_env
+from fruitbak.util import initializer, opener, is_byteslike, ensure_bytes, ensure_str, merge_env, convert_env
 
 class _configurable_base:
 	def __init__(self, name, initializer):
@@ -158,7 +158,7 @@ class subdict(dict):
 	"""Subclass dict so that we can weakref it"""
 
 class Config:
-	def __init__(self, *paths, dir_fd = None, env = None, preseed = None):
+	def __init__(self, *includes, dir_fd = None, env = None, preseed = None):
 		# thread-local storage
 		tls = local()
 		self.tls = tls
@@ -174,10 +174,20 @@ class Config:
 		globals['__builtins__'] = extra_builtins
 		weak_globals = weakref(globals)
 
-		def include(path):
-			with open(str(path) + '.py', opener = opener(dir_fd = dir_fd)) as f:
-				content = f.read()
-			exec(content, weak_globals())
+		def include(path, missing_ok = None):
+			file = str(path) + '.py'
+			dir_fd_opener = opener(dir_fd = dir_fd)
+			try:
+				fh = open(file, opener = dir_fd_opener)
+			except FileNotFoundError:
+				if missing_ok:
+					return
+				else:
+					raise
+			else:
+				with fh as f:
+					content = f.read()
+				exec(content, weak_globals())
 		extra_builtins['include'] = include
 
 		cfg_env = convert_env(env)
@@ -203,8 +213,11 @@ class Config:
 			return ensure_str(completed.stdout)
 		extra_builtins['backticks'] = backticks
 
-		for p in paths:
-			include(p)
+		for i in includes:
+			if isinstance(i, str) or is_byteslike(obj):
+				include(i)
+			else:
+				include(*i)
 
 	def __getitem__(self, key):
 		value = self.globals[key]

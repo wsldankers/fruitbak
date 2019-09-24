@@ -58,10 +58,7 @@ class Host(Initializer):
 	def config(self):
 		env = self.env
 		dir_fd = self.fruitbak.confdir_fd
-		try:
-			return Config('common', Path('host') / self.name, env = env, preseed = env, dir_fd = dir_fd)
-		except FileNotFoundError:
-			return Config('common', env = env, preseed = dict(env, auto = False), dir_fd = dir_fd)
+		return Config('common', (Path('host') / self.name, True), env = env, preseed = env, dir_fd = dir_fd)
 
 	@unlocked
 	@configurable
