@@ -214,7 +214,7 @@ class Config:
 		extra_builtins['backticks'] = backticks
 
 		for i in includes:
-			if isinstance(i, str) or is_byteslike(obj):
+			if isinstance(i, str) or is_byteslike(i):
 				include(i)
 			else:
 				include(*i)
