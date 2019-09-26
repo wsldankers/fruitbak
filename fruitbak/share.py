@@ -1,7 +1,7 @@
 """Represent hosts to back up"""
 
 from fruitbak.dentry import Dentry, HardlinkDentry, dentry_layout_size
-from fruitbak.util import Initializer, initializer, lockingclass, unlocked, ensure_byteslike
+from fruitbak.util import Initializer, initializer, lockingclass, unlocked, ensure_byteslike, ensure_str
 
 from hardhat import Hardhat, normalize as hardhat_normalize
 
@@ -110,7 +110,7 @@ class Share(Initializer):
 			target_name = dentry.hardlink
 			target = Dentry(self.metadata[target_name], name = target_name, share = self)
 			if target.is_hardlink:
-				raise NestedHardlinkError("'%s' is a hardlink pointing to '%s', but that is also a hardlink" % (dentry.name, target_name))
+				raise NestedHardlinkError("'%s' is a hardlink pointing to '%s', but that is also a hardlink" % (ensure_str(dentry.name), ensure_str(target_name)))
 			return HardlinkDentry(dentry, target)
 		else:
 			return dentry
@@ -135,15 +135,15 @@ class Share(Initializer):
 		remap = {}
 		first_inode = None
 		metadata = self.metadata
-		for path, data in c:
+		for name, data in c:
 			inode = c.inode
 			if first_inode is None:
 				first_inode = inode
 
-			dentry = Dentry(data, name = path, share = self)
+			dentry = Dentry(data, name = name, share = self)
 
 			try:
-				remapped = remap[path]
+				remapped = remap[name]
 			except KeyError:
 				pass
 			else:
@@ -151,17 +151,17 @@ class Share(Initializer):
 				# was output earlier as if it was a regular, non-hardlink dentry.
 				# So now we'll pretend that *this* was the hardlink.
 
-				del remap[path]
+				del remap[name]
 
 				target = Dentry(remapped, share = self)
-				remapped_path = target.extra
+				remapped_name = target.extra
 
 				target.is_hardlink = False
-				target.name = remapped_path
+				target.name = remapped_name
 				target.extra = dentry.extra
 
 				dentry.is_hardlink = True
-				dentry.hardlink = remapped_path
+				dentry.hardlink = remapped_name
 
 				yield HardlinkDentry(dentry, target)
 				continue
@@ -169,24 +169,24 @@ class Share(Initializer):
 			if dentry.is_hardlink:
 				target_cursor = metadata.ls(dentry.hardlink)
 				try:
-					target_path = target_cursor.key
+					target_name = target_cursor.key
 					target_data = target_cursor.value
 					target_inode = target_cursor.inode
 				except KeyError as e:
-					raise MissingLinkError("'%s' is a hardlink to '%s' but the latter does not exist" % (path, dentry.hardlink)) from e
+					raise MissingLinkError("'%s' is a hardlink to '%s' but the latter does not exist" % (name, dentry.hardlink)) from e
 
-				target = Dentry(target_data, name = target_path, share = self)
+				target = Dentry(target_data, name = target_name, share = self)
 				if target.is_hardlink:
-					raise NestedHardlinkError("'%s' is a hardlink pointing to '%s', but that is also a hardlink" % (path, extra))
+					raise NestedHardlinkError("'%s' is a hardlink pointing to '%s', but that is also a hardlink" % (ensure_str(name), ensure_str(target_name)))
 
 				if first_inode <= target_inode < inode:
 					# target is already output
 					yield HardlinkDentry(dentry, target)
 				else:
 					# We'll pretend that this was the original file and output a hardlink later.
-					remap[target_path] = b''.join((data[:dentry_layout_size], path))
+					remap[target_name] = b''.join((data[:dentry_layout_size], name))
 
-					target.name = path
+					target.name = name
 					yield target
 
 				continue
