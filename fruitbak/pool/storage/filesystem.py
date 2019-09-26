@@ -85,9 +85,9 @@ class Filesystem(Storage):
 	def valid_file_re(self):
 		return regcomp('[A-Za-z0-9'+b64chars+']{%d}' % (
 			len(my_b64encode(bytes(self.hash_size))) - 2,
-		))
+		)).fullmatch
 
-	valid_dir_re = regcomp('[A-Za-z0-9'+b64chars+']{2}')
+	valid_dir_re = regcomp('[A-Za-z0-9'+b64chars+']{2}').fullmatch
 
 	@configurable
 	def pooldir(self):
@@ -235,7 +235,7 @@ class Filesystem(Storage):
 
 	def lister(self, agent):
 		dirs = self.pooldir_fd.listdir()
-		dirs = list(filter(self.valid_dir_re.fullmatch, dirs))
+		dirs = list(filter(self.valid_dir_re, dirs))
 		dirs.sort(key = lambda x: b64decode(x+'A=', b64bytes))
 		listahead = FilesystemListahead(filesystem = self, agent = agent, iterator = iter(dirs))
 		for action in listahead:
@@ -247,11 +247,11 @@ class Filesystem(Storage):
 		hash_size = self.hash_size
 		pooldir = self.pooldir
 		pooldir_fd = self.pooldir_fd
-		is_valid_dir = self.valid_dir_re.fullmatch
+		valid_file_re = self.valid_file_re
 		def job():
 			try:
 				with pooldir_fd.sysopendir(directory) as fd:
-					files = list(filter(is_valid_dir, fd.listdir()))
+					files = list(filter(valid_file_re, fd.listdir()))
 				hashes = map(lambda x: my_b64decode(directory + x), files)
 				del files
 				hashbuf = b''.join(hashes)
