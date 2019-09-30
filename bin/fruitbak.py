@@ -367,11 +367,11 @@ def backup(host, all, all_set, full, full_set):
 	for host in fbak:
 		name = host.name
 		if name in hostset:
-			do_auto = True
+			do_backup = True
 			hostset.discard(name)
 		elif all and host.auto:
 			if auto_cutoff is None:
-				do_auto = True
+				do_backup = True
 			else:
 				# Complicated interaction between --all=<interval> and --full=<interval>:
 				# --all needs to see how old the last backup is. If a full backup is needed,
@@ -380,16 +380,16 @@ def backup(host, all, all_set, full, full_set):
 				last_backup_time, last_full_time = last_backup(host)
 				if full:
 					if full_cutoff is None:
-						do_auto = last_full_time is None or last_full_time < auto_cutoff
+						do_backup = last_full_time is None or last_full_time < auto_cutoff
 					else:
 						host_needs_full = last_full_time is None or last_full_time < full_cutoff
 						host_ref_time = last_full_time if host_needs_full else last_backup_time
-						do_auto = host_ref_time is None or host_ref_time < auto_cutoff
+						do_backup = host_ref_time is None or host_ref_time < auto_cutoff
 				else:
-					do_auto = last_backup_time is None or last_backup_time < auto_cutoff
+					do_backup = last_backup_time is None or last_backup_time < auto_cutoff
 		else:
-			do_auto = False
-		if do_auto:
+			do_backup = False
+		if do_backup:
 			hosts.append(host)
 
 	host = None
