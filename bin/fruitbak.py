@@ -13,7 +13,7 @@ if __name__ == '__main__':
 			execvpe(argv[0], argv, dict(environ, LC_CTYPE = 'C.UTF-8'))
 
 from fruitbak import Fruitbak
-from fruitbak.util import tabulate, OptionalWithoutArgument, OptionalWithArgument, OptionalCommand, ThreadPool, time_ns, parse_interval
+from fruitbak.util import tabulate, OptionalWithoutArgument, OptionalWithArgument, OptionalCommand, Initializer, ThreadPool, time_ns, parse_interval
 
 from os import fsdecode, getuid, initgroups, setresgid, setresuid
 from os.path import basename
@@ -323,14 +323,14 @@ def tar(host, backup, share, path):
 	binary_stdout.write(b'\0' * (BLOCKSIZE*2))
 
 @cli.command(cls = OptionalCommand)
-@click.argument('host', nargs = -1)
+@click.argument('hosts', nargs = -1)
 @click.option('--full', cls = OptionalWithoutArgument, is_flag = True, help = "Do a full backup")
 @click.option('--full_set', cls = OptionalWithArgument,
 	help = "Do a full backup if the previous one is older than this interval")
 @click.option('-a', '--all', cls = OptionalWithoutArgument, is_flag = True)
 @click.option('--all_set', cls = OptionalWithArgument,
 	help = "Do backups of all hosts that have no backups newer than this interval")
-def backup(host, all, all_set, full, full_set):
+def backup(hosts, all, all_set, full, full_set):
 	"""Run a backup for a host (or all hosts)"""
 
 	now = time_ns()
@@ -348,72 +348,84 @@ def backup(host, all, all_set, full, full_set):
 		if result is None:
 			backups = list(host)
 			if backups:
-				last_backup_time = backups[-1].start_time
+				backup = backups[-1]
+				backup_time = backup.start_time
+				backup_duration = backup.end_time - backup_time
 			else:
-				last_backup_time = None
+				backup_time = None
+				backup_duration = 0
 			while backups:
 				backup = backups.pop()
 				if backup.full:
-					last_full_time = backup.start_time
+					full_time = backup.start_time
+					full_duration = backup.end_time - full_time
 					break
 			else:
-				last_full_time = None
-			result = last_backup_time, last_full_time
+				full_time = None
+				full_duration = backup_duration
+			result = Initializer(
+				backup_time = backup_time,
+				backup_duration = backup_duration,
+				full_time = full_time,
+				full_duration = full_duration,
+			)
 			last_backup_cache[name] = result
 		return result
 
-	hostset = set(host)
-	hosts = deque()
-	for host in fbak:
+	def needs_full(host):
+		if not full:
+			return False
+		if full_cutoff is None:
+			return True
+		last_full_time = last_backup(host).full_time
+		return last_full_time is None or last_full_time < full_cutoff
+
+	hostset = set(hosts)
+	def needs_backup(host):
 		name = host.name
 		if name in hostset:
-			do_backup = True
-			hostset.discard(name)
+			return True
 		elif all and host.auto:
 			if auto_cutoff is None:
-				do_backup = True
+				return True
 			else:
-				# Complicated interaction between --all=<interval> and --full=<interval>:
+				# Tricky interaction between --all=<interval> and --full=<interval>:
 				# --all needs to see how old the last backup is. If a full backup is needed,
 				# it needs to check the age of the last full backup. If no full backup is
 				# needed, any backup will do.
-				last_backup_time, last_full_time = last_backup(host)
-				if full:
-					if full_cutoff is None:
-						do_backup = last_full_time is None or last_full_time < auto_cutoff
-					else:
-						host_needs_full = last_full_time is None or last_full_time < full_cutoff
-						host_ref_time = last_full_time if host_needs_full else last_backup_time
-						do_backup = host_ref_time is None or host_ref_time < auto_cutoff
-				else:
-					do_backup = last_backup_time is None or last_backup_time < auto_cutoff
+				last = last_backup(host)
+				host_ref_time = last.full_time if needs_full(host) else last.backup_time
+				return host_ref_time is None or host_ref_time < auto_cutoff
 		else:
-			do_backup = False
-		if do_backup:
-			hosts.append(host)
+			return False
 
-	host = None
+	hostlist = list(filter(needs_backup, fbak))
 
+	hostset -= set(host.name for host in hostlist)
 	if hostset:
 		raise RuntimeError("unknown hosts: " + ", ".join(hostset))
 
+	def last_duration(host):
+		last = last_backup(host)
+		return last.full_duration if needs_full(host) else last.backup_duration
+
+	hostlist.sort(key = last_duration)
+	# convert to names and back so file descriptors get closed:
+	hostlist = [host.name for host in hostlist]
+	hostdict = {host.name: host for host in fbak}
+	hostlist = [hostdict[name] for name in hostlist]
+	hostdict = None
+	num_hosts = len(hostlist)
+
 	def backup_one():
-		host = hosts.popleft()
-		if full:
-			if full_cutoff is None:
-				do_full = True
-			else:
-				last_backup_time, last_full_time = last_backup(host)
-				do_full = last_full_time is None or last_full_time < full_cutoff
-		else:
-			do_full = False
+		host = hostlist.pop()
+		do_full = needs_full(host)
 		try:
-			host.backup(full = do_full)
+			#host.backup(full = do_full)
+			print(host.name)
 		except Exception as e:
 			#print_exc()
 			print("%s: %s" % (host.name, str(e)), file = stderr)
-
-	num_hosts = len(hosts)
 
 	if max_parallel_backups == 1 or num_hosts == 1:
 		for i in range(num_hosts):
