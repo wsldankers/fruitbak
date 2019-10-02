@@ -123,15 +123,15 @@ class Share(Initializer):
 				yield d.extra
 
 	@unlocked
-	def ls(self, path = b'', parent = False):
-		return self.hardlink_inverter(self.metadata.ls(path, parent = parent))
+	def ls(self, path = b'', parent = False, strict = True):
+		return self.hardlink_inverter(self.metadata.ls(path, parent = parent), strict)
 
 	@unlocked
-	def find(self, path = b'', parent = True):
-		return self.hardlink_inverter(self.metadata.find(path, parent = parent))
+	def find(self, path = b'', parent = True, strict = False):
+		return self.hardlink_inverter(self.metadata.find(path, parent = parent), strict)
 
 	@unlocked
-	def hardlink_inverter(self, c):
+	def hardlink_inverter(self, c, strict):
 		remap = {}
 		first_inode = None
 		metadata = self.metadata
@@ -151,7 +151,11 @@ class Share(Initializer):
 				# was output earlier as if it was a regular, non-hardlink dentry.
 				# So now we'll pretend that *this* was the hardlink.
 
-				del remap[name]
+				if not strict:
+					# Doing this saves memory but may generate a => b => c type hardlink
+					# chains for remapped hardlinks. Not pretty but technically still
+					# correct for most purposes.
+					del remap[name]
 
 				target = Dentry(remapped, share = self)
 				remapped_name = target.extra
@@ -167,13 +171,35 @@ class Share(Initializer):
 				continue
 
 			if dentry.is_hardlink:
-				target_cursor = metadata.ls(dentry.hardlink)
+				hardlink = dentry.hardlink
+				try:
+					remapped = remap[hardlink]
+				except KeyError:
+					pass
+				else:
+					# This is a hardlink to another entry that got demoted from
+					# original hardlink target to just a hardlink. Return a hardlink
+					# that points to the new "real" file.
+					target = Dentry(remapped, share = self)
+					remapped_name = target.extra
+
+					target.is_hardlink = False
+					target.name = remapped_name
+					target.extra = dentry.extra
+
+					dentry.is_hardlink = True
+					dentry.hardlink = remapped_name
+
+					yield HardlinkDentry(dentry, target)
+					continue
+
+				target_cursor = metadata.ls(hardlink)
 				try:
 					target_name = target_cursor.key
 					target_data = target_cursor.value
 					target_inode = target_cursor.inode
 				except KeyError as e:
-					raise MissingLinkError("'%s' is a hardlink to '%s' but the latter does not exist" % (name, dentry.hardlink)) from e
+					raise MissingLinkError("'%s' is a hardlink to '%s' but the latter does not exist" % (ensure_str(name), ensure_str(hardlink))) from e
 
 				target = Dentry(target_data, name = target_name, share = self)
 				if target.is_hardlink:
