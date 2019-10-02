@@ -112,7 +112,7 @@ class Filesystem(Storage):
 				(choice(b64seq) for x in range(32)),
 			))
 			path = Path(path) / name
-			self.fd = sysopen(path, O_WRONLY|O_EXCL|O_CREAT, dir_fd = dir_fd)
+			self.fd = sysopen(path, O_WRONLY|O_EXCL|O_CREAT, 0o440, dir_fd = dir_fd)
 			self.path = path
 			self.dir_fd = dir_fd
 
@@ -275,7 +275,7 @@ else:
 			return sysopendir("/proc/self/fd", path_only = True)
 
 		def tmpfile(self, path):
-			return self.pooldir_fd.sysopen(path, O_TMPFILE|O_WRONLY)
+			return self.pooldir_fd.sysopen(path, O_TMPFILE|O_WRONLY, 0o440)
 
 		def put_chunk(self, callback, hash, value):
 			path = self.hash2path(hash)
