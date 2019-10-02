@@ -443,9 +443,6 @@ def gc(dry_run):
 	"""Clean up"""
 	fbak = initialize_fruitbak()
 
-	# delete root/hashes
-	fbak.remove_hashes()
-
 	# delete old backups
 	for host in fbak:
 		for backup in host:
@@ -457,8 +454,7 @@ def gc(dry_run):
 	backup = None
 	host = None
 
-	# generate new root/hashes
-	hashes = fbak.generate_hashes()
+	hashes = fbak.hashes()
 
 	cleaned_chunks = 0
 

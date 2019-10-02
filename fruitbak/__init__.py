@@ -60,7 +60,7 @@ from weakref import WeakValueDictionary
 from pathlib import Path
 from urllib.parse import quote, unquote
 from sys import stderr
-from os import getenv, getpid, sched_getaffinity
+from os import getenv, getpid, sched_getaffinity, O_RDWR, O_CREAT, O_TRUNC
 from threading import get_ident as gettid, Lock
 from itertools import chain
 
@@ -306,9 +306,9 @@ class Fruitbak(Initializer):
 		return int(value)
 
 	@unlocked
-	def generate_hashes(self):
-		"""Generate the total set of hashes for all backups in all hosts,
-		even if a previous such set was available in the ``hashes`` file.
+	def hashes(self):
+		"""Generate and return the total set of hashes for all backups in all
+		hosts.
 
 		:return: A Hashset of all hashes in all backups.
 		:rtype: hashset.Hashset"""
@@ -318,42 +318,10 @@ class Fruitbak(Initializer):
 		rootdir_fd = self.rootdir_fd
 
 		tempname = 'hashes.%d.%d' % (getpid(), gettid())
-		try:
-			Hashset.merge(*hashsets, path = tempname, dir_fd = rootdir_fd)
-			rootdir_fd.rename(tempname, 'hashes')
-		except:
-			rootdir_fd.unlink(tempname, missing_ok = True)
-			raise
-		return Hashset.load('hashes', self.hash_size, dir_fd = rootdir_fd)
-
-	@initializer
-	def stale_hashes(self):
-		"""Return a (possibly stale) set of hashes, by loading a previously
-		generated set if available or by generating one if not.
-
-		Stale in this context means that some hashes may not be in the returned
-		hashset but all hashes in the hashset are guaranteed to be available.
-
-		:return: A Hashset of all hashes in all backups.
-		:rtype: hashset.Hashset"""
-
-		try:
-			return Hashset.load('hashes', self.hash_size, dir_fd = self.rootdir_fd)
-		except FileNotFoundError:
-			pass
-		return self.generate_hashes()
-
-	def remove_hashes(self):
-		"""Remove a previously generated and cached set of hashes, if one exists."""
-
-		try:
-			del self.stale_hashes
-		except AttributeError:
-			pass
-		try:
-			self.rootdir_fd.unlink('hashes')
-		except FileNotFoundError:
-			pass
+		with rootdir_fd.sysopen(tempname, O_RDWR|O_CREAT|O_TRUNC, 0) as fd:
+			rootdir_fd.unlink(tempname)
+			Hashset.merge(*hashsets, path = fd)
+			return Hashset.load(fd, self.hash_size)
 
 	@initializer
 	def pool(self):
