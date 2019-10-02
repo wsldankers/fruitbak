@@ -180,14 +180,11 @@ class Share(Initializer):
 					# This is a hardlink to another entry that got demoted from
 					# original hardlink target to just a hardlink. Return a hardlink
 					# that points to the new "real" file.
-					target = Dentry(remapped, share = self)
-					remapped_name = target.extra
 
-					target.is_hardlink = False
+					target = Dentry(metadata[hardlink], share = self)
+
+					remapped_name = remapped[dentry_layout_size:]
 					target.name = remapped_name
-					target.extra = dentry.extra
-
-					dentry.is_hardlink = True
 					dentry.hardlink = remapped_name
 
 					yield HardlinkDentry(dentry, target)
