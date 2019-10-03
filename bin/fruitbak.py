@@ -421,8 +421,8 @@ def backup(hosts, all, all_set, full, full_set):
 		host = hostlist.pop()
 		do_full = needs_full(host)
 		try:
-			#host.backup(full = do_full)
-			print(host.name)
+			host.backup(full = do_full)
+			#print(host.name)
 		except Exception as e:
 			#print_exc()
 			print("%s: %s" % (host.name, str(e)), file = stderr)
