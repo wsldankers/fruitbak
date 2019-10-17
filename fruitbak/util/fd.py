@@ -265,8 +265,8 @@ class DirEntry(Initializer):
 		"""Determine the inode number of this entry (or – optionally – in the
 		case of a symlink, the inode of whatever the symlink points at).
 
-		:param bool follow_symlinks: Return the inode of the dentry
-			itself instead of of the entry this symlink points at.
+		:param bool follow_symlinks: Return the inode of the entry
+			this symlink points at instead of the entry itself.
 		:return: The inode number.
 		:rtype: int"""
 
