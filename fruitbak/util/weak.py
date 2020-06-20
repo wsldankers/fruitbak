@@ -4,6 +4,7 @@ This "collection" of weakref-related utility functions currently only
 contains one class (weakproperty)."""
 
 import weakref
+from functools import wraps
 
 class weakproperty(property):
 	"""A property that keeps a weak reference.
@@ -30,6 +31,7 @@ class weakproperty(property):
 	def __init__(prop, f):
 		name = f.__name__
 
+		@wraps(f)
 		def getter(self):
 			dict = vars(self)
 			try:
@@ -49,6 +51,7 @@ class weakproperty(property):
 			dict[name] = weak
 			return value
 
+		@wraps(f)
 		def setter(self, value):
 			dict = vars(self)
 			def unsetter(weak):
@@ -59,6 +62,7 @@ class weakproperty(property):
 					pass
 			dict[name] = weakref.ref(value, unsetter)
 
+		@wraps(f)
 		def deleter(self):
 			del vars(self)[name]
 

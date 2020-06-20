@@ -18,7 +18,7 @@ def convert_env(env):
 			k = fsencode(k)
 			if v is None or k in result:
 				continue
-			result[fsencode(v)] = v
+			result[k] = fsencode(v)
 	return result
 
 def merge_env(base, *envs):
