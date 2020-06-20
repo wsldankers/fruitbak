@@ -16,4 +16,5 @@ API Documentation
    util/strbytes
    util/tabulate
    util/time
+   util/threadpool
    util/weak

@@ -1,3 +1,12 @@
+"""Alternative to `concurrent.futures.ThreadPoolExecutor`. Limited in
+functionality, but has several properties that are useful in Fruitbak:
+
+- `Threadpool.map()` does not immediately exhaust the entire iterator;
+- The number of threads is distributed evenly over running `map()`
+  invocations;
+- Waiting threads participate in the processing of jobs: this prevents
+  thread exhaustion / deadlock when `map()` is called recursively."""
+
 from threading import Thread
 from weakref import ref as weakref
 from collections import deque
@@ -185,6 +194,19 @@ class _Worker(Thread):
 					queue.discard(job)
 
 class ThreadPool:
+	"""__init__(max_workers = None, max_results = None)
+
+	Maintains a fixed number of threads that are put to work to handle any
+	number of tasks in parallel. The available threads are distributed
+	evenly over the jobs (a group of tasks) that are being executed.
+
+	:param int max_workers: The number of worker threads. Defaults to the number
+		of available processor cores/threads.
+	:param int max_results: The maximum number of pending results for a job.
+		If a job has a number of pending results exceeding this limit, it
+		is suspended until the results are delivered. Defaults to twice the
+		value of `max_workers`."""
+
 	def __init__(self, max_workers = None, max_results = None):
 		if max_workers is None:
 			max_workers = len(sched_getaffinity(0))
@@ -230,6 +252,9 @@ class ThreadPool:
 			workers.clear()
 
 	def map(self, func, *args, max_results = None):
+		"""Like Python `map()` but the supplied function is applied
+		concurrently to the result of iterating over the arguments."""
+
 		if max_results is None:
 			max_results = self.max_results
 		job = _Job(func, zip(*args), max_results)
