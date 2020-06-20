@@ -3,6 +3,7 @@ classes and other tidbits that proved useful when writing the classes
 that make up Fruitbak."""
 
 from types import MethodType as method_closure
+from functools import wraps, update_wrapper
 
 class _getinitializer:
 	"""A non-data descriptor that runs a function as an initializer whenever
@@ -11,15 +12,25 @@ class _getinitializer:
 
 	The return value of the initializer is stored in the dict and will be
 	returned for future reads of the attribute (unless it is overwritten or
-	deleted)."""
+	deleted).
+
+	Very similar to `functools.cached_property` but differs in two respects.
+	First, `cached_property` descriptors each have their own lock,
+	`initializer` allows for the use of a shared lock (the downside of that is
+	that you need to the locking property yourself). Second, `initializer`
+	properties allow you to set setter and deleter handlers."""
 
 	def __init__(self, getfunction):
 		self.getfunction = getfunction
-		self.__doc__ = getfunction.__doc__
+		self.name = getfunction.__name__
+		update_wrapper(self, getfunction)
+
+	def __set_name__(self, objtype, name):
+		self.name = name
 
 	def __get__(self, obj, objtype = None):
 		getfunction = self.getfunction
-		name = getfunction.__name__
+		name = self.name
 		try:
 			objdict = vars(obj)
 		except AttributeError:
@@ -32,10 +43,10 @@ class _getinitializer:
 		# Do an explicit check to accommodate the threaded scenario:
 		# even if this getter is protected by a lock, that lock is
 		# not taken during the moment that python checks whether the
-		# attribute exists in the __dict__.
+		# attribute exists in the `__dict__`.
 		# There is an interval between python's check for the entry's
-		# presence in the __dict__ and our acquiring the lock in which
-		# another thread might have populated the __dict__ entry.
+		# presence in the `__dict__` and our acquiring the lock in which
+		# another thread might have populated the `__dict__` entry.
 		try:
 			return objdict[name]
 		except KeyError:
@@ -77,7 +88,6 @@ class _getdelinitializer(_getinitializer):
 
 	def __init__(self, getfunction, delfunction):
 		super().__init__(getfunction)
-		self.name = getfunction.__name__
 		self.delfunction = delfunction
 
 	def __set__(self, obj, value):
@@ -118,7 +128,6 @@ class _getsetinitializer(_getinitializer):
 
 	def __init__(self, getfunction, setfunction):
 		super().__init__(getfunction)
-		self.name = getfunction.__name__
 		self.setfunction = setfunction
 
 	def __set__(self, obj, value):
@@ -285,12 +294,12 @@ class flexiblemethod:
 	"""
 
 	def __init__(self, method, classmethod = None):
-		# don't bother propagating __doc__, method_closure will take care of that.
 		self._method = method
 		if classmethod is None:
 			self._classmethod = method
 		else:
 			self._classmethod = classmethod
+		update_wrapper(self, method)
 
 	def classmethod(self, method):
 		"""Set the method to use when invoked on the class. Can be used as a
@@ -347,11 +356,9 @@ def stub(method):
 	:return: A stub method."""
 
 	qualname = method.__qualname__
+	@wraps(method)
 	def toe():
 		raise NotImplementedError(qualname)
-	toe.__name__ = method.__name__
-	toe.__qualname__ = qualname
-	toe.__doc__ = method.__doc__
 	return toe
 
 class Initializer:
