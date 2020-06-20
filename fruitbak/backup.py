@@ -159,27 +159,27 @@ class Backup(Initializer):
 	@unlocked
 	@property
 	def age_days(self):
-		return day_interval(self.start_time, time_ns())
+		return float(day_interval(self.start_time, time_ns()))
 
 	@unlocked
 	@property
 	def age_weeks(self):
-		return week_interval(self.start_time, time_ns())
+		return float(week_interval(self.start_time, time_ns()))
 
 	@unlocked
 	@property
 	def age_months(self):
-		return month_interval(self.start_time, time_ns())
+		return float(month_interval(self.start_time, time_ns()))
 
 	@unlocked
 	@property
 	def age_quarters(self):
-		return quarter_interval(self.start_time, time_ns())
+		return float(quarter_interval(self.start_time, time_ns()))
 
 	@unlocked
 	@property
 	def age_years(self):
-		return year_interval(self.start_time, time_ns())
+		return float(year_interval(self.start_time, time_ns()))
 
 	@unlocked
 	@configurable_property

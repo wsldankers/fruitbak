@@ -7,6 +7,7 @@ API Documentation
    pool
    dentry
    util/click
+   util/env
    util/fd
    util/heapmap
    util/weakheapmap
@@ -14,4 +15,5 @@ API Documentation
    util/oo
    util/strbytes
    util/tabulate
+   util/time
    util/weak

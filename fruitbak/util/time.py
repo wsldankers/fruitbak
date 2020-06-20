@@ -1,3 +1,6 @@
+"""Utilities for doing arithmetic on time values (expressed as nanoseconds
+since 1970-01-01 00:00:00 UTC)."""
+
 from re import compile as _regcomp, IGNORECASE as _IGNORECASE
 from time import localtime as _localtime, mktime as _mktime
 from calendar import timegm as _timegm
@@ -6,9 +9,9 @@ from fractions import Fraction as _Fraction
 try:
 	from time import time_ns
 except ImportError:
-	from time import time
+	from time import time as _time
 	def time_ns():
-		return int(time() * 1000000000.0)
+		return int(_time() * 1000000000.0)
 
 _parse_interval_re = _regcomp(r'\s*(\d+)\s*([smhdwlqy]|[mun]s)\s*', _IGNORECASE)
 
@@ -35,6 +38,59 @@ _parse_interval_timestruct_adjustment = dict(
 )
 
 def parse_interval(s, future = None, relative_to = None):
+	"""Parse a time interval expressed as any number of (nano)seconds, days or
+	months.
+
+	The default is to interpret days and months as simple numbers of
+	nanoseconds based on an average calendar year.
+
+	However, if a reference point is requested, the algorithm will take the
+	specific length of days and months into account. Intervals can then be
+	interpreted as being between a certain point in history and now, or between
+	now and a certain point in the future. Calculations are done in the local
+	time zone.
+
+	The interval string is built up by concatenating integer numbers with their
+	units. For example, ``1d2h`` denotes one day and two hours. Supported units
+	are:
+
+	== =======
+	ns Nanoseconds.
+	us Microseconds.
+	ms Milliseconds.
+	s  Seconds.
+	m  Minutes.
+	h  Hours.
+	d  Days
+	w  Weeks.
+	l  Months (mnemonic: lunar).
+	q  Quarters (a division of a year in four parts of three months each).
+	y  Years.
+	== =======
+
+	Fractional and non-decimal numbers are currently not supported.
+	Whitespace may be used at any place as long as it doesn't split up
+	numbers or units.
+
+	Example::
+
+		now = 1581939296000000000 # 2020-02-17 12:34:56 CET
+		then = now + parse_interval('2l', True, now)
+		then # 1587119696000000000 (2020-04-17 12:34:56 CEST)
+
+	Note how the day of the month and the time stayed the same, even though
+	there was a leap day and DST switch inside this interval.
+
+	:param str s: The interval in the syntax described above.
+	:param future: If `None`: the interval is based on an average
+		calendar year; if `True`: the interval is between now and a certain point
+		in the future; if `False`: the interval is between a certain point in
+		history and now.
+	:type future: bool or None
+	:param relative_to: The starting/ending point of the interval is not now but
+		the specified moment, expressed as nanoseconds since 1970-01-01 00:00:00
+		UTC."""
+
 	match = _parse_interval_re.match(s)
 	if match is None:
 		raise Exception("unable to parse date expression '%s'" % (s,))
@@ -132,12 +188,34 @@ def _day_interval(a, b, number, offset):
 		)) * 1000000000)
 	b_day_ratio = _Fraction(b - b_day_start, b_day_end - b_day_start)
 
-	return float(_Fraction(b_day - a_day, 1) + b_day_ratio - a_day_ratio)
+	return _Fraction(b_day - a_day, 1) + b_day_ratio - a_day_ratio
 
 def day_interval(a, b):
+	"""The number of days between two points in time, each expressed as
+	nanoseconds since 1970-01-01 00:00:00 UTC. Calculations are done in
+	local time.
+
+	Results are undefined if `a` > `b`.
+
+	:param int a: The start of the interval.
+	:param int b: The start of the interval.
+	:return: The number of days between the intervals.
+	:rtype: fractions.Fraction"""
+	
 	return _day_interval(a, b, 1, 0)
 
 def week_interval(a, b):
+	"""The number of weeks between two points in time, each expressed as
+	nanoseconds since 1970-01-01 00:00:00 UTC. Calculations are done in
+	local time.
+
+	Results are undefined if `a` > `b`.
+
+	:param int a: The start of the interval.
+	:param int b: The start of the interval.
+	:return: The number of weeks between the intervals.
+	:rtype: fractions.Fraction"""
+
 	return _day_interval(a, b, 7, 5)
 
 def _month_interval(a, b, number):
@@ -177,15 +255,48 @@ def _month_interval(a, b, number):
 		)) * 1000000000)
 	b_month_ratio = _Fraction(b - b_month_start, b_month_end - b_month_start)
 
-	return float(_Fraction(b_yearmonth - a_yearmonth, 1) + b_month_ratio - a_month_ratio)
+	return _Fraction(b_yearmonth - a_yearmonth, 1) + b_month_ratio - a_month_ratio
 
 def month_interval(a, b):
+	"""The number of months between two points in time, each expressed as
+	nanoseconds since 1970-01-01 00:00:00 UTC. Calculations are done in
+	local time.
+
+	Results are undefined if `a` > `b`.
+
+	:param int a: The start of the interval.
+	:param int b: The start of the interval.
+	:return: The number of months between the intervals.
+	:rtype: fractions.Fraction"""
+
 	return _month_interval(a, b, 1)
 
 def quarter_interval(a, b):
+	"""The number of quarters (a division of a year in four parts of three
+	months each) between two points in time, each expressed as nanoseconds
+	since 1970-01-01 00:00:00 UTC. Calculations are done in local time.
+
+	Results are undefined if `a` > `b`.
+
+	:param int a: The start of the interval.
+	:param int b: The start of the interval.
+	:return: The number of quarters between the intervals.
+	:rtype: fractions.Fraction"""
+
 	return _month_interval(a, b, 3)
 
 def year_interval(a, b):
+	"""The number of years between two points in time, each expressed as
+	nanoseconds since 1970-01-01 00:00:00 UTC. Calculations are done in
+	local time.
+
+	Results are undefined if `a` > `b`.
+
+	:param int a: The start of the interval.
+	:param int b: The start of the interval.
+	:return: The number of years between the intervals.
+	:rtype: fractions.Fraction"""
+
 	a_struct = _localtime(a // 1000000000)
 	a_year = a_struct.tm_year
 	a_year_start = int(_mktime((
@@ -214,4 +325,4 @@ def year_interval(a, b):
 		)) * 1000000000)
 	b_year_ratio = _Fraction(b - b_year_start, b_year_end - b_year_start)
 
-	return float(_Fraction(b_year - a_year, 1) + b_year_ratio - a_year_ratio)
+	return _Fraction(b_year - a_year, 1) + b_year_ratio - a_year_ratio
