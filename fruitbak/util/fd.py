@@ -2,7 +2,7 @@
 functionality as methods::
 
 	dir_fd = opendir("/tmp")
-	fd = dir_fd.open("temprace", O_CREAT, 0666)
+	fd = dir_fd.open("temprace", O_CREAT, 0o666)
 	fd.truncate(4096)
 	fd.close()
 	dir_fd.unlink("temprace")
@@ -163,7 +163,7 @@ class DirEntry(Initializer):
 	"""DirEntry(*, name, dir_fd)
 
 	Older versions of `os.scandir` do not accept a file descriptor as an
-	argument. The `DirEntry` class is part of a polyfill for that case. It
+	argument. This `DirEntry` class is part of a polyfill for that case. It
 	provides the same functionality as the built-in DirEntry type, though it
 	lacks support for one optimization that some filesystems provide (the
 	`d_type` field of the C library `readdir(3)` function).
