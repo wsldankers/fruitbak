@@ -1,5 +1,8 @@
 """Utilities for doing arithmetic on time values (expressed as nanoseconds
-since 1970-01-01 00:00:00 UTC)."""
+since 1970-01-01 00:00:00 UTC).
+
+This module also exports `time_ns()`, either from the `time` module or a
+polyfill if that function is not available."""
 
 from re import compile as _regcomp, IGNORECASE as _IGNORECASE
 from time import localtime as _localtime, mktime as _mktime
@@ -38,14 +41,14 @@ _parse_interval_timestruct_adjustment = dict(
 )
 
 def parse_interval(s, future = None, relative_to = None):
-	"""Parse a time interval expressed as any number of (nano)seconds, days or
-	months.
+	"""Parse a time interval expressed as any number of (nano)seconds, days,
+	months or years.
 
 	The default is to interpret days and months as simple numbers of
 	nanoseconds based on an average calendar year.
 
-	However, if a reference point is requested, the algorithm will take the
-	specific length of days and months into account. Intervals can then be
+	However, if the `future` parameter is not `None`, the algorithm will take
+	the specific length of days and months into account. Intervals can then be
 	interpreted as being between a certain point in history and now, or between
 	now and a certain point in the future. Calculations are done in the local
 	time zone.
@@ -101,9 +104,6 @@ def parse_interval(s, future = None, relative_to = None):
 	localtime = _localtime
 	mktime = _mktime
 
-	if future is not None and relative_to is None:
-		relative_to = time_ns()
-
 	while match is not None:
 		number = int(match.group(1))
 		unit = match.group(2).lower()
@@ -114,9 +114,12 @@ def parse_interval(s, future = None, relative_to = None):
 			adjustment = _parse_interval_timestruct_adjustment.get(unit)
 			if adjustment is not None:
 				if then is None:
+					if relative_to is None:
+						relative_to = time_ns()
 					relative_to_seconds = relative_to // 1000000000
 					relative_to_local = localtime(relative_to_seconds)
 					then = list(relative_to_local)
+					then[8] = -1 # is_dst
 				what, howmuch = adjustment
 				if future:
 					then[what] += howmuch * number
@@ -198,7 +201,7 @@ def day_interval(a, b):
 	Results are undefined if `a` > `b`.
 
 	:param int a: The start of the interval.
-	:param int b: The start of the interval.
+	:param int b: The end of the interval.
 	:return: The number of days between the intervals.
 	:rtype: fractions.Fraction"""
 	
@@ -212,7 +215,7 @@ def week_interval(a, b):
 	Results are undefined if `a` > `b`.
 
 	:param int a: The start of the interval.
-	:param int b: The start of the interval.
+	:param int b: The end of the interval.
 	:return: The number of weeks between the intervals.
 	:rtype: fractions.Fraction"""
 
@@ -265,7 +268,7 @@ def month_interval(a, b):
 	Results are undefined if `a` > `b`.
 
 	:param int a: The start of the interval.
-	:param int b: The start of the interval.
+	:param int b: The end of the interval.
 	:return: The number of months between the intervals.
 	:rtype: fractions.Fraction"""
 
@@ -279,7 +282,7 @@ def quarter_interval(a, b):
 	Results are undefined if `a` > `b`.
 
 	:param int a: The start of the interval.
-	:param int b: The start of the interval.
+	:param int b: The end of the interval.
 	:return: The number of quarters between the intervals.
 	:rtype: fractions.Fraction"""
 
@@ -293,7 +296,7 @@ def year_interval(a, b):
 	Results are undefined if `a` > `b`.
 
 	:param int a: The start of the interval.
-	:param int b: The start of the interval.
+	:param int b: The end of the interval.
 	:return: The number of years between the intervals.
 	:rtype: fractions.Fraction"""
 
