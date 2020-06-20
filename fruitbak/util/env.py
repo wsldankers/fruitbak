@@ -15,8 +15,10 @@ def convert_env(env):
 	result = {}
 	if env is not None:
 		for k, v in env.items():
+			if v is None:
+				continue
 			k = fsencode(k)
-			if v is None or k in result:
+			if k in result:
 				continue
 			result[k] = fsencode(v)
 	return result

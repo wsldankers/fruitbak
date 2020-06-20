@@ -120,7 +120,7 @@ class NewBackup(Initializer):
 		predecessor = self.predecessor
 		if predecessor:
 			env['mode'] = 'incr'
-			env['predecessor'] = self.predecessor
+			env['predecessor'] = str(self.predecessor.index)
 		else:
 			env['mode'] = 'full'
 		return env
