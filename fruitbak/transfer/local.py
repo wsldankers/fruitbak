@@ -83,7 +83,7 @@ class fruitwalk:
 				skip = yield entry_path, st, dir_fd
 				if not skip and S_ISDIR(st.st_mode):
 					try:
-						fd = dir_fd.sysopendir(name, follow_symlinks = False) 
+						fd = dir_fd.sysopendir(name, follow_symlinks = False)
 					except:
 						onerror(*exc_info())
 					else:

@@ -397,7 +397,7 @@ class PoolAgent(Initializer):
 
 			if self.exception:
 				raise RuntimeError("an operation has failed. call agent.sync() first") from self.exception[1]
-			
+
 			action = PoolPutAction(hash = hash, value = value, cond = cond)
 			def when_done(exception):
 				with lock:

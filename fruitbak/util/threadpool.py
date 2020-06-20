@@ -290,7 +290,7 @@ class ThreadPool:
 				singletons.remove(job)
 
 		job = _SingletonJob(task)
-		
+
 		cond = self.cond
 		with cond:
 			self.queue[job] = 0

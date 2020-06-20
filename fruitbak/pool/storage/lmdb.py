@@ -106,8 +106,8 @@ class _Worker(Thread):
 											break
 					elif reads:
 						job = reads.popleft()
-						
-				job()		
+
+				job()
 		except:
 			print_exc()
 

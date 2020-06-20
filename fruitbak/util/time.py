@@ -66,7 +66,7 @@ def parse_interval(s, future = None, relative_to = None):
 					then[what] += howmuch * number
 				else:
 					then[what] -= howmuch * number
-			else:	
+			else:
 				result += number * _parse_interval_units[unit]
 
 		match = _parse_interval_re.match(s, match.end())

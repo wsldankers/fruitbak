@@ -217,7 +217,7 @@ class HeapMap(MutableMapping):
 
 		:param key: The key to add.
 		:param value: The value to add."""
-		
+
 		self._setitem(key, value)
 
 	@unlocked

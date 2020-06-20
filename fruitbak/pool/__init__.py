@@ -67,7 +67,7 @@ class Pool(Initializer):
 		This property is user-configurable under the name `pool_max_queue_depth`.
 
 		:type: int"""
-		
+
 		return 32
 
 	@weakproperty
@@ -82,7 +82,7 @@ class Pool(Initializer):
 	@configurable
 	def pool_storage_type(self):
 		"""The type of the default storage subsystem to use. Only used by
-		`pool_storage`, and only if that is not user configured. 
+		`pool_storage`, and only if that is not user configured.
 
 		This property is user-configurable.
 

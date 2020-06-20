@@ -532,7 +532,7 @@ def fuse(args):
 				components = relpath.split('/', 4) if relpath else []
 				print('components', repr(components), file = stderr, flush = True)
 				depth = len(components)
-				
+
 				fbak = self.fruitbak
 				if depth == 0:
 					entries = (host.name for host in fbak)

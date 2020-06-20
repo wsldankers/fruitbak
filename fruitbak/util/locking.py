@@ -180,7 +180,7 @@ def lockingclass(cls):
 			self.lock = RLock()
 			return super(cls, self).__init__(*args, **kwargs)
 		replacements['__init__'] = __init__
-	
+
 	# make sure the cls in super() above works properly
 	cls = type(cls.__name__, cls.__bases__, replacements)
 	return cls
