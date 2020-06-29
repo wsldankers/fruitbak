@@ -1,4 +1,3 @@
-from fruitbak.util.click import *
 from fruitbak.util.env import *
 from fruitbak.util.fd import *
 from fruitbak.util.heapmap import *

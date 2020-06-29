@@ -3,7 +3,6 @@ Section: admin
 Priority: extra
 Maintainer: Wessel Dankers <wsl@fruit.je>
 Build-Depends: cdbs, debhelper, python3-setuptools, python3-sphinx,
-	python3-click,
 	python3-hardhat,
 	python3-hashset,
 	python3-rsync-fetch,
@@ -16,7 +15,6 @@ Package: fruitbak
 Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends},
 	adduser,
-	python3-click,
 	python3-fruitbak,
 Description: Efficient disk-based backups
  Efficient disk-based backups. Features:

@@ -2,18 +2,9 @@
 
 from os import environ
 
-if __name__ == '__main__':
-	# work around click making python's defaults even more painful:
-	from locale import getpreferredencoding
-	from codecs import lookup as lookup_codec
-	if lookup_codec(getpreferredencoding()).name == 'ascii':
-		if {'LANG', 'LC_ALL', 'LC_CTYPE'}.isdisjoint(environ.keys()):
-			from os import execvpe
-			from sys import argv
-			execvpe(argv[0], argv, dict(environ, LC_CTYPE = 'C.UTF-8'))
-
 from fruitbak import Fruitbak
-from fruitbak.util import tabulate, OptionalWithoutArgument, OptionalWithArgument, OptionalCommand, Initializer, ThreadPool, time_ns, parse_interval
+from fruitbak.util import tabulate, Initializer, ThreadPool, time_ns, parse_interval
+import fruitbak.util.clack
 
 from os import fsdecode, getuid, initgroups, setresgid, setresuid
 from os.path import basename
@@ -28,8 +19,7 @@ from hardhat import normalize as hardhat_normalize
 from traceback import print_exc
 from collections import deque
 
-import click
-import gc, atexit
+import gc, atexit, argparse
 
 def check_for_loops():
 	if gc.collect() != 0:
@@ -66,15 +56,16 @@ def initialize_fruitbak():
 
 	return fbak
 
-@click.group()
+@fruitbak.util.clack.command()
+@fruitbak.util.clack.subparsers(required = True, dest = 'command')
 def cli(): pass
 
-@cli.command()
-@click.argument('host', required = False)
-@click.argument('backup', required = False)
-@click.argument('share', required = False)
-@click.argument('path', required = False)
-def ls(host, backup, share, path):
+@cli.command(aliases = ['list'])
+@cli.argument('host', nargs = '?')
+@cli.argument('backup', nargs = '?', type = int)
+@cli.argument('share', nargs = '?')
+@cli.argument('path', nargs = '?')
+def ls(command, host, backup, share, path):
 	"""Lists hosts, backups, shares and paths"""
 
 	fbak = initialize_fruitbak()
@@ -237,11 +228,11 @@ def ls(host, backup, share, path):
 		print(tabulated)
 
 @cli.command()
-@click.argument('host')
-@click.argument('backup')
-@click.argument('share')
-@click.argument('path', required = False)
-def cat(host, backup, share, path):
+@cli.argument('host')
+@cli.argument('backup', type = int)
+@cli.argument('share')
+@cli.argument('path', nargs = '?')
+def cat(command, host, backup, share, path):
 	binary_stdout = stdout.buffer
 
 	fbak = initialize_fruitbak()
@@ -256,11 +247,11 @@ def cat(host, backup, share, path):
 			binary_stdout.write(action.value)
 
 @cli.command()
-@click.argument('host')
-@click.argument('backup')
-@click.argument('share')
-@click.argument('path', required = False)
-def tar(host, backup, share, path):
+@cli.argument('host')
+@cli.argument('backup', type = int)
+@cli.argument('share')
+@cli.argument('path', nargs = '?')
+def tar(command, host, backup, share, path):
 	binary_stdout = stdout.buffer
 
 	fbak = initialize_fruitbak()
@@ -322,15 +313,13 @@ def tar(host, backup, share, path):
 
 	binary_stdout.write(b'\0' * (BLOCKSIZE*2))
 
-@cli.command(cls = OptionalCommand)
-@click.argument('hosts', nargs = -1)
-@click.option('--full', cls = OptionalWithoutArgument, is_flag = True, help = "Do a full backup")
-@click.option('--full_set', cls = OptionalWithArgument,
+@cli.command(aliases = ['bu'])
+@cli.argument('--full', nargs = '?', default = False, const = True, metavar='interval',
 	help = "Do a full backup if the previous one is older than this interval")
-@click.option('-a', '--all', cls = OptionalWithoutArgument, is_flag = True)
-@click.option('--all_set', cls = OptionalWithArgument,
+@cli.argument('--all', nargs = '?', default = False, const = True, metavar='interval',
 	help = "Do backups of all hosts that have no backups newer than this interval")
-def backup(hosts, all, all_set, full, full_set):
+@cli.argument('hosts', nargs = '*')
+def backup(command, hosts, all, full):
 	"""Run a backup for a host (or all hosts)"""
 
 	now = time_ns()
@@ -338,8 +327,8 @@ def backup(hosts, all, all_set, full, full_set):
 	fbak = initialize_fruitbak()
 	max_parallel_backups = fbak.max_parallel_backups
 
-	full_cutoff = None if full_set is None else now - parse_interval(full_set, False, now)
-	auto_cutoff = None if all_set is None else now - parse_interval(all_set, False, now)
+	full_cutoff = None if isinstance(full, bool) else now - parse_interval(full, False, now)
+	auto_cutoff = None if isinstance(all, bool) else now - parse_interval(all, False, now)
 
 	last_backup_cache = {}
 	def last_backup(host):
@@ -438,8 +427,8 @@ def backup(hosts, all, all_set, full, full_set):
 				job.result()
 
 @cli.command()
-@click.option('-n', '--dry-run', '--dryrun', 'dry_run', default = False, is_flag = True)
-def gc(dry_run):
+@cli.argument('-n', '--dry-run', '--dryrun', action = 'store_true', dest = 'dry_run')
+def gc(command, dry_run):
 	"""Clean up"""
 	fbak = initialize_fruitbak()
 
@@ -471,9 +460,9 @@ def gc(dry_run):
 
 	agent.sync()
 
-@cli.command(context_settings = {'ignore_unknown_options': True})
-@click.argument('args', nargs=-1)
-def fuse(args):
+@cli.command()
+@cli.argument('args', nargs = argparse.REMAINDER)
+def fuse(command, args):
 	stderr = open('/dev/pts/9', 'w')
 	from stat import S_IFREG, S_IFDIR
 	from fruitbak.util import initializer, locked
@@ -559,7 +548,7 @@ def fuse(args):
 	fusepy.FUSE(FruitFuse(), *args)
 
 @cli.command()
-def pooltest():
+def pooltest(command):
 	"""Run some tests on the pool code"""
 
 	fbak = initialize_fruitbak()
@@ -604,7 +593,7 @@ def pooltest():
 	fbak = None
 
 @cli.command()
-def fstest():
+def fstest(command):
 	fbak = initialize_fruitbak()
 	data = "derp".encode()
 	hash_func = fbak.hash_func
@@ -614,13 +603,10 @@ def fstest():
 	sleep(1)
 
 @cli.command()
-def listchunks():
+def listchunks(command):
 	fbak = initialize_fruitbak()
 	for hash in fbak.pool.agent().lister():
 		print(hash)
-
-def xyzzy(full, full_set):
-	"""Nothing happens"""
 
 if __name__ == '__main__':
 	# up from default 0.005s
