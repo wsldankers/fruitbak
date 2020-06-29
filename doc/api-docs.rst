@@ -6,7 +6,6 @@ API Documentation
    fruitbak
    pool
    dentry
-   util/click
    util/env
    util/fd
    util/heapmap
