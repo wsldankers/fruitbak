@@ -463,12 +463,26 @@ def gc(command, dry_run):
 @cli.command()
 @cli.argument('args', nargs = argparse.REMAINDER)
 def fuse(command, args):
-	stderr = open('/dev/pts/9', 'w')
+	import os
+	import sys
+	from fruitbak.util import initializer, locked, fd
+	stderr = open(os.dup(sys.stderr.fileno()), 'w')
 	from stat import S_IFREG, S_IFDIR
-	from fruitbak.util import initializer, locked
 	import fusepy
+	import errno
 	from threading import Lock
+
+	class FruitFile(Initializer):
+		dentry = None
+		chunk = None
+		chunk_index = None
+
 	class FruitFuse(fusepy.Operations):
+		use_ns = True
+
+		# latin-1 is an encoding that provides a (dummy) 1:1 byte:char mapping
+		encoding = 'latin-1'
+
 		def __init__(self):
 			self.lock = Lock()
 			self.fds = dict()
@@ -497,17 +511,50 @@ def fuse(command, args):
 			return self.fds[fh][offset:offset+size]
 
 		def getattr(self, path, fh = None):
-			print('getattr', repr(path), repr(fh), file = stderr, flush = True)
-			components = path.lstrip('/').split('/', 4)
-			print('components', repr(components), file = stderr, flush = True)
-			if path == '/x':
-				return dict(st_mode = S_IFREG | 0o644, st_nlink = 1, st_size = 4)
-			else:
-				return dict(st_mode = S_IFDIR | 0o755, st_nlink = 2)
+			try:
+				#print(f'getattr({path!r}, {fh!r})', file = stderr, flush = True)
+				components = path.lstrip('/').split('/', 3)
+				#print('components', repr(components), file = stderr, flush = True)
+				if len(components) == 1:
+					host, = components
+					if host:
+						backup = self.fruitbak[host][-1]
+						return dict(st_mode = S_IFDIR | 0o555, st_nlink = 2, st_mtime = backup.start_time)
+					else:
+						return dict(st_mode = S_IFDIR | 0o555, st_nlink = 2)
+				if len(components) == 2:
+					host, backup = components
+					backup = self.fruitbak[host][int(backup)]
+					return dict(st_mode = S_IFDIR | 0o555, st_nlink = 2, st_mtime = backup.start_time)
+				if len(components) == 3:
+					components.append('')
+				host, backup, share, path = components
+				dentry = self.fruitbak[host][int(backup)][share].get(path.encode(self.encoding))
+				return dict(st_mode = dentry.mode, st_mtime = dentry.mtime, st_size = dentry.size, st_uid = dentry.uid, st_gid = dentry.gid)
+			except:
+				#print_exc(file = stderr)
+				raise fusepy.FuseOSError(errno.ENOENT)
+
+		def readlink(self, path):
+			try:
+				#print('getattr', repr(path), repr(fh), file = stderr, flush = True)
+				components = path.lstrip('/').split('/', 3)
+				#print('components', repr(components), file = stderr, flush = True)
+				if len(components) < 4:
+					raise fusepy.FuseOSError(errno.ENOENT)
+				host, backup, share, path = components
+				dentry = self.fruitbak[host][int(backup)][share].get(path.encode(self.encoding))
+				return str(dentry.symlink, 'UTF-8', 'surrogateescape')
+			except:
+				print_exc(file = stderr)
 
 		def open(self, path, flags):
 			print('open', repr(path), repr(flags), file = stderr, flush = True)
 			return self.store_in_fd(path.encode() + b"\n")
+
+		def opendir(self, path):
+			print('opendir', repr(path), file = stderr, flush = True)
+			raise fusepy.FuseOSError(errno.ENOENT)
 
 		def release(self, fh):
 			print('release', repr(fh), file = stderr, flush = True)
@@ -516,10 +563,10 @@ def fuse(command, args):
 
 		def readdir(self, path, fh):
 			try:
-				print('readdir', repr(path), repr(fh), file = stderr, flush = True)
+				#print('readdir', repr(path), repr(fh), file = stderr, flush = True)
 				relpath = path.lstrip('/')
 				components = relpath.split('/', 4) if relpath else []
-				print('components', repr(components), file = stderr, flush = True)
+				#print('components', repr(components), file = stderr, flush = True)
 				depth = len(components)
 
 				fbak = self.fruitbak
@@ -537,15 +584,16 @@ def fuse(command, args):
 							sharedir = components[2]
 							share, = (share for share in backup if str(share.sharedir) == sharedir)
 							sharepath = components[3] if depth > 3 else ''
-							entries = (dentry.name.decode() for dentry in share.ls(sharepath))
+							entries = (dentry.name.decode().split('/')[-1] for dentry in share.ls(sharepath))
 
 				ret = ['.', '..', *entries]
-				print('entries', repr(ret), file = stderr, flush = True)
+				#print('entries', repr(ret), file = stderr, flush = True)
 				return ret
 			except:
 				print_exc(file = stderr)
 
-	fusepy.FUSE(FruitFuse(), *args)
+	fruit_fuse = FruitFuse()
+	fusepy.FUSE(FruitFuse(), encoding = fruit_fuse.encoding, *args)
 
 @cli.command()
 def pooltest(command):
