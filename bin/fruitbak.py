@@ -470,8 +470,9 @@ else:
 	@cli.command()
 	@cli.argument('args', nargs = argparse.REMAINDER)
 	def fuse(command, args):
-		fruit_fuse = FruitFuse()
-		FUSE(fruit_fuse, encoding = fruit_fuse.encoding, *args)
+		fbak = initialize_fruitbak()
+		fruit_fuse = FruitFuse(fruitbak = fbak)
+		FUSE(fruit_fuse, fsname = str(fbak.rootdir), encoding = fruit_fuse.encoding, *args)
 
 @cli.command()
 def pooltest(command):
