@@ -17,7 +17,7 @@ class _getinitializer:
 	Very similar to `functools.cached_property` but differs in two respects.
 	First, `cached_property` descriptors each have their own lock,
 	`initializer` allows for the use of a shared lock (the downside of that is
-	that you need to the locking property yourself). Second, `initializer`
+	that you need to add the locking property yourself). Second, `initializer`
 	properties allow you to set setter and deleter handlers."""
 
 	def __init__(self, getfunction):

@@ -351,6 +351,19 @@ class DentryHashes(Initializer):
 	def __len__(self):
 		return len(self.hashes) // self.hash_size
 
+	def __getitem__(self, index):
+		num = len(self)
+		if index < 0:
+			new_index = index + num
+			if new_index < 0:
+				raise IndexError(f"Index {index} out of range")
+			index = new_index
+		elif index >= num:
+			raise IndexError(f"Index {index} out of range")
+		hash_size = self.hash_size
+		offset = index * hash_size
+		return self._hashview[offset : offset + hash_size]
+
 	def __bytes__(self):
 		return self.hashes
 

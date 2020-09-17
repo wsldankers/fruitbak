@@ -468,11 +468,20 @@ except ImportError:
 	pass
 else:
 	@cli.command()
-	@cli.argument('args', nargs = argparse.REMAINDER)
-	def fuse(command, args):
+	@cli.argument('mountpoint')
+	@cli.argument('-o', default = '')
+	def fuse(command, mountpoint, o):
 		fbak = initialize_fruitbak()
 		fruit_fuse = FruitFuse(fruitbak = fbak)
-		FUSE(fruit_fuse, fsname = str(fbak.rootdir), encoding = fruit_fuse.encoding, *args)
+		options = {
+			key: val for key, val in (
+				option.split('=', 1)
+						if '=' in option
+						else (option, True)
+					for option in o.split(',')
+			)
+		} if o else {}
+		FUSE(fruit_fuse, mountpoint, fsname = f'fruitbak:{fbak.rootdir}', encoding = fruit_fuse.encoding, **options)
 
 @cli.command()
 def pooltest(command):

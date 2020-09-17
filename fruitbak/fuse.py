@@ -13,72 +13,70 @@ class FruitFuseFile(Initializer):
 	chunk = None
 	chunk_index = None
 
-class FruitFuseDirectory(Initializer):
-	entries = ('.', '..')
-
-def traced(f):
+def windshield(f):
+	"""Catches bugs."""
 	name = f.__name__
 	@wraps(f)
-	def traced(self, *args, **kwargs):
+	def windshield(self, *args, **kwargs):
 		try:
-			self.trace(name, *args)
+			#self._trace(name, *args)
 			return f(self, *args, **kwargs)
 		except FuseOSError:
 			raise
 		except:
-			print_exc(file = self.stderr)
+			print_exc(file = self._stderr)
 		raise FuseOSError(ENOENT)
-	return traced
+	return windshield
 
 class FruitFuse(FuseOperations):
 	use_ns = True
 
 	def __init__(self, fruitbak):
-		self.fruitbak = fruitbak
 		self.lock = Lock()
-		self.fds = dict()
-		self.retired_fds = set()
-		self.stderr = open(dup(stderr.fileno()), 'w')
+		self._fruitbak = fruitbak
+		self._fds = dict()
+		self._retired_fds = set()
+		self._stderr = open(dup(stderr.fileno()), 'w')
 		super().__init__()
 
 	@locked
 	@initializer
-	def fruitbak(self):
-		return initialize_fruitbak()
+	def _agent(self):
+		return self._fruitbak.pool.agent()
 
 	# latin-1 is an encoding that provides a (dummy) 1:1 byte:char mapping
 	encoding = 'latin-1'
 
-	def fusepy_to_unicode(self, s):
+	def _fusepy_to_unicode(self, s):
 		return s.encode(self.encoding).decode('UTF-8', 'surrogateescape')
 
-	def unicode_to_fusepy(self, s):
+	def _unicode_to_fusepy(self, s):
 		return s.encode('UTF-8', 'surrogateescape').decode(self.encoding)
 
-	def log(self, *args):
-		print(*args, file = self.stderr, flush = True)
+	def _log(self, *args):
+		print(*args, file = self._stderr, flush = True)
 
-	def trace(self, function, *args):
-		self.log(f'{function}({", ".join(map(repr, args))})')
+	def _trace(self, function, *args):
+		self._log(f'{function}({", ".join(map(repr, args))})')
 
-	next_fd = 0
+	_next_fd = 0
 
-	def allocate_fd(self, obj):
-		retired_fds = self.retired_fds
+	def _allocate_fd(self, obj):
+		retired_fds = self._retired_fds
 		try:
 			fd = retired_fds.pop()
 		except KeyError:
 			with self.lock:
-				fd = self.next_fd
-				self.next_fd = fd + 1
-		self.fds[fd] = obj
+				fd = self._next_fd
+				self._next_fd = fd + 1
+		self._fds[fd] = obj
 		return fd
 
-	def deallocate_fd(self, fd):
-		del self.fds[fd]
-		self.retired_fds.add(fd)
+	def _deallocate_fd(self, fd):
+		del self._fds[fd]
+		self._retired_fds.add(fd)
 
-	def parse_path(self, path, root_func, host_func, backup_func, share_func):
+	def _parse_path(self, path, root_func, host_func, backup_func, share_func):
 		relpath = path.lstrip('/')
 		components = relpath.split('/', 3) if relpath else []
 		depth = len(components)
@@ -89,7 +87,7 @@ class FruitFuse(FuseOperations):
 					raise FuseOSError(ENOENT)
 				return root_func()
 
-			host = self.fruitbak[self.fusepy_to_unicode(components[0])]
+			host = self._fruitbak[self._fusepy_to_unicode(components[0])]
 			if depth == 1:
 				if host_func is None:
 					raise FuseOSError(ENOENT)
@@ -104,72 +102,98 @@ class FruitFuse(FuseOperations):
 			if share_func is None:
 				raise FuseOSError(ENOENT)
 
-			share = backup[self.fusepy_to_unicode(components[2])]
+			share = backup[self._fusepy_to_unicode(components[2])]
 			path = components[3].encode(self.encoding) if depth > 3 else b''
 			return share_func(host, backup, share, path)
 		except (KeyError, FileNotFoundError):
 			raise FuseOSError(ENOENT)
 
-	@traced
-	def read(self, path, size, offset, fh):
-		return self.fds[fh][offset:offset+size]
+	def _open_share(self, host, backup, share, path):
+		return self._allocate_fd(FruitFuseFile(dentry = share[path]))
 
-	def getattr_root(self):
+	@windshield
+	def open(self, path, flags):
+		return self._parse_path(path, None, None, None, self._open_share)
+
+	@windshield
+	def read(self, path, size, offset, fd):
+		file = self._fds[fd]
+		dentry = file.dentry
+		hashes = dentry.hashes
+		num_hashes = len(hashes)
+		file_size = dentry.size
+
+		fbak = self._fruitbak
+		chunk_size = fbak.chunk_size
+		agent = self._agent
+
+		result = []
+
+		while size and offset < file_size:
+			chunk_index, chunk_offset = divmod(offset, chunk_size)
+			if file.chunk_index == chunk_index:
+				chunk = file.chunk
+			elif chunk_index < num_hashes:
+				chunk = agent.get_chunk(hashes[chunk_index])
+				file.chunk = chunk
+				file.chunk_index = chunk_index
+			else:
+				break
+			piece = chunk[chunk_offset : chunk_offset + size]
+			piece_len = len(piece)
+			offset += piece_len
+			size -= piece_len
+			result.append(piece)
+
+		return b''.join(result)
+
+	@windshield
+	def release(self, path, fd):
+		self._deallocate_fd(fd)
+
+	def _getattr_root(self):
 		return dict(st_mode = S_IFDIR | 0o555, st_nlink = 2)
 
-	def getattr_host(self, host):
+	def _getattr_host(self, host):
 		try:
 			last_backup = host[-1]
 		except:
 			return dict(st_mode = S_IFDIR | 0o555, st_nlink = 2)
 		else:
-			return self.getattr_backup(host, last_backup)
+			return self._getattr_backup(host, last_backup)
 
-	def getattr_backup(self, host, backup):
+	def _getattr_backup(self, host, backup):
 		return dict(st_mode = S_IFDIR | 0o555, st_nlink = 2, st_mtime = backup.start_time)
 
-	def getattr_share(self, host, backup, share, path):
-		try:
-			dentry = share[path]
-		except (KeyError, FileNotFoundError):
-			raise FuseOSError(ENOENT)
+	def _getattr_share(self, host, backup, share, path):
+		dentry = share[path]
 		return dict(st_mode = dentry.mode, st_mtime = dentry.mtime, st_size = dentry.size, st_uid = dentry.uid, st_gid = dentry.gid)
 
-	@traced
-	def getattr(self, path, fh = None):
-		return self.parse_path(path, self.getattr_root, self.getattr_host, self.getattr_backup, self.getattr_share)
+	@windshield
+	def getattr(self, path, fd = None):
+		return self._parse_path(path, self._getattr_root, self._getattr_host, self._getattr_backup, self._getattr_share)
 
-	@traced
+	@windshield
+	def readlink_share(self, host, backup, share, path):
+		return str(share[path].symlink, self.encoding)
+
+	@windshield
 	def readlink(self, path):
-		components = path.lstrip('/').split('/', 3)
-		#self.log('components =', repr(components))
-		if len(components) < 4:
-			raise FuseOSError(ENOENT)
-		host, backup, share, path = components
-		dentry = self.fruitbak[host][int(backup)][share].get(path.encode(self.encoding))
-		return str(dentry.symlink, 'UTF-8', 'surrogateescape')
+		return self._parse_path(path, None, None, None, self._readlink_share)
 
-	@traced
-	def open(self, path, flags):
-		return self.allocate_fd(path.encode() + b"\n")
+	def _readdir_root(self):
+		return (bytes(host.hostdir).decode(self.encoding) for host in self._fruitbak)
 
-	@traced
-	def release(self, path, fh):
-		self.deallocate_fd(fh)
-
-	def readdir_root(self):
-		return (unicode_to_fusepy(host.name) for host in fbak)
-
-	def readdir_host(self, host):
+	def _readdir_host(self, host):
 		return (str(backup.index) for backup in host)
 
-	def readdir_backup(self, host, backup):
-		return (unicode_to_fusepy(str(share.sharedir)) for share in backup)
+	def _readdir_backup(self, host, backup):
+		return (bytes(share.sharedir).decode(self.encoding) for share in backup)
 
-	def readdir_share(self, host, backup, share, path):
+	def _readdir_share(self, host, backup, share, path):
 		return (dentry.name.split(b'/')[-1].decode(self.encoding) for dentry in share.ls(path))
 
-	@traced
-	def readdir(self, path, fh):
-		entries = self.parse_path(path, self.readdir_root, self.readdir_host, self.readdir_backup, self.readdir_share)
+	@windshield
+	def readdir(self, path, fd):
+		entries = self._parse_path(path, self._readdir_root, self._readdir_host, self._readdir_backup, self._readdir_share)
 		return ['.', '..', *entries]

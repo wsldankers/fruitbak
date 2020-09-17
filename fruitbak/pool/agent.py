@@ -20,7 +20,7 @@ class PoolAction(Initializer):
 			while not self.done:
 				cond.wait()
 		exception = self.exception
-		if self.exception:
+		if exception:
 			raise exception[1]
 
 class PoolGetAction(PoolAction):
