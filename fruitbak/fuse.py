@@ -34,7 +34,8 @@ class FruitFuse(FuseOperations):
 	def __init__(self, fruitbak):
 		self.lock = Lock()
 		self._fruitbak = fruitbak
-		self._fds = dict()
+		self._fds = {}
+		self._devs = {}
 		self._retired_fds = set()
 		self._stderr = open(dup(stderr.fileno()), 'w')
 		super().__init__()
@@ -75,6 +76,21 @@ class FruitFuse(FuseOperations):
 	def _deallocate_fd(self, fd):
 		del self._fds[fd]
 		self._retired_fds.add(fd)
+
+	_next_dev = 0
+
+	def _dev(self, share):
+		backup = share.backup
+		host = backup.host
+		key = host.name, backup.index, share.name
+		try:
+			return self._devs[key]
+		except KeyError:
+			pass
+		dev = self._next_dev
+		self._next_dev = dev + 1
+		self._devs[key] = dev
+		return dev
 
 	def _parse_path(self, path, root_func, host_func, backup_func, share_func):
 		relpath = path.lstrip('/')
@@ -151,6 +167,18 @@ class FruitFuse(FuseOperations):
 	def release(self, path, fd):
 		self._deallocate_fd(fd)
 
+	def _dentry2stat(self, share, dentry):
+		return dict(
+			st_mode = dentry.mode,
+			st_atime = dentry.mtime,
+			st_ctime = dentry.mtime,
+			st_mtime = dentry.mtime,
+			st_size = dentry.size,
+			st_uid = dentry.uid,
+			st_gid = dentry.gid,
+			st_ino = (self._dev(share) << 32) + dentry.inode,
+		)
+
 	def _getattr_root(self):
 		return dict(st_mode = S_IFDIR | 0o555, st_nlink = 2)
 
@@ -166,15 +194,14 @@ class FruitFuse(FuseOperations):
 		return dict(st_mode = S_IFDIR | 0o555, st_nlink = 2, st_mtime = backup.start_time)
 
 	def _getattr_share(self, host, backup, share, path):
-		dentry = share[path]
-		return dict(st_mode = dentry.mode, st_mtime = dentry.mtime, st_size = dentry.size, st_uid = dentry.uid, st_gid = dentry.gid)
+		return self._dentry2stat(share, share[path])
 
 	@windshield
 	def getattr(self, path, fd = None):
 		return self._parse_path(path, self._getattr_root, self._getattr_host, self._getattr_backup, self._getattr_share)
 
 	@windshield
-	def readlink_share(self, host, backup, share, path):
+	def _readlink_share(self, host, backup, share, path):
 		return str(share[path].symlink, self.encoding)
 
 	@windshield
@@ -191,7 +218,13 @@ class FruitFuse(FuseOperations):
 		return (bytes(share.sharedir).decode(self.encoding) for share in backup)
 
 	def _readdir_share(self, host, backup, share, path):
-		return (dentry.name.split(b'/')[-1].decode(self.encoding) for dentry in share.ls(path))
+		return (
+			(
+				dentry.name.split(b'/')[-1].decode(self.encoding),
+				self._dentry2stat(share, dentry),
+				0,
+			) for dentry in share.ls(path)
+		)
 
 	@windshield
 	def readdir(self, path, fd):

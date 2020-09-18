@@ -481,6 +481,7 @@ else:
 					for option in o.split(',')
 			)
 		} if o else {}
+		options.setdefault('use_ino', True)
 		FUSE(fruit_fuse, mountpoint, fsname = f'fruitbak:{fbak.rootdir}', encoding = fruit_fuse.encoding, **options)
 
 @cli.command()

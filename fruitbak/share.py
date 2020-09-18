@@ -104,11 +104,12 @@ class Share(Initializer):
 		return Hardhat('metadata.hh', dir_fd = self.sharedir_fd)
 
 	@unlocked
-	def _parse_dentry(self, name, data):
-		dentry = Dentry(data, name = name, share = self)
+	def _parse_dentry(self, name, data, inode):
+		dentry = Dentry(data, name = name, inode = inode, share = self)
 		if dentry.is_hardlink:
 			target_name = dentry.hardlink
-			target = Dentry(self.metadata[target_name], name = target_name, share = self)
+			c = self.metadata.find(target_name)
+			target = Dentry(c.value, name = target_name, inode = c.inode, share = self)
 			if target.is_hardlink:
 				raise NestedHardlinkError("'%s' is a hardlink pointing to '%s', but that is also a hardlink" % (ensure_str(dentry.name), ensure_str(target_name)))
 			return HardlinkDentry(dentry, target)
@@ -140,7 +141,7 @@ class Share(Initializer):
 			if first_inode is None:
 				first_inode = inode
 
-			dentry = Dentry(data, name = name, share = self)
+			dentry = Dentry(data, name = name, inode = inode, share = self)
 
 			try:
 				remapped = remap[name]
@@ -163,6 +164,7 @@ class Share(Initializer):
 				target.is_hardlink = False
 				target.name = remapped_name
 				target.extra = dentry.extra
+				target.inode = dentry.inode
 
 				dentry.is_hardlink = True
 				dentry.hardlink = remapped_name
@@ -181,7 +183,7 @@ class Share(Initializer):
 					# original hardlink target to just a hardlink. Return a hardlink
 					# that points to the new "real" file.
 
-					target = Dentry(metadata[hardlink], share = self)
+					target = Dentry(metadata[hardlink], inode = inode, share = self)
 
 					remapped_name = remapped[dentry_layout_size:]
 					target.name = remapped_name
@@ -198,7 +200,7 @@ class Share(Initializer):
 				except KeyError as e:
 					raise MissingLinkError("'%s' is a hardlink to '%s' but the latter does not exist" % (ensure_str(name), ensure_str(hardlink))) from e
 
-				target = Dentry(target_data, name = target_name, share = self)
+				target = Dentry(target_data, name = target_name, inode = target_inode, share = self)
 				if target.is_hardlink:
 					raise NestedHardlinkError("'%s' is a hardlink pointing to '%s', but that is also a hardlink" % (ensure_str(name), ensure_str(target_name)))
 
@@ -226,8 +228,10 @@ class Share(Initializer):
 
 	@unlocked
 	def __getitem__(self, path):
-		path = hardhat_normalize(ensure_byteslike(path))
-		return self._parse_dentry(path, self.metadata[path])
+		c = self.metadata.find(hardhat_normalize(ensure_byteslike(path)))
+		if c.key is None:
+			raise KeyError(path)
+		return self._parse_dentry(path, c.value, c.inode)
 
 	@unlocked
 	def get(self, key, default = None):
