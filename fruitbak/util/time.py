@@ -148,8 +148,7 @@ def _day_interval(a, b, number, offset):
 		a_struct.tm_mday,
 		0, 0, 0, 0, 0, -1,
 	)) // 86400) - offset
-	a_day_remainder = a_day % number
-	a_day //= number
+	a_day, a_day_remainder = divmod(a_day, number)
 	a_day_start = int(_mktime((
 		a_struct.tm_year,
 		a_struct.tm_mon,
@@ -171,8 +170,7 @@ def _day_interval(a, b, number, offset):
 		b_struct.tm_mday,
 		0, 0, 0, 0, 0, -1,
 	)) // 86400) - offset)
-	b_day_remainder = b_day % number
-	b_day //= number
+	b_day, b_day_remainder = divmod(b_day, number)
 	if a_day == b_day:
 		b_day_start = a_day_start
 		b_day_end = a_day_end
@@ -224,8 +222,7 @@ def week_interval(a, b):
 def _month_interval(a, b, number):
 	a_struct = _localtime(a // 1000000000)
 	a_yearmonth = a_struct.tm_year * 12 + a_struct.tm_mon
-	a_yearmonth_remainder = a_yearmonth % number
-	a_yearmonth //= number
+	a_yearmonth, a_yearmonth_remainder = divmod(a_yearmonth, number)
 	a_month_start = int(_mktime((
 		a_struct.tm_year,
 		a_struct.tm_mon - a_yearmonth_remainder,
@@ -240,8 +237,7 @@ def _month_interval(a, b, number):
 
 	b_struct = _localtime(b // 1000000000)
 	b_yearmonth = b_struct.tm_year * 12 + b_struct.tm_mon
-	b_yearmonth_remainder = b_yearmonth % number
-	b_yearmonth //= number
+	b_yearmonth, b_yearmonth_remainder = divmod(b_yearmonth, number)
 	if a_yearmonth == b_yearmonth:
 		b_month_start = a_month_start
 		b_month_end = a_month_end
