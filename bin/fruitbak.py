@@ -474,13 +474,11 @@ else:
 		fbak = initialize_fruitbak()
 		fruit_fuse = FruitFuse(fruitbak = fbak)
 		options = {
-			key: val for key, val in (
-				option.split('=', 1)
-						if '=' in option
-						else (option, True)
-					for option in o.split(',')
-			)
+			key: (val if sep else True)
+				for key, sep, val in (option.partition('=') for option in o.split(','))
 		} if o else {}
+		options['rw'] = False
+		options['ro'] = True
 		options.setdefault('use_ino', True)
 		FUSE(fruit_fuse, mountpoint, fsname = f'fruitbak:{fbak.rootdir}', encoding = fruit_fuse.encoding, **options)
 

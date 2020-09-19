@@ -2,11 +2,11 @@ from fruitbak.util import Initializer, initializer, locked, fd
 from traceback import print_exc
 from stat import S_IFREG, S_IFDIR
 from fusepy import FuseOSError, Operations as FuseOperations
-from errno import ENOENT
+from errno import ENOENT, EIO
 from threading import Lock
 from os import dup
 from sys import stderr
-from functools import wraps
+from functools import wraps, lru_cache
 
 class FruitFuseFile(Initializer):
 	dentry = None
@@ -15,17 +15,16 @@ class FruitFuseFile(Initializer):
 
 def windshield(f):
 	"""Catches bugs."""
-	name = f.__name__
 	@wraps(f)
 	def windshield(self, *args, **kwargs):
 		try:
-			#self._trace(name, *args)
+			#self._trace(f.__name__, *args)
 			return f(self, *args, **kwargs)
 		except FuseOSError:
 			raise
 		except:
 			print_exc(file = self._stderr)
-		raise FuseOSError(ENOENT)
+		raise FuseOSError(EIO)
 	return windshield
 
 class FruitFuse(FuseOperations):
@@ -36,6 +35,7 @@ class FruitFuse(FuseOperations):
 		self._fruitbak = fruitbak
 		self._fds = {}
 		self._devs = {}
+		self._inos = {}
 		self._retired_fds = set()
 		self._stderr = open(dup(stderr.fileno()), 'w')
 		super().__init__()
@@ -77,7 +77,7 @@ class FruitFuse(FuseOperations):
 		del self._fds[fd]
 		self._retired_fds.add(fd)
 
-	_next_dev = 0
+	_next_dev = 1
 
 	def _dev(self, share):
 		backup = share.backup
@@ -87,12 +87,42 @@ class FruitFuse(FuseOperations):
 			return self._devs[key]
 		except KeyError:
 			pass
-		dev = self._next_dev
-		self._next_dev = dev + 1
-		self._devs[key] = dev
+		with self.lock:
+			dev = self._next_dev
+			self._next_dev = dev + 1
+			self._devs[key] = dev
 		return dev
 
-	def _parse_path(self, path, root_func, host_func, backup_func, share_func):
+	_next_ino = 2
+
+	def _ino(self, *key):
+		try:
+			return self._inos[key]
+		except KeyError:
+			pass
+		with self.lock:
+			ino = self._next_ino
+			self._next_ino = ino + 1
+			self._inos[key] = ino
+		return ino
+
+	@lru_cache()
+	def _get_host(self, host):
+		return self._fruitbak[host]
+
+	@lru_cache()
+	def _get_backup(self, host, backup):
+		return self._get_host(host)[backup]
+
+	@lru_cache()
+	def _get_share(self, host, backup, share):
+		return self._get_backup(host, backup)[share]
+
+	@lru_cache()
+	def _get_dentry(self, host, backup, share, path):
+		return self._get_share(host, backup, share)[path]
+
+	def _parse_path(self, path, root_func, host_func, backup_func, dentry_func):
 		relpath = path.lstrip('/')
 		components = relpath.split('/', 3) if relpath else []
 		depth = len(components)
@@ -103,33 +133,38 @@ class FruitFuse(FuseOperations):
 					raise FuseOSError(ENOENT)
 				return root_func()
 
-			host = self._fruitbak[self._fusepy_to_unicode(components[0])]
+			host = self._fusepy_to_unicode(components[0])
+
 			if depth == 1:
 				if host_func is None:
 					raise FuseOSError(ENOENT)
-				return host_func(host)
+				return host_func(self._get_host(host))
 
-			backup = host[int(components[1])]
+			try:
+				backup = int(components[1])
+			except ValueError:
+				raise FuseOSError(ENOENT)
+
 			if depth == 2:
 				if backup_func is None:
 					raise FuseOSError(ENOENT)
-				return backup_func(host, backup)
+				return backup_func(self._get_backup(host, backup))
 
-			if share_func is None:
+			if dentry_func is None:
 				raise FuseOSError(ENOENT)
 
-			share = backup[self._fusepy_to_unicode(components[2])]
-			path = components[3].encode(self.encoding) if depth > 3 else b''
-			return share_func(host, backup, share, path)
+			share = self._fusepy_to_unicode(components[2])
+			path = b'' if depth == 3 else components[3].encode(self.encoding)
+			return dentry_func(self._get_dentry(host, backup, share, path))
 		except (KeyError, FileNotFoundError):
 			raise FuseOSError(ENOENT)
 
-	def _open_share(self, host, backup, share, path):
-		return self._allocate_fd(FruitFuseFile(dentry = share[path]))
+	def _open_dentry(self, dentry):
+		return self._allocate_fd(FruitFuseFile(dentry = dentry))
 
 	@windshield
 	def open(self, path, flags):
-		return self._parse_path(path, None, None, None, self._open_share)
+		return self._parse_path(path, None, None, None, self._open_dentry)
 
 	@windshield
 	def read(self, path, size, offset, fd):
@@ -167,66 +202,121 @@ class FruitFuse(FuseOperations):
 	def release(self, path, fd):
 		self._deallocate_fd(fd)
 
-	def _dentry2stat(self, share, dentry):
+	def _getattr_root(self):
+		return dict(st_mode = S_IFDIR | 0o555, st_nlink = 2, st_ino = 1)
+
+	def _getattr_host(self, host):
+		ino = self._ino(host.name)
+		try:
+			last_backup = host[-1]
+		except:
+			return dict(st_mode = S_IFDIR | 0o555, st_nlink = 2, st_ino = ino)
+		else:
+			return dict(st_mode = S_IFDIR | 0o555, st_nlink = 2, st_ino = ino, st_mtime = last_backup.start_time)
+
+	def _getattr_backup(self, backup):
+		ino = self._ino(backup.host.name, backup.index)
+		return dict(st_mode = S_IFDIR | 0o555, st_nlink = 2, st_mtime = backup.start_time, st_ino = ino)
+
+	def _getattr_dentry(self, dentry):
+		size = dentry.size
 		return dict(
 			st_mode = dentry.mode,
 			st_atime = dentry.mtime,
 			st_ctime = dentry.mtime,
 			st_mtime = dentry.mtime,
-			st_size = dentry.size,
+			st_size = size,
+			st_blocks = (size + 511) // 512,
+			st_blksize = self._fruitbak.chunk_size,
 			st_uid = dentry.uid,
 			st_gid = dentry.gid,
-			st_ino = (self._dev(share) << 32) + dentry.inode,
+			st_ino = (self._dev(dentry.share) << 32) + dentry.inode,
 		)
-
-	def _getattr_root(self):
-		return dict(st_mode = S_IFDIR | 0o555, st_nlink = 2)
-
-	def _getattr_host(self, host):
-		try:
-			last_backup = host[-1]
-		except:
-			return dict(st_mode = S_IFDIR | 0o555, st_nlink = 2)
-		else:
-			return self._getattr_backup(host, last_backup)
-
-	def _getattr_backup(self, host, backup):
-		return dict(st_mode = S_IFDIR | 0o555, st_nlink = 2, st_mtime = backup.start_time)
-
-	def _getattr_share(self, host, backup, share, path):
-		return self._dentry2stat(share, share[path])
 
 	@windshield
 	def getattr(self, path, fd = None):
-		return self._parse_path(path, self._getattr_root, self._getattr_host, self._getattr_backup, self._getattr_share)
+		return self._parse_path(path, self._getattr_root, self._getattr_host, self._getattr_backup, self._getattr_dentry)
 
 	@windshield
-	def _readlink_share(self, host, backup, share, path):
-		return str(share[path].symlink, self.encoding)
+	def _readlink_dentry(self, dentry):
+		return str(dentry.symlink, self.encoding)
 
 	@windshield
 	def readlink(self, path):
-		return self._parse_path(path, None, None, None, self._readlink_share)
+		return self._parse_path(path, None, None, None, self._readlink_dentry)
 
 	def _readdir_root(self):
-		return (bytes(host.hostdir).decode(self.encoding) for host in self._fruitbak)
+		root_attrs = self._getattr_root()
+		encoding = self.encoding
+
+		return [
+			('.', root_attrs, 0),
+			('..', root_attrs, 0),
+			*(
+				(
+					bytes(host.hostdir).decode(encoding),
+					self._getattr_host(host),
+					0,
+				) for host in self._fruitbak
+			),
+		]
 
 	def _readdir_host(self, host):
-		return (str(backup.index) for backup in host)
+		return [
+			('.', self._getattr_host(host), 0),
+			('..', self._getattr_root(), 0),
+			*(
 
-	def _readdir_backup(self, host, backup):
-		return (bytes(share.sharedir).decode(self.encoding) for share in backup)
+				(
+					str(backup.index),
+					self._getattr_backup(backup),
+					0,
+				) for backup in host
+			),
+		]
 
-	def _readdir_share(self, host, backup, share, path):
-		return (
-			(
-				dentry.name.split(b'/')[-1].decode(self.encoding),
-				self._dentry2stat(share, dentry),
-				0,
-			) for dentry in share.ls(path)
-		)
+	def _readdir_backup(self, backup):
+		host = backup.host
+		host_name = host.name
+		backup_index = backup.index
+		encoding = self.encoding
+
+		return [
+			('.', self._getattr_backup(backup), 0),
+			('..', self._getattr_host(host), 0),
+			*(
+				(
+					bytes(share.sharedir).decode(encoding),
+					self._getattr_dentry(self._get_dentry(host_name, backup_index, share.name, b'')),
+					0,
+				) for share in backup
+			),
+		]
+
+	def _readdir_dentry(self, dentry):
+		share = dentry.share
+		backup = share.backup
+		encoding = self.encoding
+		name = dentry.name
+		if name:
+			parent_name, _, _ = name.rpartition(b'/')
+			parent_dentry = self._get_dentry(backup.host.name, backup.index, share.name, parent_name)
+			parent_attrs = self._getattr_dentry(parent_dentry)
+		else:
+			parent_attrs = self._getattr_backup(backup)
+
+		return [
+			('.', self._getattr_dentry(dentry), 0),
+			('..', parent_attrs, 0),
+			*(
+				(
+					dentry.name.rpartition(b'/')[2].decode(encoding),
+					self._getattr_dentry(dentry),
+					0,
+				) for dentry in share.ls(name)
+			),
+		]
 
 	@windshield
 	def readdir(self, path, fd):
-		entries = self._parse_path(path, self._readdir_root, self._readdir_host, self._readdir_backup, self._readdir_share)
-		return ['.', '..', *entries]
+		return self._parse_path(path, self._readdir_root, self._readdir_host, self._readdir_backup, self._readdir_dentry)
