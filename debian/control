@@ -8,6 +8,7 @@ Build-Depends: cdbs, debhelper, python3-setuptools, python3-sphinx,
 	python3-rsync-fetch,
 	python3-crypto,
 	python3-nacl,
+	python3-fusepy,
 X-Python3-Version: >= 3.5
 Standards-Version: 3.9.1
 
