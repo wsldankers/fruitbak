@@ -17,7 +17,6 @@ from time import sleep, localtime, strftime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from hardhat import normalize as hardhat_normalize
 from traceback import print_exc
-from collections import deque
 
 import gc, atexit, argparse
 
@@ -468,8 +467,9 @@ except ImportError:
 	pass
 else:
 	@cli.command()
+	@cli.argument('-o', default = '', metavar = 'options',
+		help = "FUSE mount options")
 	@cli.argument('mountpoint')
-	@cli.argument('-o', default = '')
 	def fuse(command, mountpoint, o):
 		fbak = initialize_fruitbak()
 		fruit_fuse = FruitFuse(fruitbak = fbak)
