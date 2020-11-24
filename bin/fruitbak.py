@@ -187,11 +187,14 @@ def ls(command, host, backup, share, path):
 			mode = dentry.mode
 			mode_chars = ''.join((
 				dentry.type.lsl_char,
-				'r' if mode & S_IRUSR else '-', 'w' if mode & S_IWUSR else '-',
+				'r' if mode & S_IRUSR else '-',
+				'w' if mode & S_IWUSR else '-',
 				('s' if mode & S_IXUSR else 'S') if mode & S_ISUID else ('x' if mode & S_IXUSR else '-'),
-				'r' if mode & S_IRGRP else '-', 'w' if mode & S_IWGRP else '-',
+				'r' if mode & S_IRGRP else '-',
+				'w' if mode & S_IWGRP else '-',
 				('s' if mode & S_IXGRP else 'S') if mode & S_ISGID else ('x' if mode & S_IXGRP else '-'),
-				'r' if mode & S_IROTH else '-', 'w' if mode & S_IWOTH else '-',
+				'r' if mode & S_IROTH else '-',
+				'w' if mode & S_IWOTH else '-',
 				('t' if mode & S_IXOTH else 'T') if mode & S_ISVTX else ('x' if mode & S_IXOTH else '-'),
 			))
 
