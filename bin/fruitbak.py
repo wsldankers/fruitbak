@@ -4,7 +4,7 @@ from fruitbak import Fruitbak
 from fruitbak.util import tabulate, Initializer, ThreadPool, time_ns, parse_interval
 import fruitbak.util.clack
 
-from os import fsdecode, getuid, initgroups, setresgid, setresuid, mkdir, mkdir, environ
+from os import fsdecode, getuid, initgroups, setresgid, setresuid, mkdir, environ
 from os.path import basename
 from sys import stdout, stderr, setswitchinterval
 from stat import *
@@ -127,7 +127,6 @@ def ls(command, host, backup, share, path):
 			end = format_time(end_time)
 			duration = format_interval(end_time - start_time)
 			status = 'fail' if s.error else 'done'
-			status = s.error or 'done'
 			return s.name, mountpoint, start, end, duration, status
 		headings = ('Name', 'Mount point', 'Start', 'End', 'Duration', 'Status')
 		print(tabulate(pmap(info, fbak[host][backup]), headings = headings, alignment = {4:True}))
@@ -161,7 +160,7 @@ def ls(command, host, backup, share, path):
 		except:
 			pass
 		else:
-			with passwd_share[groups_path].open('r', agent = agent) as fh:
+			with groups_share[groups_path].open('r', agent = agent) as fh:
 				for line in fh:
 					entry = line.split(':')
 					try:
@@ -186,16 +185,15 @@ def ls(command, host, backup, share, path):
 
 		def info(dentry):
 			mode = dentry.mode
-			mode_chars = [dentry.type.lsl_char]
-			mode_chars.append('r' if mode & S_IRUSR else '-')
-			mode_chars.append('w' if mode & S_IWUSR else '-')
-			mode_chars.append(('s' if mode & S_IXUSR else 'S') if mode & S_ISUID else ('x' if mode & S_IXUSR else '-'))
-			mode_chars.append('r' if mode & S_IRGRP else '-')
-			mode_chars.append('w' if mode & S_IWGRP else '-')
-			mode_chars.append(('s' if mode & S_IXGRP else 'S') if mode & S_ISGID else ('x' if mode & S_IXGRP else '-'))
-			mode_chars.append('r' if mode & S_IROTH else '-')
-			mode_chars.append('w' if mode & S_IWOTH else '-')
-			mode_chars.append(('t' if mode & S_IXOTH else 'T') if mode & S_ISVTX else ('x' if mode & S_IXOTH else '-'))
+			mode_chars = ''.join((
+				dentry.type.lsl_char,
+				'r' if mode & S_IRUSR else '-', 'w' if mode & S_IWUSR else '-',
+				('s' if mode & S_IXUSR else 'S') if mode & S_ISUID else ('x' if mode & S_IXUSR else '-'),
+				'r' if mode & S_IRGRP else '-', 'w' if mode & S_IWGRP else '-',
+				('s' if mode & S_IXGRP else 'S') if mode & S_ISGID else ('x' if mode & S_IXGRP else '-'),
+				'r' if mode & S_IROTH else '-', 'w' if mode & S_IWOTH else '-',
+				('t' if mode & S_IXOTH else 'T') if mode & S_ISVTX else ('x' if mode & S_IXOTH else '-'),
+			))
 
 			uid = dentry.uid
 			user = passwd.get(uid, uid)
@@ -218,7 +216,7 @@ def ls(command, host, backup, share, path):
 			if dentry.is_device:
 				size = "%3d, %3d" % (dentry.rdev_major, dentry.rdev_minor)
 
-			return ''.join(mode_chars), user, group, size, format_time(dentry.mtime), ' '.join(description)
+			return mode_chars, user, group, size, format_time(dentry.mtime), ' '.join(description)
 
 		tabulated = tabulate(pmap(info, share.ls(path)))
 		print("total", total_blocks)
