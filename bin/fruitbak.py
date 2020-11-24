@@ -1,12 +1,10 @@
 #! /usr/bin/env python3
 
-from os import environ
-
 from fruitbak import Fruitbak
 from fruitbak.util import tabulate, Initializer, ThreadPool, time_ns, parse_interval
 import fruitbak.util.clack
 
-from os import fsdecode, getuid, initgroups, setresgid, setresuid
+from os import fsdecode, getuid, initgroups, setresgid, setresuid, mkdir, mkdir, environ
 from os.path import basename
 from sys import stdout, stderr, setswitchinterval
 from stat import *
@@ -143,7 +141,7 @@ def ls(command, host, backup, share, path):
 
 		agent = fbak.pool.agent()
 
-		passwd = {}
+		passwd = {0: 'root'}
 		try:
 			passwd_share, passwd_path = backup.locate_path('/etc/passwd')
 		except:
@@ -157,7 +155,7 @@ def ls(command, host, backup, share, path):
 					except:
 						pass
 
-		groups = {}
+		groups = {0: 'root'}
 		try:
 			groups_share, groups_path = backup.locate_path('/etc/group')
 		except:
@@ -461,8 +459,7 @@ def gc(command, dry_run):
 
 
 try:
-	from fruitbak.fuse import FruitFuse
-	from fusepy import FUSE
+	from fruitbak.fuse import FruitFuse, FUSE
 except ImportError:
 	pass
 else:
@@ -480,6 +477,11 @@ else:
 		options['rw'] = False
 		options['ro'] = True
 		options.setdefault('use_ino', True)
+		try:
+			# Only create one level, to prevent typos from causing too much damage
+			mkdir(mountpoint)
+		except FileExistsError:
+			pass
 		FUSE(fruit_fuse, mountpoint, fsname = f'fruitbak:{fbak.rootdir}', encoding = fruit_fuse.encoding, **options)
 
 @cli.command()

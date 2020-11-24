@@ -1,12 +1,18 @@
 from fruitbak.util import Initializer, initializer, locked, fd
 from traceback import print_exc
 from stat import S_IFREG, S_IFDIR
-from fusepy import FuseOSError, Operations as FuseOperations
 from errno import ENOENT, EIO
 from threading import Lock
 from os import dup
 from sys import stderr
 from functools import wraps, lru_cache
+
+try:
+	# Debian decided to rename fuse.py to fusepy.py, probably
+	# to avoid a conflict with python3-fuse.
+	from fusepy import FUSE, FuseOSError, Operations as FuseOperations
+except ImportError:
+	from fuse import FUSE, FuseOSError, Operations as FuseOperations
 
 class FruitFuseFile(Initializer):
 	dentry = None
