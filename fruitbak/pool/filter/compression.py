@@ -154,3 +154,12 @@ else:
 				return lambda value: brotli.compress(value, lgblock = 24, quality = preset)
 
 		decompress = brotli.decompress
+
+try:
+	import zstd
+except ImportError:
+	pass
+else:
+	class ZSTD(Compressor):
+		compress = zstd.ZSTD_compress
+		decompress = zstd.ZSTD_uncompress
