@@ -16,20 +16,14 @@ AC_SUBST([pkglibdir], ['${libdir}/${PACKAGE}'])
 AC_PROG_INSTALL
 
 AC_CACHE_CHECK([for the full path of Python 3], [ac_cv_path_PYTHON], [
-	AC_PATH_PROGS_FEATURE_CHECK([PYTHON], [python python3], [
+	AC_PATH_PROGS_FEATURE_CHECK([PYTHON], [python3 python], [
 		case $($ac_path_PYTHON -V 2>/dev/null) in Python\ 3.*)
 			ac_cv_path_PYTHON=$ac_path_PYTHON
 			ac_path_PYTHON_found=:
 		esac
 	], [AC_MSG_ERROR([cannot find python 3 in your PATH.])])
 ])
-AC_SUBST([PYTHON], [$ac_cv_path_PYTHON])
-
-# for the compile script
-AC_PATH_PROG(PERL, perl)
-case $PERL in '')
-	AC_MSG_ERROR([cannot find perl in your PATH.])
-esac
+AC_SUBST([PYTHON3], [$ac_cv_path_PYTHON])
 
 AC_CONFIG_COMMANDS([scriptconfig], [echo "$allconfigvars" >scriptconfig], [
 allconfigvars=\$(cat <<'__CONFIGVARS_EOT'

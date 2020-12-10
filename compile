@@ -1,67 +1,53 @@
-#! perl
+#! python3
 
-use strict;
-use warnings FATAL => 'all';
-use autodie;
+from re import compile as regcomp
+from keyword import kwlist
+from sys import argv
 
-open my $fh, '<', 'scriptconfig';
+invars = {}
+outvars = {}
 
-my %invars = map { chomp; split /=/, $_, 2 } <$fh>;
-my %outvars;
+with open('scriptconfig') as fh:
+	for line in fh:
+		key, sep, val = line.rstrip().partition('=')
+		invars[key] = val
 
-close($fh);
+is_wellformed = regcomp(r'(?:[^\\\$\`]|\$(?:\{\w+}|\w+)|\\.)+').fullmatch
+expand_vars = regcomp(r'\\(.)|\$(?:\{(\w+)\}|(\w+))').sub
+escape_quotes = regcomp(r'[\\"]').sub
 
-for(;;) {
-	my $changed;
-	while(my ($key, $val) = each %invars) {
-		next unless $val =~ /^(?:[^\\\$\`]|\$(?:\{\w+}|\w+)|\\.)+$/;
-		$val =~ s{\\(.)|\$(?:\{(\w+)\}|(\w+))}{$1 // $outvars{$2 // $3} // ''}eg;
-		next if exists $outvars{$key} && $val eq $outvars{$key};
-		$outvars{$key} = $val;
-		$changed = 1;
-	}
-	last unless $changed;
-}
+def expansion(match):
+	subexp = match.group(1)
+	if subexp is not None:
+		return subexp
+	subexp = match.group(2)
+	if subexp is not None:
+		return outvars.get(subexp, '')
+	subexp = match.group(3)
+	if subexp is not None:
+		return outvars.get(subexp, '')
+	return ''
 
-my $lang = shift @ARGV;
+changed = True
+while changed:
+	changed = False
+	for key, val in invars.items():
+		if is_wellformed(val):
+			val = expand_vars(expansion, val)
+			if outvars.get(key) != val:
+				outvars[key] = val
+				changed = True
 
-if($lang eq 'perl') {
-	print "#! $outvars{PERL}\n\nBEGIN {\n";
+print(f"#! {outvars['PYTHON3']} -O\n\nclass autoconf:")
 
-	foreach my $key (sort keys %outvars) {
-		my $val = $outvars{$key};
-		$val =~ s/[\\"\$\@]/\\$&/g;
-		print "\tour \$$key = \"$val\";\n";
-	}
+for key in sorted(outvars):
+	val = outvars[key]
+	escaped_val = escape_quotes(r'\\\g<0>', val)
+	while key in kwlist:
+		key = 'ac_' + key
+	print(f"\t{key} = \"{escaped_val}\"")
 
-	print "}\n\n";
-
-	my $pod;
-	while(<ARGV>) {
-		$pod = 1 if /^=\w+/;
-		print unless $pod;
-		$pod = 0 if /^=cut(?:\s|$)/
-	}
-} elsif($lang eq 'python') {
-	open my $fh, '-|', $outvars{PYTHON}, "-c", "import keyword\nfor x in keyword.kwlist: print(x)";
-	my %resvars = map { chomp; ($_, undef) } <$fh>;
-	close($fh);
-
-	print "#! $outvars{PYTHON} -O\n\nclass autoconf:\n";
-
-	foreach my $key (sort keys %outvars) {
-		my $val = $outvars{$key};
-		$val =~ s/[\\"]/\\$&/g;
-		if(exists $resvars{$key}) {
-			print "\tac_$key = \"$val\"\n";
-		} else {
-			print "\t$key = \"$val\"\n";
-		}
-	}
-
-	print "\n";
-
-	print or die $! while <ARGV>;
-} else {
-	die "unknown language '$lang'\n";
-}
+for filename in argv[1:]:
+	print()
+	with open(filename) as fh:
+		print(fh.read(), end = '')
