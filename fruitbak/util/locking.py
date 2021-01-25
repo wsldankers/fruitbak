@@ -220,8 +220,10 @@ if __debug__:
 		def __init__(self, lock = None):
 			if lock is None:
 				lock = NLock()
-			self.__bool__ = lock.__bool__
 			return super().__init__(lock)
+
+		def __bool__(self):
+			return bool(self._lock)
 else:
 	NLock = Lock
 	NCondition = Condition
