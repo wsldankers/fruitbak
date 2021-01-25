@@ -8,11 +8,9 @@ functionality, but has several properties that are useful in Fruitbak:
   thread exhaustion / deadlock when `map()` is called recursively."""
 
 from threading import Thread
-from weakref import ref as weakref
 from collections import deque
 from os import sched_getaffinity
 from traceback import print_exc
-from sys import stderr
 
 from .weakheapmap import MaxWeakHeapMap
 from .oo import Initializer
@@ -32,9 +30,10 @@ class _Mutable:
 class _Result(Initializer):
 	__slots__ = 'success', 'result'
 
-	def __init__(self):
+	def __init__(self, **kwargs):
 		self.success = None
 		self.result = None
+		super().__init__(**kwargs)
 
 class _Job:
 	failed = False
@@ -52,22 +51,43 @@ class _Job:
 
 	@property
 	def done(self):
+		"""Whether this `_Job` is exhausted.
+		The lock must be held when querying this property.
+
+		:rtype: bool"""
+
 		assert self.cond
 
 		return self.next_arg is None
 
 	@property
-	def _eligible(self):
+	def eligible(self):
+		"""Whether this `_Job` is eligible to be scheduled.
+		Will return False if it is in error state or is exhausted.
+
+		The lock must be held when querying this property.
+		For internal use only.
+
+		:rtype: bool"""
+
 		assert self.cond
 
-		# return self._eligibility > 0
+		# return self.eligibility > 0
 		if self.done or self.failed:
 			return False
 
 		return len(self.results) < self.max_results
 
 	@property
-	def _eligibility(self):
+	def eligibility(self):
+		"""How eligible this `_Job` is compared to others.
+		If this `_Job` has the numerically highest value, it should be chosen over the others.
+
+		The lock must be held when querying this property.
+		For internal use only.
+
+		:rtype: int A non-zero integer."""
+
 		assert self.cond
 
 		if self.done or self.failed:
@@ -76,17 +96,32 @@ class _Job:
 		return max(0, self.max_results - len(self.results))
 
 	def abort(self):
+		"""Abort the `_Job`. Any tasks that are already in progress will be finished."""
+
 		cond = self.cond
 		with cond:
 			self.next_arg = None
 			cond.notify()
 
 	def notify(self):
+		"""Notify any waiters on the `Condition` object."""
+
 		cond = self.cond
 		with cond:
 			cond.notify()
 
 	def get_task(self):
+		"""Return the next task to perform and advance the iterator.
+		If there is no next task because the iterator previously raised an
+		exception, this exception will be reraised.
+		If there is no next task because the job was exhausted, None will be returned.
+
+		The lock must be held when calling this method.
+		For internal use only.
+
+		:return: A callable representing the task, or None.
+		:rtype: function or None"""
+
 		assert self.cond
 
 		cur_arg = self.next_arg
@@ -107,7 +142,21 @@ class _Job:
 		return lambda: self.func(*cur_arg)
 
 	def get_queued_task(self, resume):
+		"""Queue and return the next task to execute.
+		The argument `resume` is a function that will be called if a task was scheduled
+		and the job is not exhausted. It is called with the eligibility property of the
+		job as an argument. This mechanism is used to reschedule the job respective to
+		other running jobs.
+
+		The lock must not be held when calling this method.
+		For internal use only.
+
+		:param function resume: A function to call if the job needs to be rescheduled.
+		:return: A callable representing the task, or None.
+		:rtype: function or None"""
+
 		cond = self.cond
+		assert not cond
 		with cond:
 			results = self.results
 			try:
@@ -141,7 +190,7 @@ class _Job:
 								cond.notify()
 							return True
 
-					eligibility = self._eligibility
+					eligibility = self.eligibility
 					if eligibility:
 						resume(eligibility)
 
@@ -262,16 +311,18 @@ class ThreadPool:
 		results = job.results
 
 		# make sure we always keep the first item for ourselves:
-		task = job.get_task()
-		if task is None:
-			return iter([])
+		assert not job_cond
+		with job_cond:
+			task = job.get_task()
+			if task is None:
+				return iter([])
 
-		cond = self.cond
-		queue = self.queue
-		if not job.done:
-			with cond:
-				queue[job] = 0
-				cond.notify()
+			cond = self.cond
+			queue = self.queue
+			if not job.done:
+				with cond:
+					queue[job] = 0
+					cond.notify()
 
 		def map(self, task):
 			while True:
@@ -281,7 +332,7 @@ class ThreadPool:
 					while True:
 						if results:
 							result = results.popleft()
-							eligibility = job._eligibility
+							eligibility = job.eligibility
 							if eligibility:
 								with cond:
 									queue.move_to_end(job, eligibility)
@@ -297,7 +348,7 @@ class ThreadPool:
 							return
 						else:
 							task = job.get_task()
-							if not job._eligible:
+							if not job.eligible:
 								queue.discard(job)
 							break
 
