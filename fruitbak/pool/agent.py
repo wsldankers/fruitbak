@@ -1,5 +1,3 @@
-from weakref import ref as weakref, WeakValueDictionary
-
 from threading import Condition
 from collections import deque, OrderedDict
 from sys import stderr
@@ -283,7 +281,7 @@ class PoolAgent(Initializer):
 		try:
 			old = readaheads[readahead]
 		except KeyError:
-			old_length = 0
+			pass
 		else:
 			if old == new:
 				return

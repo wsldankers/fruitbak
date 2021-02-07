@@ -47,7 +47,7 @@ class Handler(Initializer):
 		pass
 
 	@stub
-	def lister(self):
+	def lister(self, agent):
 		pass
 
 class Filter(Handler):

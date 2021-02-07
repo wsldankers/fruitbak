@@ -70,7 +70,7 @@ class _Worker(Thread):
 
 								# perform all operations:
 								try:
-									with env.begin(write = True) as txn:
+									with env.write_batch(sync = True) as txn:
 										while accepted_writes:
 											job = accepted_writes.popleft()
 											results.append(job)
@@ -110,7 +110,7 @@ class _Worker(Thread):
 		except:
 			print_exc()
 
-class LMDB(Storage):
+class Plyvel(Storage):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self.cond = NCondition()
@@ -157,17 +157,14 @@ class LMDB(Storage):
 	@initializer
 	def env(self):
 		assert self.cond
-		from lmdb import open as lmdb_open, MemoryError
-		for exponent in range(63, 24, -1):
-			try:
-				return lmdb_open(bytes(self.pooldir), map_size = 2**exponent)
-			except MemoryError:
-				pass
-			try:
-				return lmdb_open(bytes(self.pooldir), map_size = 2**exponent - 1)
-			except MemoryError:
-				pass
-		return lmdb_open(bytes(self.pooldir))
+		from plyvel import DB, IteratorInvalidError
+		self.IteratorInvalidError = IteratorInvalidError
+		return DB(bytes(self.pooldir), create_if_missing = True, compression = None)
+
+	@initializer
+	def IteratorInvalidError(self):
+		from plyvel import IteratorInvalidError
+		return IteratorInvalidError
 
 	@initializer
 	def done(self):
@@ -175,15 +172,21 @@ class LMDB(Storage):
 		return _Mutable()
 
 	def has_chunk(self, callback, hash):
+		hash = bytes(hash)
+
 		cond = self.cond
 		with cond:
 			env = self.env
+		IteratorInvalidError = self.IteratorInvalidError
 
 		def job():
 			try:
-				with env.begin() as txn:
-					with txn.cursor() as cursor:
-						result = cursor.set_key(hash)
+				with env.raw_iterator() as i:
+					i.seek(hash)
+					try:
+						result = i.key() == hash
+					except IteratorInvalidError:
+						result = False
 			except:
 				callback(None, exc_info())
 			else:
@@ -195,14 +198,14 @@ class LMDB(Storage):
 			cond.notify()
 
 	def get_chunk(self, callback, hash):
+		hash = bytes(hash)
+
 		cond = self.cond
 		with cond:
 			env = self.env
-
 		def job():
 			try:
-				with env.begin() as txn:
-					buf = txn.get(hash)
+				buf = env.get(hash)
 				if buf is None:
 					raise KeyError(hash)
 			except:
@@ -211,39 +214,32 @@ class LMDB(Storage):
 				callback(buf, None)
 
 		with cond:
-			try:
-				self._ensure_started
-			except:
-				callback(None, exc_info())
-				return
+			self._ensure_started
 			self.reads.append(job)
 			cond.notify()
 
 	def put_chunk(self, callback, hash, value):
+		hash = bytes(hash)
+
 		def op(txn):
 			txn.put(hash, value)
 
 		cond = self.cond
 		with cond:
-			try:
-				self._ensure_started
-			except:
-				callback(exc_info())
-				return
+			self._ensure_started
 			self.writes.value.append(_WriteJob(op, callback))
 			if not self.writing:
 				cond.notify()
 
 	def del_chunk(self, callback, hash):
+		hash = bytes(hash)
+
 		def op(txn):
 			txn.delete(hash)
 
 		cond = self.cond
 		with cond:
-			try:
-				self._ensure_started
-			except:
-				callback(exc_info())
+			self._ensure_started
 			self.writes.value.append(_WriteJob(op, callback))
 			if not self.writing:
 				cond.notify()
@@ -251,7 +247,11 @@ class LMDB(Storage):
 	def lister(self, agent):
 		with self.cond:
 			env = self.env
-		with env.begin() as txn:
-			with txn.cursor() as cursor:
-				cursor.first()
-				yield from cursor.iternext(values = False)
+		with env.raw_iterator() as i:
+			i.seek_to_first()
+			try:
+				while True:
+					yield i.key()
+					i.next()
+			except self.IteratorInvalidError:
+				pass

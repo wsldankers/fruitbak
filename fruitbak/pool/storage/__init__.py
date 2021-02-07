@@ -11,3 +11,4 @@ except ImportError:
 	pass
 
 from fruitbak.pool.storage.lmdb import LMDB
+from fruitbak.pool.storage.plyvel import Plyvel
