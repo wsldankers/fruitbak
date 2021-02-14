@@ -1,5 +1,6 @@
 - implement ideas in READAHEAD
-- rsync
+- untangle pool/agent lock
+- xattrs
 - logging
 - user docs “getting started”, manpages, documented configuration file
 - api/code docs

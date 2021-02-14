@@ -72,18 +72,18 @@ def ls(command, host, backup, share, path):
 
 	def format_interval(t):
 		if t >= 86400000000000:
-			d, s = divmod(t, 86400000000000)
-			return '%dd%dh' % (d, s // 3600000000000)
+			d, s = divmod(t, 86400_000_000_000)
+			return '%dd%dh' % (d, s // 3600_000_000_000)
 		elif t >= 3600000000000:
-			h, s = divmod(t, 3600000000000)
-			return '%dh%dm' % (h, s // 60000000000)
+			h, s = divmod(t, 3600_000_000_000)
+			return '%dh%dm' % (h, s //   60_000_000_000)
 		elif t >= 60000000000:
-			m, s = divmod(t, 60000000000)
-			return '%dm%ds' % (m, s // 60000000000)
+			m, s = divmod(t, 60_000_000_000)
+			return '%dm%ds' % (m, s //    1_000_000_000)
 		else:
-			s, ns = divmod(t, 1000000000)
+			s, ns = divmod(t, 1_000_000_000)
 			if ns:
-				return '%d.%02ds' % (s, ns // 10000000)
+				return '%d.%02ds' % (s, ns // 10_000_000)
 			else:
 				return '%ds' % s
 
