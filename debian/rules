@@ -1,9 +1,10 @@
 #! /usr/bin/make -f
 
-DEB_PYTHON_SYSTEM = python3
-DEB_PYTHON3_MODULE_PACKAGES = python3-fruitbak
-DEB_PYTHON_DESTDIR = $(CURDIR)/debian/$(DEB_PYTHON3_MODULE_PACKAGES)
+export PYBUILD_NAME = fruitbak
 
-include /usr/share/cdbs/1/rules/debhelper.mk
-include /usr/share/cdbs/1/class/autotools.mk
-include /usr/share/cdbs/1/class/python-distutils.mk
+%:
+	exec dh $@ --with=python3
+
+override_dh_auto_clean override_dh_auto_configure override_dh_auto_build override_dh_auto_test override_dh_auto_install:
+	exec $(patsubst override_%,%,$@) --buildsystem=autoconf
+	exec $(patsubst override_%,%,$@) --buildsystem=pybuild

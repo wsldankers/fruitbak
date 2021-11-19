@@ -1,8 +1,11 @@
 Source: fruitbak
 Section: admin
-Priority: extra
+Priority: optional
 Maintainer: Wessel Dankers <wsl@fruit.je>
-Build-Depends: cdbs, debhelper, python3-setuptools, python3-sphinx,
+Build-Depends: debhelper, dh-python,
+	python3-all,
+	python3-setuptools,
+	python3-sphinx,
 	python3-hardhat,
 	python3-hashset,
 	python3-rsync-fetch,
@@ -17,6 +20,8 @@ Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends},
 	adduser,
 	python3-fruitbak,
+Recommends:
+	python3-fusepy,
 Description: Efficient disk-based backups
  Efficient disk-based backups. Features:
  .
