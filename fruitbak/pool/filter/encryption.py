@@ -4,7 +4,9 @@ from fruitbak.util import initializer, locked
 from fruitbak.pool.handler import Filter
 
 from base64 import b64encode, b64decode
-from Crypto.Cipher import AES
+from cryptography.hazmat.primitives.ciphers import Cipher
+from cryptography.hazmat.primitives.ciphers.modes import ECB
+from cryptography.hazmat.primitives.ciphers.algorithms import AES
 
 class Encrypt(Filter):
 	@initializer
@@ -34,19 +36,28 @@ class Encrypt(Filter):
 	@locked
 	@initializer
 	def aes(self):
-		if self.fruitbak.hash_size % AES.block_size:
-			raise RuntimeError("size of hash function (%d) is incompatible with AES block size (%d)"
-				% (self.fruitbak.hash_size, AES.block_size))
-		# we get away with reusing this because the mode is ECB
-		return AES.new(self.validated_key)
+		hash_size_bits = self.fruitbak.hash_size * 8
+		block_size_bits = AES.block_size
+		if hash_size_bits % block_size_bits:
+			raise RuntimeError("size of hash function (%d bits) is incompatible with AES block size (%d bits)"
+				% (hash_size_bits, block_size_bits))
+
+		# Using ECB is normally a deadly sin but in this case we mostly get away
+		# with it because we only use it for hashes, which do not have patterns
+		# that can be exploited. We can't use IVs or nonces because the same hash
+		# must always encrypt to the exact same ciphertext.
+		return Cipher(AES(self.validated_key), ECB())
+
 
 	@initializer
 	def encrypt_hash(self):
-		return self.aes.encrypt
+		# we get away with reusing this because the mode is ECB
+		return self.aes.encryptor().update
 
 	@initializer
 	def decrypt_hash(self):
-		return self.aes.decrypt
+		# we get away with reusing this because the mode is ECB
+		return self.aes.decryptor().update
 
 	@locked
 	@initializer
@@ -90,7 +101,7 @@ class Encrypt(Filter):
 		subordinate = self.subordinate
 		encrypt_chunk = self.encrypt_chunk
 
-		hash = self.aes.encrypt(bytes(hash))
+		hash = self.encrypt_hash(bytes(hash))
 
 		def job():
 			try:
