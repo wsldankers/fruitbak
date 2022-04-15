@@ -2,6 +2,7 @@ from os import fwalk, unlink, rmdir, mkdir, rename
 from fcntl import flock, LOCK_EX, LOCK_NB
 from pathlib import Path
 from json import dump as dump_json
+from collections.abc import Mapping
 
 from hashset import Hashset
 
@@ -9,6 +10,16 @@ from fruitbak.util import Initializer, initializer, xyzzy, time_ns
 from fruitbak.config import configurable, configurable_function, configurable_command
 from fruitbak.new.share import NewShare
 from fruitbak.transfer import LocalTransfer
+
+def _declass(value):
+	if type(value) is type:
+		return {
+			key: val
+			for key, val in value.__dict__.items()
+			if not key.startswith('_')
+		}
+	else:
+		return value
 
 class NewBackup(Initializer):
 	@initializer
@@ -31,6 +42,10 @@ class NewBackup(Initializer):
 	def share(self):
 		return {}
 
+	@share.prepare
+	def share(self, value):
+		return _declass(value)
+
 	@configurable
 	def shares(self):
 		return [dict(name = 'root', path = '/')]
@@ -38,7 +53,11 @@ class NewBackup(Initializer):
 	@shares.prepare
 	def shares(self, value):
 		share = self.share
-		return [{**share, **v} for v in value]
+		value = _declass(value)
+		if isinstance(value, Mapping):
+			return [{**share, 'name': k, **_declass(v)} for k, v in value.items()]
+		else:
+			return [{**share, **_declass(v)} for v in value]
 
 	@configurable_command
 	def pre_command(self):
