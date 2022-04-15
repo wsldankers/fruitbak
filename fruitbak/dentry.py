@@ -38,6 +38,7 @@ data from the hardlink target instead.
 from stat import *
 from io import RawIOBase, TextIOWrapper
 from struct import pack, unpack, Struct
+from typing import Optional
 
 from fruitbak.util import Initializer, initializer, ensure_byteslike, ensure_str
 
@@ -129,17 +130,17 @@ class DENTRY_TYPE(Initializer):
 	Each DENTRY_TYPE_* class defines several representations of the file
 	type for use in various contexts:"""
 
-	lsl_char = None
+	lsl_char: Optional[str] = None
 	"""The character used in the output of of ``ls -l``. Read-only.
 
 	:type: str or None"""
 
-	tar_char = None
+	tar_char: Optional[bytes] = None
 	"""The byte used in tar archives. Read-only.
 
 	:type: bytes or None"""
 
-	stat_num = None
+	stat_num: Optional[int] = None
 	"""The number used in the S_IFMT part of the stat() st_mode field.
 	Read-only.
 
