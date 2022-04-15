@@ -1,4 +1,4 @@
-"""Represent hosts to back up"""
+"""Represent a previously backed up share"""
 
 from fruitbak.dentry import Dentry, HardlinkDentry, dentry_layout_size
 from fruitbak.util import Initializer, initializer, lockingclass, unlocked, ensure_byteslike, ensure_str

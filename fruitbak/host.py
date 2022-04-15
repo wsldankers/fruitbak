@@ -1,4 +1,4 @@
-"""Represent hosts to back up"""
+"""Represent a previously backed up host"""
 
 from fruitbak.util import Initializer, initializer, lockingclass, unlocked
 from fruitbak.config import Config, configurable
