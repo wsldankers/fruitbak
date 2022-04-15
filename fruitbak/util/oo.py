@@ -89,6 +89,7 @@ class _getdelinitializer(_getinitializer):
 	def __init__(self, getfunction, delfunction):
 		super().__init__(getfunction)
 		self.delfunction = delfunction
+		update_wrapper(self, delfunction)
 
 	def __set__(self, obj, value):
 		vars(obj)[self.name] = value
@@ -129,6 +130,7 @@ class _getsetinitializer(_getinitializer):
 	def __init__(self, getfunction, setfunction):
 		super().__init__(getfunction)
 		self.setfunction = setfunction
+		update_wrapper(self, setfunction)
 
 	def __set__(self, obj, value):
 		vars(obj)[self.name] = self.setfunction(obj, value)
@@ -168,6 +170,7 @@ class _getsetdelinitializer(_getsetinitializer):
 	def __init__(self, getfunction, setfunction, delfunction):
 		super().__init__(getfunction, setfunction)
 		self.delfunction = delfunction
+		update_wrapper(self, delfunction)
 
 	def __delete__(self, obj):
 		name = self.name
@@ -299,6 +302,7 @@ class flexiblemethod:
 			self._classmethod = method
 		else:
 			self._classmethod = classmethod
+			update_wrapper(self, classmethod)
 		update_wrapper(self, method)
 
 	def classmethod(self, method):
@@ -309,6 +313,7 @@ class flexiblemethod:
 			class."""
 
 		self._classmethod = method
+		update_wrapper(self, method)
 		return self
 
 	def __get__(self, instance, owner):
@@ -343,6 +348,7 @@ class fallback:
 
 	def __init__(self, method):
 		self._method = method
+		update_wrapper(self, method)
 
 	def __get__(self, instance, owner):
 		return self._method(owner if instance is None else instance)
