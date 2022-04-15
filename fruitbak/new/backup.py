@@ -48,7 +48,7 @@ class NewBackup(Initializer):
 
 	@configurable
 	def shares(self):
-		return [dict(name = 'root', path = '/')]
+		return [{'name': 'root', 'path': '/'}]
 
 	@shares.prepare
 	def shares(self, value):
@@ -77,8 +77,8 @@ class NewBackup(Initializer):
 
 	@configurable_function
 	def transfer(**kwargs):
-		self = kwargs['newshare']
-		return self.transfer_method(**self.transfer_options, **kwargs)
+		newshare = kwargs['newshare']
+		return newshare.transfer_method(**newshare.transfer_options, **kwargs)
 
 	@configurable
 	def excludes(self):
