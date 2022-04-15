@@ -207,7 +207,7 @@ class LocalTransfer(Transfer):
 											buf = fd.read(chunk_size)
 											if not buf:
 												break
-											hashes.append(newshare.put_chunk(buf))
+											hashes.append(newshare.put_chunk(None, buf))
 											buf_len = len(buf)
 											size += buf_len
 											if buf_len < chunk_size:

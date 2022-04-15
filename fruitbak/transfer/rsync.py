@@ -96,7 +96,7 @@ class RsyncTransfer(Transfer):
 								newshare.add_dentry(dentry)
 							else:
 								size += len(chunk)
-								hashes.append(newshare.put_chunk(chunk))
+								hashes.append(newshare.put_chunk(None, chunk))
 						return data_callback
 				elif dentry.is_symlink:
 					dentry.symlink = symlink
