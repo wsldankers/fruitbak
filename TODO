@@ -1,8 +1,13 @@
 - implement ideas in READAHEAD
 - untangle pool/agent lock
+- untangle share/backup configuration
+- fsync parent directories
 - xattrs
 - logging
 - user docs “getting started”, manpages, documented configuration file
 - api/code docs
+- test suite
+- modularize cli
+- exception hierarchy
 - triage exceptions to distinguish between tempfail and permfail
 - generate exceptions that can be pretty printed for the user
