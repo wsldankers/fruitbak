@@ -415,10 +415,9 @@ def backup(command, hosts, all, full):
 		do_full = needs_full(host)
 		try:
 			host.backup(full = do_full)
-			#print(host.name)
 		except Exception as e:
-			print_exc()
-			#print("%s: %s" % (host.name, str(e)), file = stderr)
+			# print_exc()
+			print("%s: %s" % (host.name, str(e)), file = stderr)
 
 	if max_parallel_backups == 1 or num_hosts == 1:
 		for i in range(num_hosts):
