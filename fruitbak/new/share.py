@@ -220,11 +220,12 @@ class NewShare(Initializer):
 
 	@initializer
 	def predecessor(self):
-		"""The previous backup (or None if this is the first).
+		"""The previous backup.
 		This is used as a source of known hashes to prevent unneccesary
-		disk I/O.
+		disk I/O. Returns an empty dict if none could be found, so
+		be sure to only use use indexing operations on it.
 
-		:type: fruitbak.backup.Backup or None"""
+		:type: fruitbak.backup.Backup or dict"""
 
 		return self.newbackup.predecessor
 

@@ -53,6 +53,7 @@ from fruitbak.util import Initializer, initializer, sysopendir, lockingclass, un
 from fruitbak.host import Host
 from fruitbak.pool import Pool
 from fruitbak.config import Config, configurable, configurable_function
+from fruitbak.exceptions import HostNotFoundError
 
 from hashset import Hashset
 
@@ -136,7 +137,7 @@ class Fruitbak(Initializer):
 		raise RuntimeError("$HOME not set")
 
 	@rootdir.prepare
-	def rootdir(self, value):
+	def rootdir_prepare(self, value):
 		return Path(value)
 
 	@initializer
@@ -164,7 +165,7 @@ class Fruitbak(Initializer):
 		return 'host'
 
 	@hostdir.prepare
-	def hostdir(self, value):
+	def hostdir_prepare(self, value):
 		return Path(value)
 
 	@initializer
@@ -199,7 +200,7 @@ class Fruitbak(Initializer):
 		return 1
 
 	@max_parallel_backups.validate
-	def max_parallel_backups(self, value):
+	def max_parallel_backups_validate(self, value):
 		intvalue = int(value)
 		if intvalue != value or value < 1:
 			raise RuntimeError("max_parallel_backups must be a strictly positive integer")
@@ -217,7 +218,7 @@ class Fruitbak(Initializer):
 		return 32
 
 	@max_workers.validate
-	def max_workers(self, value):
+	def max_workers_validate(self, value):
 		intvalue = int(value)
 		if intvalue != value or value < 1:
 			raise RuntimeError("max_workers must be a strictly positive integer")
@@ -300,10 +301,11 @@ class Fruitbak(Initializer):
 		return 2 ** 21
 
 	@chunk_size.validate
-	def chunk_size(self, value):
-		if value & value - 1:
+	def chunk_size_validate(self, value):
+		value = int(value)
+		if value & (value - 1):
 			raise RuntimeError("chunk_size must be a power of two")
-		return int(value)
+		return value
 
 	@unlocked
 	def hashes(self):
@@ -375,7 +377,7 @@ class Fruitbak(Initializer):
 		for host in self:
 			if host.name == name:
 				return host
-		raise KeyError(name)
+		raise HostNotFoundError(name)
 
 	@unlocked
 	def name_to_path(self, name):
