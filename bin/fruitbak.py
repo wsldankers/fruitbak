@@ -14,11 +14,10 @@ from tarfile import TarInfo, REGTYPE, LNKTYPE, SYMTYPE, CHRTYPE, BLKTYPE, DIRTYP
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from hardhat import normalize as hardhat_normalize
 from traceback import print_exc
-
-import gc, atexit, argparse
+from gc import collect as python_garbage_collect
 
 def check_for_loops():
-	if gc.collect() != 0:
+	if python_garbage_collect() != 0:
 		print("W: reference loops at program exit!", file = stderr)
 
 def initialize_fruitbak():
