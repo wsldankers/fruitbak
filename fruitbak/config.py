@@ -260,6 +260,12 @@ class Config:
 	def setdefault(self, key, default = None):
 		return self.globals.setdefault(key, default)
 
+	def discard(self, key):
+		try:
+			del self.globals[key]
+		except KeyError:
+			pass
+
 	def __repr__(self):
 		rep = ["[config for %s]\n" % self.globals['name']]
 		for key, value in self.globals.items():

@@ -170,6 +170,8 @@ class NewBackup(Initializer):
 
 				for share_config in self.shares:
 					combined_config = config.copy()
+					combined_config.discard('pre_command')
+					combined_config.discard('post_command')
 					combined_config.update(share_config)
 					share = NewShare(config = combined_config, newbackup = self)
 					shares_info[share.name] = share.backup()
