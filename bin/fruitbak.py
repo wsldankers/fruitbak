@@ -546,8 +546,73 @@ def listchunks(command):
 	for hash in fbak.pool.agent().lister():
 		print(hash)
 
+@cli.command()
+@cli.argument('interval',
+	help = "interval in fruit.util.time format; e.g. 1d for 1 day, 1w for 1 week, etc.")
+@cli.argument('--nrpe', action = 'store_true', dest = 'nrpe',
+	help = "produce NRPE parsable output and return codes")
+def bckok(command, interval, nrpe):
+	"""Check if all configured backups have run OK the last X time (interval)"""
+
+	now = time_ns()
+	fbak = initialize_fruitbak()
+	pmap = ThreadPool(max_workers = 32).map
+	check_interval = parse_interval(interval, future = False, relative_to = None)
+
+	# Duplicate code from the 'list' command... FIXME: move to time.py?
+	def format_interval(t):
+		if t >= 86400000000000:
+			d, s = divmod(t, 86400_000_000_000)
+			return '%dd%dh' % (d, s // 3600_000_000_000)
+		elif t >= 3600000000000:
+			h, s = divmod(t, 3600_000_000_000)
+			return '%dh%dm' % (h, s //   60_000_000_000)
+		elif t >= 60000000000:
+			m, s = divmod(t, 60_000_000_000)
+			return '%dm%ds' % (m, s //    1_000_000_000)
+		else:
+			s, ns = divmod(t, 1_000_000_000)
+			if ns:
+				return '%d.%02ds' % (s, ns // 10_000_000)
+			else:
+				return '%ds' % s
+
+	def info(h):
+		try:
+			b = h[-1]
+		except IndexError:
+			# No backups available for h.name.
+			return h.name, None, h.auto, None, not h.auto
+		else:
+			# Time in days since the last backup completed
+			time_since_last = now - b.end_time
+
+			# Base assumption is that we're not in good shape
+			# All checks are skipped (bckok --> True) if auto backup is disabled
+			# The latest backup took place within the check-interval AND
+			# the latest backup succeeded
+			bckok = not h.auto or (time_since_last < check_interval and not b.failed)
+			return h.name, format_interval(time_since_last), h.auto, not b.failed, bckok
+
+	if nrpe:
+		# Produce NRPE parsable output and return codes
+		list=[]
+		for t in pmap(info,fbak):
+			if not t[-1]:
+				list.append(t[0])
+		if len(list) > 0:
+			print("CRITICAL: backups failed for:", ', '.join(list))
+			return 2
+	else:
+		headings = ('Host name', 'Last backup', 'Auto enabled', 'Last backup OK', 'Status')
+		print(tabulate(
+			pmap(info, fbak),
+			headings = headings,
+			alignment = [ False ] * len(headings),
+		))
+
 if __name__ == '__main__':
 	# up from default 0.005s
 	setswitchinterval(1)
 
-	cli()
+	exit(cli())
