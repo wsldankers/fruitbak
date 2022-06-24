@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 
 from fruitbak import Fruitbak
-from fruitbak.util import tabulate, Initializer, ThreadPool, time_ns, parse_interval
+from fruitbak.util import tabulate, Initializer, ThreadPool, time_ns, format_time, parse_interval, format_interval
 import fruitbak.util.clack
 
 from os import fsdecode, getuid, initgroups, setresgid, setresuid, mkdir, environ
@@ -11,7 +11,6 @@ from stat import *
 from pwd import getpwnam
 from pathlib import Path
 from tarfile import TarInfo, REGTYPE, LNKTYPE, SYMTYPE, CHRTYPE, BLKTYPE, DIRTYPE, FIFOTYPE, GNU_FORMAT, BLOCKSIZE
-from time import sleep, localtime, strftime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from hardhat import normalize as hardhat_normalize
 from traceback import print_exc
@@ -62,48 +61,40 @@ def cli(): pass
 @cli.argument('backup', nargs = '?', type = int)
 @cli.argument('share', nargs = '?')
 @cli.argument('path', nargs = '?')
-def ls(command, host, backup, share, path):
+@cli.argument('-m', '--max-age',
+	help = "maximum age for the last backup to be considered healthy",
+	dest = 'max_age',
+)
+def ls(command, host, backup, share, path, max_age):
 	"""Lists hosts, backups, shares and paths"""
 
 	fbak = initialize_fruitbak()
-
-	def format_time(t):
-		return strftime('%Y-%m-%d %H:%M:%S', localtime(t // 1000000000))
-
-	def format_interval(t):
-		if t >= 86400000000000:
-			d, s = divmod(t, 86400_000_000_000)
-			return '%dd%dh' % (d, s // 3600_000_000_000)
-		elif t >= 3600000000000:
-			h, s = divmod(t, 3600_000_000_000)
-			return '%dh%dm' % (h, s //   60_000_000_000)
-		elif t >= 60000000000:
-			m, s = divmod(t, 60_000_000_000)
-			return '%dm%ds' % (m, s //    1_000_000_000)
-		else:
-			s, ns = divmod(t, 1_000_000_000)
-			if ns:
-				return '%d.%02ds' % (s, ns // 10_000_000)
-			else:
-				return '%ds' % s
-
 	pmap = ThreadPool(max_workers = 32).map
+	now = time_ns()
+	after = now - parse_interval(max_age, future = False, relative_to = now)
 
 	if host is None:
 		def info(h):
 			try:
 				b = h[-1]
 			except IndexError:
-				return h.name,
+				return h.name, '', '', '', '', '', "empty"
 			else:
 				start_time = b.start_time
 				time = format_time(b.start_time)
 				duration = format_interval(b.end_time - start_time)
 				level = b.level
-				type = 'incr' if level else 'full'
-				status = 'fail' if b.failed else 'done'
-				return h.name, time, duration, b.index, type, level, status
-		headings = ('Host name', 'Last backup', 'Duration', 'Index', 'Type', 'Level', 'Status')
+				full_incr = 'incr' if level else 'full'
+				if h.auto:
+					if max_age is None or b.start_time >= after:
+						health = "ok"
+					else:
+						health = "stale"
+				else:
+					health = "disabled"
+
+				return h.name, time, duration, b.index, full_incr, level, health
+		headings = ('Host name', 'Last backup', 'Duration', 'Index', 'Type', 'Level', 'Health')
 		print(tabulate(pmap(info, fbak), headings = headings, alignment = {2:True}))
 	elif backup is None:
 		def info(b):
@@ -428,6 +419,7 @@ def backup(command, hosts, all, full):
 @cli.argument('-n', '--dry-run', '--dryrun', action = 'store_true', dest = 'dry_run')
 def gc(command, dry_run):
 	"""Clean up"""
+
 	fbak = initialize_fruitbak()
 
 	# delete old backups
@@ -547,69 +539,45 @@ def listchunks(command):
 		print(hash)
 
 @cli.command()
-@cli.argument('interval',
-	help = "interval in fruit.util.time format; e.g. 1d for 1 day, 1w for 1 week, etc.")
-@cli.argument('--nrpe', action = 'store_true', dest = 'nrpe',
-	help = "produce NRPE parsable output and return codes")
-def bckok(command, interval, nrpe):
+@cli.argument('-m', '--max-age',
+	help = "maximum age for the last backup to be considered healthy",
+	dest = 'max_age',
+)
+def nagioscheck(command, max_age):
 	"""Check if all configured backups have run OK the last X time (interval)"""
 
-	now = time_ns()
 	fbak = initialize_fruitbak()
 	pmap = ThreadPool(max_workers = 32).map
-	check_interval = parse_interval(interval, future = False, relative_to = None)
-
-	# Duplicate code from the 'list' command... FIXME: move to time.py?
-	def format_interval(t):
-		if t >= 86400000000000:
-			d, s = divmod(t, 86400_000_000_000)
-			return '%dd%dh' % (d, s // 3600_000_000_000)
-		elif t >= 3600000000000:
-			h, s = divmod(t, 3600_000_000_000)
-			return '%dh%dm' % (h, s //   60_000_000_000)
-		elif t >= 60000000000:
-			m, s = divmod(t, 60_000_000_000)
-			return '%dm%ds' % (m, s //    1_000_000_000)
-		else:
-			s, ns = divmod(t, 1_000_000_000)
-			if ns:
-				return '%d.%02ds' % (s, ns // 10_000_000)
-			else:
-				return '%ds' % s
-
-	def info(h):
-		try:
-			b = h[-1]
-		except IndexError:
-			# No backups available for h.name.
-			return h.name, None, h.auto, None, not h.auto
-		else:
-			# Time in days since the last backup completed
-			time_since_last = now - b.end_time
-
-			# Base assumption is that we're not in good shape
-			# All checks are skipped (bckok --> True) if auto backup is disabled
-			# The latest backup took place within the check-interval AND
-			# the latest backup succeeded
-			bckok = not h.auto or (time_since_last < check_interval and not b.failed)
-			return h.name, format_interval(time_since_last), h.auto, not b.failed, bckok
-
-	if nrpe:
-		# Produce NRPE parsable output and return codes
-		list=[]
-		for t in pmap(info,fbak):
-			if not t[-1]:
-				list.append(t[0])
-		if len(list) > 0:
-			print("CRITICAL: backups failed for:", ', '.join(list))
-			return 2
+	if max_age is None:
+		after = None
 	else:
-		headings = ('Host name', 'Last backup', 'Auto enabled', 'Last backup OK', 'Status')
-		print(tabulate(
-			pmap(info, fbak),
-			headings = headings,
-			alignment = [ False ] * len(headings),
-		))
+		now = time_ns()
+		after = now - parse_interval(max_age, future = False, relative_to = now)
+
+	def info(host):
+		if host.auto:
+			try:
+				last_backup = host[-1]
+			except IndexError:
+				healthy = False
+			else:
+				healthy = after is None or last_backup.start_time >= after
+		else:
+			healthy = True
+
+		return host.name, healthy
+
+	failed_hosts = [
+		name
+		for name, healthy in pmap(info, fbak)
+		if not healthy
+	]
+	if failed_hosts:
+		print("CRITICAL: backups failed for:", *failed_hosts)
+		return 2
+	else:
+		print("OK")
+		return 0
 
 if __name__ == '__main__':
 	# up from default 0.005s

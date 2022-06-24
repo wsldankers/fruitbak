@@ -105,7 +105,7 @@ class NewBackup(Initializer):
 		try:
 			return self.host[-1]
 		except IndexError:
-			return None
+			return {}
 
 	@initializer
 	def index(self):

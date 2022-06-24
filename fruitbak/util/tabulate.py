@@ -44,7 +44,7 @@ def tabulate(rows, *, headings = None, alignment = (), tablefmt = None, linesep 
 	for row in rows:
 		string_columns = []
 		for i, column in enumerate(row):
-			s = str(column)
+			s = f"{column}"
 			string_columns.append((column, s))
 			l = len(s)
 			if i >= len(widths):

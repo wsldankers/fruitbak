@@ -5,7 +5,7 @@ This module also exports `time_ns()`, either from the `time` module or a
 polyfill if that function is not available."""
 
 from re import compile as _regcomp, IGNORECASE as _IGNORECASE
-from time import localtime as _localtime, mktime as _mktime
+from time import localtime as _localtime, mktime as _mktime, strftime as _strftime
 from calendar import timegm as _timegm
 from fractions import Fraction as _Fraction
 
@@ -15,6 +15,41 @@ except ImportError:
 	from time import time as _time
 	def time_ns():
 		return int(_time() * 1000000000.0)
+
+def format_time(t):
+	"""Format a timestamp (expressed as nanoseconds since 1970-01-01 00:00:00
+	UTC) into human-readable syntax with seconds granularity.
+
+	:param int t: the timestamp
+
+	:return: A human-readable string.
+	:rtype: str"""
+
+	return _strftime('%Y-%m-%d %H:%M:%S', _localtime(t // 1000000000))
+
+def format_interval(t):
+	"""Format an interval (expressed as nanoseconds) into human-readable syntax.
+
+	:param int t: the interval
+
+	:return: A human-readable string.
+	:rtype: str"""
+
+	if t >= 86400000000000:
+		d, s = divmod(t, 86400_000_000_000)
+		return '%dd%dh' % (d, s // 3600_000_000_000)
+	elif t >= 3600000000000:
+		h, s = divmod(t, 3600_000_000_000)
+		return '%dh%dm' % (h, s //   60_000_000_000)
+	elif t >= 60000000000:
+		m, s = divmod(t, 60_000_000_000)
+		return '%dm%ds' % (m, s //    1_000_000_000)
+	else:
+		s, ns = divmod(t, 1_000_000_000)
+		if ns:
+			return '%d.%02ds' % (s, ns // 10_000_000)
+		else:
+			return '%ds' % s
 
 _parse_interval_re = _regcomp(r'\s*(\d+)\s*([smhdwlqy]|[mun]s)\s*', _IGNORECASE)
 
@@ -92,7 +127,9 @@ def parse_interval(s, future = None, relative_to = None):
 	:type future: bool or None
 	:param relative_to: The starting/ending point of the interval is not now but
 		the specified moment, expressed as nanoseconds since 1970-01-01 00:00:00
-		UTC."""
+		UTC.
+	:return: The interval as a scalar number of nanoseconds.
+	:rtype: int"""
 
 	match = _parse_interval_re.match(s)
 	if match is None:
@@ -202,7 +239,7 @@ def day_interval(a, b):
 	:param int b: The end of the interval.
 	:return: The number of days between the intervals.
 	:rtype: fractions.Fraction"""
-	
+
 	return _day_interval(a, b, 1, 0)
 
 def week_interval(a, b):
