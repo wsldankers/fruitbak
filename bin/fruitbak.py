@@ -69,47 +69,59 @@ def ls(command, host, backup, share, path, max_age):
 
 	fbak = initialize_fruitbak()
 	pmap = ThreadPool(max_workers = 32).map
-	now = time_ns()
-	after = now - parse_interval(max_age, future = False, relative_to = now)
+	if max_age is None:
+		after = None
+	else:
+		now = time_ns()
+		after = now - parse_interval(max_age, future = False, relative_to = now)
 
 	if host is None:
-		def info(h):
+
+		def host_info(host):
 			try:
-				b = h[-1]
+				last_backup = host[-1]
 			except IndexError:
-				return h.name, '', '', '', '', '', "empty"
+				return host.name, '', '', '', '', '', "empty"
 			else:
-				start_time = b.start_time
-				time = format_time(b.start_time)
-				duration = format_interval(b.end_time - start_time)
-				level = b.level
+				start_time = last_backup.start_time
+				time = format_time(last_backup.start_time)
+				duration = format_interval(last_backup.end_time - start_time)
+				level = last_backup.level
 				full_incr = 'incr' if level else 'full'
-				if h.auto:
-					if max_age is None or b.start_time >= after:
+
+				if host.auto:
+					if after is None or last_backup.start_time >= after:
 						health = "ok"
 					else:
 						health = "stale"
 				else:
 					health = "disabled"
 
-				return h.name, time, duration, b.index, full_incr, level, health
+				return host.name, time, duration, last_backup.index, full_incr, level, health
+
 		headings = ('Host name', 'Last backup', 'Duration', 'Index', 'Type', 'Level', 'Health')
-		print(tabulate(pmap(info, fbak), headings = headings, alignment = {2:True}))
+		print(tabulate(pmap(host_info, fbak), headings = headings, alignment = {2:True}))
+
 	elif backup is None:
-		def info(b):
-			start_time = b.start_time
-			end_time = b.end_time
+
+		def backup_info(backup):
+			start_time = backup.start_time
+			end_time = backup.end_time
 			start = format_time(start_time)
 			end = format_time(end_time)
 			duration = format_interval(end_time - start_time)
-			level = b.level
+			level = backup.level
 			fullincr = 'incr' if level else 'full'
-			status = 'fail' if b.failed else 'ok'
-			return b.index, start, end, duration, fullincr, level, status
+			status = 'fail' if backup.failed else 'ok'
+
+			return backup.index, start, end, duration, fullincr, level, status
+
 		headings = ('Index', 'Start', 'End', 'Duration', 'Type', 'Level', 'Status')
-		print(tabulate(pmap(info, fbak[host]), headings = headings, alignment = {3:True}))
+		print(tabulate(pmap(backup_info, fbak[host]), headings = headings, alignment = {3:True}))
+
 	elif share is None:
-		def info(s):
+
+		def share_info(s):
 			mountpoint = s.mountpoint
 			start_time = s.start_time
 			end_time = s.end_time
@@ -117,10 +129,14 @@ def ls(command, host, backup, share, path, max_age):
 			end = format_time(end_time)
 			duration = format_interval(end_time - start_time)
 			status = 'fail' if s.error else 'done'
+
 			return s.name, mountpoint, start, end, duration, status
+
 		headings = ('Name', 'Mount point', 'Start', 'End', 'Duration', 'Status')
-		print(tabulate(pmap(info, fbak[host][backup]), headings = headings, alignment = {4:True}))
+		print(tabulate(pmap(share_info, fbak[host][backup]), headings = headings, alignment = {4:True}))
+
 	else:
+
 		backup = fbak[host][backup]
 		if path is None:
 			share, path = backup.locate_path(share)
@@ -173,7 +189,7 @@ def ls(command, host, backup, share, path, max_age):
 				t.append('..')
 			return '/'.join(reversed(t))
 
-		def info(dentry):
+		def dentry_info(dentry):
 			mode = dentry.mode
 			mode_chars = ''.join((
 				dentry.type.lsl_char,
@@ -211,7 +227,7 @@ def ls(command, host, backup, share, path, max_age):
 
 			return mode_chars, user, group, size, format_time(dentry.mtime), ' '.join(description)
 
-		tabulated = tabulate(pmap(info, share.ls(path)))
+		tabulated = tabulate(pmap(dentry_info, share.ls(path)))
 		print("total", total_blocks)
 		print(tabulated)
 
