@@ -200,7 +200,6 @@ class Filesystem(Storage):
 		pooldir_fd = self.pooldir_fd
 
 		def job():
-			value_len = len(value)
 			try:
 				if not pooldir_fd.access(path, F_OK):
 					try:
@@ -284,7 +283,6 @@ else:
 			proc_self_fd = self.proc_self_fd
 
 			def job():
-				value_len = len(value)
 				try:
 					if not pooldir_fd.access(path, F_OK):
 						try:
