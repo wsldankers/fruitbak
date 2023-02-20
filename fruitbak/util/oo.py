@@ -77,6 +77,11 @@ class _getinitializer:
 
 		return _getdelinitializer(self.getfunction, delfunction)
 
+	@property
+	def __isabstractmethod__(self):
+		return getattr(self.getfunction, '__isabstractmethod__', False)
+
+
 class _getdelinitializer(_getinitializer):
 	"""A data descriptor that runs a function as an initializer whenever
 	the attribute is accessed and there is no value in the object's `__dict__`
@@ -118,6 +123,10 @@ class _getdelinitializer(_getinitializer):
 
 		return _getsetdelinitializer(self.getfunction, setfunction, self.delfunction)
 
+	@property
+	def __isabstractmethod__(self):
+		return getattr(self.delfunction, '__isabstractmethod__', False) or super().__isabstractmethod__
+
 class _getsetinitializer(_getinitializer):
 	"""A data descriptor that runs a function as an initializer whenever
 	the attribute is accessed and there is no value in the object's `__dict__`
@@ -157,6 +166,10 @@ class _getsetinitializer(_getinitializer):
 
 		return _getsetdelinitializer(self.getfunction, self.setfunction, delfunction)
 
+	@property
+	def __isabstractmethod__(self):
+		return getattr(self.setfunction, '__isabstractmethod__', False) or super().__isabstractmethod__
+
 class _getsetdelinitializer(_getsetinitializer):
 	"""A data descriptor that runs a function as an initializer whenever
 	the attribute is accessed and there is no value in the object's `__dict__`
@@ -183,6 +196,10 @@ class _getsetdelinitializer(_getsetinitializer):
 		else:
 			return
 		raise AttributeError(name)
+
+	@property
+	def __isabstractmethod__(self):
+		return getattr(self.delfunction, '__isabstractmethod__', False) or super().__isabstractmethod__
 
 def initializer(getfunction, setfunction=None, delfunction=None):
 	"""Decorate a method to make it an initializer for an attribute. The
@@ -322,6 +339,13 @@ class flexiblemethod:
 		else:
 			return method_closure(self._method, instance)
 
+	@property
+	def __isabstractmethod__(self):
+		return (
+			getattr(self._method, '__isabstractmethod__', False) or
+			getattr(self._classmethod, '__isabstractmethod__', False)
+		)
+
 class fallback:
 	"""Decorator that creates a non-data descriptor that simply calls the
 	supplied method whenever the attribute is retrieved but does not have a
@@ -352,6 +376,10 @@ class fallback:
 
 	def __get__(self, instance, owner):
 		return self._method(owner if instance is None else instance)
+
+	@property
+	def __isabstractmethod__(self):
+		return getattr(self._method, '__isabstractmethod__', False)
 
 def stub(method):
 	"""Decorator to mark a method as a stub. Attempts to call the method
