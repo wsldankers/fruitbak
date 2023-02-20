@@ -388,8 +388,10 @@ class Fruitbak(Initializer):
 		:rtype: Path
 		:return: The encoded `name`, as a Path"""
 
-		return Path(quote(name[0], errors = 'strict', safe = '+=_,%@')
-			+ quote(name[1:], errors = 'strict', safe = '+=_,%@.-'))
+		return Path(
+			quote(name[0], errors = 'strict', safe = '+=_,%@') +
+			quote(name[1:], errors = 'strict', safe = '+=_,%@.-')
+		)
 
 	@unlocked
 	def path_to_name(self, path):
