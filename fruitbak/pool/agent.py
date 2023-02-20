@@ -2,7 +2,7 @@ from threading import Condition
 from collections import deque, OrderedDict
 from sys import stderr
 
-from fruitbak.util import Initializer, initializer, MinHeapMap, MinWeakHeapMap
+from fruitbak.util import Initializer, initializer, MinHeapMap, MinWeakHeapMap, NLock
 from fruitbak.config import configurable
 
 class PoolAction(Initializer):

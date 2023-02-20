@@ -9,10 +9,10 @@ from base64 import b64encode, b64decode
 from traceback import print_exc
 from sys import stderr, exc_info
 from threading import get_ident as gettid
-from os import getpid, unlink, F_OK, O_RDONLY, O_WRONLY, O_EXCL, O_CREAT
+from os import getpid, unlink, F_OK, O_RDONLY, O_WRONLY, O_EXCL, O_CREAT, O_NOFOLLOW
 
 from pathlib import Path
-from re import compile as regcomp
+from re import compile as regcomp, escape
 
 from time import sleep
 from random import choice
@@ -20,6 +20,7 @@ from itertools import chain
 
 b64bytes = b'+_'
 b64chars = b64bytes.decode()
+b64escaped = escape(b64chars)
 
 b64seq = bytes(b64encode(bytes((i << 2,)), b64bytes)[0] for i in range(64)).decode()
 #b64set = set(b64seq)
@@ -82,12 +83,12 @@ class Filesystem(Storage):
 		return Path(b64[:2]) / b64[2:]
 
 	@initializer
-	def valid_file_re(self):
-		return regcomp('[A-Za-z0-9'+b64chars+']{%d}' % (
+	def is_valid_file_name(self):
+		return regcomp('[A-Za-z0-9'+b64escaped+']{%d}' % (
 			len(my_b64encode(bytes(self.hash_size))) - 2,
 		)).fullmatch
 
-	valid_dir_re = regcomp('[A-Za-z0-9'+b64chars+']{2}').fullmatch
+	is_valid_dir_name = regcomp('[A-Za-z0-9'+b64escaped+']{2}').fullmatch
 
 	@configurable
 	def pooldir(self):
@@ -111,10 +112,10 @@ class Filesystem(Storage):
 				('tmp-', str(getpid()), '-', str(gettid()), '-'),
 				(choice(b64seq) for x in range(32)),
 			))
-			path = Path(path) / name
-			self.fd = sysopen(path, O_WRONLY|O_EXCL|O_CREAT, 0o440, dir_fd = dir_fd)
+			path = Path(name) if path is None else Path(path) / name
 			self.path = path
 			self.dir_fd = dir_fd
+			self.fd = sysopen(path, O_WRONLY|O_EXCL|O_CREAT|O_NOFOLLOW, 0o440, dir_fd = dir_fd)
 
 		@fallback
 		def path(self):
@@ -129,6 +130,8 @@ class Filesystem(Storage):
 			raise RuntimeError("this temporary file is already closed")
 
 		def close(self):
+			if 'fd' not in self.__dict__:
+				return
 			path = self.path
 			fd = self.fd
 			dir_fd = self.dir_fd
@@ -234,27 +237,27 @@ class Filesystem(Storage):
 
 	def lister(self, agent):
 		dirs = self.pooldir_fd.listdir()
-		dirs = list(filter(self.valid_dir_re, dirs))
+		dirs = list(filter(self.is_valid_dir_name, dirs))
 		dirs.sort(key = lambda x: b64decode(x+'A=', b64bytes))
-		listahead = FilesystemListahead(filesystem = self, agent = agent, iterator = iter(dirs))
-		for action in listahead:
-			if action.exception:
-				raise action.exception[1]
-			yield from action.cursor
+		with FilesystemListahead(filesystem = self, agent = agent, iterator = iter(dirs)) as listahead:
+			for action in listahead:
+				if action.exception:
+					raise action.exception[1]
+				yield from action.cursor
 
 	def listdir(self, callback, directory):
 		hash_size = self.hash_size
 		pooldir = self.pooldir
 		pooldir_fd = self.pooldir_fd
-		valid_file_re = self.valid_file_re
+		is_valid_file_name = self.is_valid_file_name
 		def job():
 			try:
 				with pooldir_fd.sysopendir(directory) as fd:
-					files = list(filter(valid_file_re, fd.listdir()))
-				hashes = map(lambda x: my_b64decode(directory + x), files)
-				del files
-				hashbuf = b''.join(hashes)
-				del hashes
+					hashbuf = b''.join(
+						my_b64decode(directory + file)
+						for file in fd.listdir()
+						if is_valid_file_name(file)
+					)
 				cursor = Hashset(hashbuf, hash_size)
 			except:
 				callback(None, exc_info())

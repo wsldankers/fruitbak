@@ -4,6 +4,8 @@ from fruitbak import Fruitbak
 from fruitbak.util import tabulate, Initializer, ThreadPool, time_ns, format_time, parse_interval, format_interval
 import fruitbak.util.clack
 
+from hashset import Hashset
+
 from os import fsdecode, getuid, initgroups, setresgid, setresuid, mkdir, environ
 from os.path import basename
 from sys import stdout, stderr, setswitchinterval
@@ -15,6 +17,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from hardhat import normalize as hardhat_normalize
 from traceback import print_exc
 from gc import collect as python_garbage_collect
+from contextlib import ExitStack
+from base64 import b64encode
+from collections import deque
 
 def check_for_loops():
 	if python_garbage_collect() != 0:
@@ -429,9 +434,14 @@ def backup(command, hosts, all, full):
 				# make sure we see any thrown exceptions
 				job.result()
 
+def _encode_hash(hash):
+	b64 = b64encode(hash, b'+_').rstrip(b'=').decode()
+	return f"{b64[:2]}/{b64[2:]}"
+
 @cli.command()
 @cli.argument('-n', '--dry-run', '--dryrun', action = 'store_true', dest = 'dry_run')
-def gc(command, dry_run):
+@cli.argument('-c', '--check', action = 'store_true', dest = 'check')
+def gc(command, dry_run, check):
 	"""Clean up"""
 
 	fbak = initialize_fruitbak()
@@ -451,16 +461,102 @@ def gc(command, dry_run):
 
 	cleaned_chunks = 0
 
-	# clean up the pool
-	agent = fbak.pool.agent()
-	for hash in agent.lister():
-		if hash not in hashes:
-			if not dry_run:
-				agent.del_chunk(hash, wait = False)
-			cleaned_chunks += 1
+	with ExitStack() as exit_stack:
+		if check:
+			hash_size = fbak.hash_size
+			rootdir_fd = fbak.rootdir_fd
+			rootdir_opener = rootdir_fd.opener
+
+			poolhashes_filename = 'poolhashes.tmp'
+			exit_stack.callback(rootdir_fd.unlink, poolhashes_filename, missing_ok = True)
+			poolhashes_fh = exit_stack.enter_context(
+				open(poolhashes_filename, 'wb', opener = rootdir_opener)
+			)
+
+			missing_filename = fbak.missing_filename
+			missing_filename_tmp = f"{missing_filename}.new"
+			exit_stack.callback(rootdir_fd.unlink, missing_filename_tmp, missing_ok = True)
+			missing_fh = exit_stack.enter_context(
+				open(missing_filename_tmp, 'wb', opener = rootdir_opener)
+			)
+			missing_chunks_detected = False
+
+			previously_missing = fbak.missing_hashes
+
+		# clean up the pool
+		agent = fbak.pool.agent()
+		for hash in agent.lister():
+			if hash in hashes:
+				if check:
+					poolhashes_fh.write(hash)
+			else:
+				if not dry_run:
+					agent.del_chunk(hash, wait = False)
+				cleaned_chunks += 1
+
+		if check:
+			poolhashes_fh.close()
+			Hashset.sortfile(poolhashes_filename, hash_size, dir_fd = rootdir_fd)
+			poolhashes = exit_stack.enter_context(
+				Hashset.load(poolhashes_filename, hash_size, dir_fd = rootdir_fd)
+			)
+			for hash in hashes:
+				if hash in poolhashes:
+					if hash in previously_missing:
+						print(f"chunk {_encode_hash(hash)} recovered!", file = stderr)
+				else:
+					missing_chunks_detected = True
+					print(f"chunk {_encode_hash(hash)} missing!", file = stderr)
+					missing_fh.write(hash)
+
+			if missing_chunks_detected:
+				missing_fh.close()
+				Hashset.sortfile(missing_filename_tmp, hash_size, dir_fd = rootdir_fd)
+				rootdir_fd.rename(missing_filename_tmp, missing_filename)
+			else:
+				rootdir_fd.unlink(missing_filename, missing_ok = True)
 
 	if dry_run:
 		print("would have cleaned %d chunks" % (cleaned_chunks,))
+
+	agent.sync()
+
+
+@cli.command()
+@cli.argument('-f', '--force', action = 'store_true', dest = 'force')
+def scrub(command, force):
+	"""Check hashes of files"""
+
+	fbak = initialize_fruitbak()
+	rootdir_fd = fbak.rootdir_fd
+	hash_func = fbak.hash_func
+
+	def check_hash(action):
+		hash = action.hash
+		value = action.value
+		exception = action.exception
+		if exception is not None:
+			_, exc, _ = exception
+			print(str(exc), file = stderr)
+		elif value is None:
+			print(f"{_encode_hash(hash)} missing", file = stderr)
+		elif hash_func(value) != hash:
+			print(f"{_encode_hash(hash)} checksum failure", file = stderr)
+
+	agent = fbak.pool.agent()
+
+	from fruitbak.pool.storage.filesystem import Filesystem
+
+	with Filesystem.NamedTemporaryFile(None, dir_fd = rootdir_fd) as tmp:
+		fd = tmp.fd
+		with open(fd, 'wb', closefd = False) as fh:
+			for hash in agent.lister():
+				fh.write(hash)
+		fd.close()
+
+		with Hashset.load(bytes(tmp.path), fbak.hash_size, dir_fd = rootdir_fd) as hashes:
+			with agent.readahead(hashes) as reader:
+				deque(fbak.cpu_executor.map(check_hash, reader), 0)
 
 	agent.sync()
 

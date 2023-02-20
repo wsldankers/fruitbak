@@ -325,6 +325,24 @@ class Fruitbak(Initializer):
 			Hashset.merge(*hashsets, path = fd)
 			return Hashset.load(fd, self.hash_size)
 
+	missing_filename = 'MISSING'
+
+	@unlocked
+	@property
+	def missing_hashes(self):
+		"""A (usually hopefully empty) Hashset containing hashes that were
+		detected to be missing during the last check.
+
+		:return: A Hashset of all missing hashes in the pool.
+		:rtype: hashset.Hashset"""
+
+		hash_size = self.hash_size
+
+		try:
+			return Hashset.load('MISSING', hash_size, dir_fd = self.rootdir_fd)
+		except FileNotFoundError:
+			return Hashset(b'', hash_size)
+
 	@initializer
 	def pool(self):
 		"""The shared pool object that is used to access pool data.

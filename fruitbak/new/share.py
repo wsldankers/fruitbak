@@ -278,6 +278,16 @@ class NewShare(Initializer):
 
 		return self.fruitbak.hash_func
 
+	@initializer
+	def missing_hashes(self):
+		"""A (usually hopefully empty) Hashset containing hashes that were
+		detected to be missing during the last check.
+
+		:return: A Hashset of all missing hashes in the pool.
+		:rtype: hashset.Hashset"""
+
+		return self.fruitbak.missing_hashes
+
 	def put_chunk(self, hash, value):
 		"""Store a single chunk.
 
@@ -290,7 +300,7 @@ class NewShare(Initializer):
 		if hash is None:
 			hash = self.hash_func(value)
 
-		if hash not in self.predecessor_hashes:
+		if hash in self.missing_hashes or hash not in self.predecessor_hashes:
 			self.agent.put_chunk(hash, value, wait = False)
 
 		return hash

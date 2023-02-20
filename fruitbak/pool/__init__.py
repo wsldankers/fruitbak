@@ -22,7 +22,6 @@ creates a new agent)."""
 
 from weakref import ref as weakref, WeakValueDictionary
 
-from threading import Condition, RLock
 from sys import stderr
 
 from fruitbak.util import Initializer, initializer, MinWeakHeapMap, weakproperty, locked, NLock
