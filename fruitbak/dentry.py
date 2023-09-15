@@ -42,6 +42,9 @@ from typing import Optional
 
 from fruitbak.util import Initializer, initializer, ensure_byteslike, ensure_str
 
+INT64_MIN = -2**63
+INT64_MAX = 2**63 - 1
+
 class DentryError(Exception):
 	"""Something Dentry-related went wrong.
 
@@ -399,7 +402,7 @@ class Dentry(Initializer):
 			flags,
 			self.mode,
 			self.size,
-			self.mtime,
+			min(INT64_MAX, max(INT64_MIN, self.mtime)),
 			self.uid,
 			self.gid,
 		) + self.extra
