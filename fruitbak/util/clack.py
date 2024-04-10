@@ -50,7 +50,7 @@ class clack:
 				self._parser.set_defaults(*args, **kwargs)
 			self._stack.append(set_defaults)
 			return func
-		return argument
+		return defaults
 
 	def __call__(self, *args, **kwargs):
 		ns = self._parser.parse_args(*args, **kwargs)
