@@ -8,9 +8,10 @@ from pathlib import Path, PurePath
 from sys import stderr, exc_info
 from stat import *
 from traceback import print_exc, print_exception
+from typing import Optional
 
 class fruitwalk:
-	_message = None
+	_message: Optional[bool] = None
 
 	def __init__(self, *args, **kwargs):
 		self._iterator = self._walktop(*args, **kwargs)
