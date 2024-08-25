@@ -1,14 +1,16 @@
 from fruitbak.pool.handler import Handler
 
+
 class Storage(Handler):
-	pass
+    pass
+
 
 from fruitbak.pool.storage.filesystem import Filesystem
 
 try:
-	from fruitbak.pool.storage.filesystem import LinuxFilesystem
+    from fruitbak.pool.storage.filesystem import LinuxFilesystem
 except ImportError:
-	pass
+    pass
 
 from fruitbak.pool.storage.lmdb import LMDB
 from fruitbak.pool.storage.plyvel import Plyvel

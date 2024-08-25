@@ -1,14 +1,17 @@
 #! /usr/bin/python3
 
-from setuptools import setup, find_packages
 import re
 
+from setuptools import find_packages, setup
+
 with open('debian/changelog') as changelog:
-	name, version = re.compile('(\S+) \(([^\)~\s]+)[\)~]').match(changelog.readline()).group(1, 2)
+    name, version = (
+        re.compile('(\S+) \(([^\)~\s]+)[\)~]').match(changelog.readline()).group(1, 2)
+    )
 
 setup(
-	name = name,
-	version = version,
-	packages = find_packages(),
-	test_suite = 'tests',
+    name=name,
+    version=version,
+    packages=find_packages(),
+    test_suite='tests',
 )

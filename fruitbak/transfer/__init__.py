@@ -2,54 +2,56 @@ from pathlib import Path
 
 from fruitbak.util import Initializer, initializer
 
+
 class Transfer(Initializer):
-	@initializer
-	def fruitbak(self):
-		return self.host.fruitbak
+    @initializer
+    def fruitbak(self):
+        return self.host.fruitbak
 
-	@initializer
-	def host(self):
-		return self.newbackup.host
+    @initializer
+    def host(self):
+        return self.newbackup.host
 
-	@initializer
-	def newbackup(self):
-		return self.newshare.newbackup
+    @initializer
+    def newbackup(self):
+        return self.newshare.newbackup
 
-	@initializer
-	def path(self):
-		return Path(self.newshare.path)
+    @initializer
+    def path(self):
+        return Path(self.newshare.path)
 
-	@initializer
-	def mountpoint(self):
-		return Path(self.newshare.mountpoint)
+    @initializer
+    def mountpoint(self):
+        return Path(self.newshare.mountpoint)
 
-	@initializer
-	def reference(self):
-		return self.newshare.reference
+    @initializer
+    def reference(self):
+        return self.newshare.reference
 
-	@initializer
-	def excludes(self):
-		return self.newshare.excludes
+    @initializer
+    def excludes(self):
+        return self.newshare.excludes
 
-	@initializer
-	def config(self):
-		return self.newshare.config
+    @initializer
+    def config(self):
+        return self.newshare.config
 
-	@initializer
-	def hostname(self):
-		return self.config.get('host', self.host.name)
+    @initializer
+    def hostname(self):
+        return self.config.get('host', self.host.name)
 
-	@initializer
-	def user(self):
-		return self.config.get('user')
+    @initializer
+    def user(self):
+        return self.config.get('user')
 
-	@initializer
-	def port(self):
-		return self.config.get('port')
+    @initializer
+    def port(self):
+        return self.config.get('port')
 
-	@initializer
-	def one_filesystem(self):
-		return self.config.get('one_filesystem')
+    @initializer
+    def one_filesystem(self):
+        return self.config.get('one_filesystem')
+
 
 from fruitbak.transfer.local import LocalTransfer
 from fruitbak.transfer.rsync import RsyncTransfer

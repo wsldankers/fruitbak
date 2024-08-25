@@ -5,7 +5,7 @@ from fruitbak.util.locking import *
 from fruitbak.util.oo import *
 from fruitbak.util.strbytes import *
 from fruitbak.util.tabulate import *
-from fruitbak.util.time import *
 from fruitbak.util.threadpool import *
+from fruitbak.util.time import *
 from fruitbak.util.weak import *
 from fruitbak.util.weakheapmap import *
