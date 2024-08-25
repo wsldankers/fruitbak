@@ -10,7 +10,7 @@ from fruitbak.config import Config, configurable
 from fruitbak.new.backup import NewBackup
 from fruitbak.util import Initializer, initializer, lockingclass, unlocked
 
-numbers_re = re.compile('0|[1-9][0-9]*')
+is_valid_number = re.compile('0|[1-9][0-9]*').fullmatch
 
 
 def ffs(x):
@@ -96,7 +96,7 @@ class Host(Initializer):
         backupcache = self.backupcache
         for entry in hostdir_fd.scandir():
             entry_name = entry.name
-            if numbers_re.match(entry_name) and entry.is_dir():
+            if is_valid_number(entry_name) and entry.is_dir():
                 indices[int(entry_name)] = Path(entry_name)
 
         log_tiers = {}
