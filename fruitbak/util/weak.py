@@ -44,6 +44,8 @@ class weakproperty(property):
                 if value is not None:
                     return value
             value = f(self)
+            if value is None:
+                raise AttributeError(name)
 
             def unsetter(weak):
                 try:
