@@ -40,7 +40,9 @@ class weakproperty(property):
             except KeyError:
                 pass
             else:
-                return weak()
+                value = weak()
+                if value is not None:
+                    return value
             value = f(self)
 
             def unsetter(weak):
