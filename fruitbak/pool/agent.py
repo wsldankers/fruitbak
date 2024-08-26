@@ -47,11 +47,11 @@ class PoolReadahead(Initializer):
     iterator = None
 
     @initializer
-    def lock(self):
+    def agent_lock(self):
         return self.agent.lock
 
     @initializer
-    def cond(self):
+    def agent_cond(self):
         return self.agent.cond
 
     @initializer
@@ -69,7 +69,8 @@ class PoolReadahead(Initializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        with self.lock:
+        self.lock = NLock
+        with self.agent_lock:
             self.iterator = iter(self.iterator)
             self.agent.register_readahead(self)
 
@@ -84,18 +85,18 @@ class PoolReadahead(Initializer):
 
     def __next__(self):
         with self.lock:
-            cond = self.cond
+            agent_cond = self.agent_cond
             queue = self.queue
 
             while not queue[0].done if queue else self.iterator:
-                cond.wait()
+                agent_cond.wait()
             try:
                 return queue.popleft()
             except IndexError:
                 raise StopIteration()
             finally:
-                agent = self.agent
-                agent.register_readahead(self)
+                with agent_cond:
+                    self.agent.register_readahead(self)
 
     def __del__(self):
         agent = self.agent
@@ -354,7 +355,7 @@ class PoolAgent(Initializer):
             pool.register_agent(self)
             pool.replenish_queue()
 
-            while mailbag in self.mailhook:
+            while mailbag in mailhook:
                 cond.wait()
 
             if not wait:
@@ -391,7 +392,7 @@ class PoolAgent(Initializer):
             pool.register_agent(self)
             pool.replenish_queue()
 
-            while mailbag in self.mailhook:
+            while mailbag in mailhook:
                 cond.wait()
 
         if not wait:
@@ -434,7 +435,7 @@ class PoolAgent(Initializer):
             pool.register_agent(self)
             pool.replenish_queue()
 
-            while mailbag in self.mailhook:
+            while mailbag in mailhook:
                 cond.wait()
 
         if not wait:
@@ -477,7 +478,7 @@ class PoolAgent(Initializer):
             pool.register_agent(self)
             pool.replenish_queue()
 
-            while mailbag in self.mailhook:
+            while mailbag in mailhook:
                 cond.wait()
 
         if not wait:

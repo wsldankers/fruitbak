@@ -253,7 +253,7 @@ class Pool(Initializer):
         self.agents.discard(agent)
 
     def replenish_queue(self):
-        """Allow agents to schedule I/O operations. Will loop for
+        """Allow agents to schedule I/O operations. Will loop for as long
         as it takes to either fill up the queue to `max_queue_depth`
         or until no agents have pending I/O.
 
